@@ -248,7 +248,7 @@ else
 fi
 
 # Create directories
-mkdir -p "$CODERED_DIR"/{shell,bin,firstboot}
+mkdir -p "$CODERED_DIR"/{shell,bin}
 mkdir -p /etc/codered
 mkdir -p /var/log/codered
 mkdir -p /nsm/{zeek/logs/current,suricata,pcap}
