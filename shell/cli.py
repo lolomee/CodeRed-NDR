@@ -16,7 +16,6 @@ import signal
 import subprocess
 import sys
 from datetime import datetime
-from pathlib import Path
 
 # ─── Constants ─────────────────────────────────────────
 
@@ -24,7 +23,6 @@ VERSION_FILE = '/opt/codered/VERSION'
 CONF_DIR = '/etc/codered'
 CONF_FILE = f'{CONF_DIR}/sensor.conf'
 DEFAULTS_FILE = f'{CONF_DIR}/codered.defaults'
-SETUP_SENTINEL = f'{CONF_DIR}/.setup-complete'
 AUDIT_LOG = '/var/log/codered/audit.log'
 LOG_FILE = '/var/log/codered/cli.log'
 
@@ -141,9 +139,6 @@ def run_cmd(cmd: list[str], timeout: int = 30, **kwargs) -> tuple[int, str]:
         return 1, 'Command timed out'
     except FileNotFoundError:
         return 1, f'Command not found: {cmd[0]}'
-
-def is_configured() -> bool:
-    return os.path.exists(SETUP_SENTINEL)
 
 # ─── Config Read/Write ─────────────────────────────────
 
@@ -396,114 +391,6 @@ def get_monitor_interfaces(config) -> list[str]:
 
 # ─── Setup Wizard ──────────────────────────────────────
 
-def run_setup():
-    """Initial configuration wizard. Runs on first SSH login."""
-    clear()
-    print(BANNER)
-    print('  First-time setup. Configure your sensor below.')
-    print('  Type Ctrl+C at any time to cancel.\n')
-
-    config = load_config()
-
-    # ── Hostname ──
-    header('1. HOSTNAME')
-    hostname = prompt('Hostname', get_val(config, 'sensor', 'hostname', 'codered-sensor'), is_valid_hostname)
-    config.set('sensor', 'hostname', hostname)
-
-    # ── Management Network ──
-    header('2. MANAGEMENT NETWORK')
-    mgmt_iface = prompt_interface('Management interface')
-    config.set('network', 'mgmt_interface', mgmt_iface)
-
-    mode = prompt_choice('IP mode', ['static', 'dhcp'], 'static')
-    config.set('network', 'mgmt_mode', mode)
-
-    if mode == 'static':
-        ip = prompt('IP address', get_val(config, 'network', 'mgmt_ip'), is_valid_ip)
-        mask = prompt('Netmask', get_val(config, 'network', 'mgmt_netmask', '255.255.255.0'), is_valid_netmask)
-        gw = prompt('Gateway', get_val(config, 'network', 'mgmt_gateway'), is_valid_ip)
-        dns = prompt('DNS (comma-separated)', get_val(config, 'network', 'mgmt_dns', '8.8.8.8,8.8.4.4'))
-        config.set('network', 'mgmt_ip', ip)
-        config.set('network', 'mgmt_netmask', mask)
-        config.set('network', 'mgmt_gateway', gw)
-        config.set('network', 'mgmt_dns', dns)
-
-    # ── Monitor Interfaces ──
-    header('3. MONITORING INTERFACES (SPAN/MIRROR PORTS)')
-    print('  Select the interfaces connected to your SPAN/mirror ports.')
-    print('  You can select multiple interfaces for multi-zone monitoring.\n')
-    mon_ifaces = prompt_multi_interface('Monitor interface(s)', exclude=[mgmt_iface])
-    config.set('network', 'monitor_interfaces', ','.join(mon_ifaces))
-
-    # ── Sensor Identity ──
-    header('4. SENSOR IDENTITY')
-    name = prompt('Sensor name', get_val(config, 'sensor', 'sensor_name', 'sensor-01'))
-    config.set('sensor', 'sensor_name', name)
-    token = prompt('Registration token', get_val(config, 'sensor', 'registration_token'), required=False)
-    config.set('sensor', 'registration_token', token)
-
-    # ── CodeRed AI Forwarding ──
-    header('5. CODERED AI LOG FORWARDING')
-    endpoint = prompt('CodeRed AI IP address', get_val(config, 'forwarding', 'siem_endpoint'), is_valid_ip, required=False)
-    config.set('forwarding', 'siem_endpoint', endpoint)
-
-    if endpoint:
-        port = prompt('CodeRed AI port', get_val(config, 'forwarding', 'siem_port', '9200'), is_valid_port)
-        config.set('forwarding', 'siem_port', port)
-
-    # ── Optional Features ──
-    header('6. OPTIONAL FEATURES')
-    ips = prompt_choice('Enable Suricata IPS mode (inline only)', ['yes', 'no'], 'no')
-    config.set('suricata', 'ips_mode', ips)
-
-    # ── Confirm ──
-    header('CONFIGURATION SUMMARY')
-    print_line('Hostname:', hostname)
-    print_line('Mgmt Interface:', mgmt_iface)
-    print_line('IP Mode:', mode)
-    if mode == 'static':
-        print_line('IP Address:', f'{ip}/{netmask_to_cidr(mask)}')
-        print_line('Gateway:', gw)
-        print_line('DNS:', dns)
-    print_line('Monitor Interfaces:', ', '.join(mon_ifaces))
-    print_line('Sensor Name:', name)
-    print_line('CodeRed AI:', f'{endpoint}:{get_val(config, "forwarding", "siem_port", "9200")}' if endpoint else 'not configured')
-    print_line('IPS Mode:', ips)
-
-    if not confirm('Apply this configuration?'):
-        print('\n  Setup cancelled. Run setup again on next login.')
-        return False
-
-    # ── Apply ──
-    print('\n  Applying configuration...\n')
-
-    print('  [1/5] Saving configuration...')
-    save_config(config)
-
-    print('  [2/5] Setting hostname...')
-    apply_hostname(hostname)
-
-    print('  [3/5] Configuring management network...')
-    apply_network(config)
-
-    print(f'  [4/5] Configuring {len(mon_ifaces)} monitor interface(s)...')
-    apply_monitor_interfaces(mon_ifaces)
-
-    print('  [5/5] Applying sensor services...')
-    rc, out = run_cmd(['salt-call', '--local', 'state.apply', 'codered'], timeout=600)
-    if rc != 0:
-        logging.error('Salt apply failed: %s', out)
-        print('    ! Warning: Some services may not have started correctly.')
-        print(f'    ! Check /var/log/codered/cli.log for details.')
-
-    # Mark setup complete
-    Path(SETUP_SENTINEL).touch(mode=0o644)
-    audit('setup-complete')
-
-    print('\n  ✓ Setup complete. Sensor is now active.')
-    print('  ✓ You will see the management menu on next login.\n')
-    return True
-
 # ─── Management Menu ───────────────────────────────────
 
 def show_status():
@@ -604,10 +491,10 @@ def show_logs():
     audit('view:logs')
     header('VIEW LOGS')
     logs = {
-        '1': ('Suricata alerts', '/nsm/suricata/eve.json'),
-        '2': ('Zeek DNS', '/nsm/zeek/logs/current/dns.log'),
-        '3': ('Zeek connections', '/nsm/zeek/logs/current/conn.log'),
-        '4': ('Zeek HTTP', '/nsm/zeek/logs/current/http.log'),
+        '1': ('Suricata alerts', '/var/log/suricata/eve.json'),
+        '2': ('Zeek DNS', '/opt/zeek/logs/current/dns.log'),
+        '3': ('Zeek connections', '/opt/zeek/logs/current/conn.log'),
+        '4': ('Zeek HTTP', '/opt/zeek/logs/current/http.log'),
         '5': ('System log', '/var/log/syslog'),
         '6': ('Audit log', AUDIT_LOG),
     }
@@ -1233,8 +1120,8 @@ def generate_suricata_config(mon_ifaces: list[str]):
 
 def generate_filebeat_config(endpoint: str, port: str):
     """Generate Filebeat config for forwarding to CodeRed AI."""
-    zeek_log_path = '/nsm/zeek/logs/current/*.log'
-    suricata_log_path = '/nsm/suricata/eve.json'
+    zeek_log_path = '/opt/zeek/logs/current/*.log'
+    suricata_log_path = '/var/log/suricata/eve.json'
 
     config = f"""# CodeRed NDR - Auto-generated Filebeat Config
 # Forwards Zeek + Suricata logs to CodeRed AI
@@ -1789,13 +1676,11 @@ def show_user_guide():
 
   QUICK START
   ───────────
-  1. Import the OVA into your hypervisor (VMware/Proxmox)
-  2. Assign two NICs:
-     - NIC 1 → your management network
-     - NIC 2 → your SPAN/mirror port group
-  3. Run: curl ... | sudo bash
-  4. Run: sudo coderedndr
-  5. Configure and start NDR
+  1. Prepare an Ubuntu 22.04/24.04 server
+  2. Run: curl ... | sudo bash  (installs CodeRed NDR)
+  3. Run: sudo coderedndr
+  4. Select monitor interfaces, set CodeRed AI destination
+  5. Start NDR → sensor is live
 
 
   HOW TO CONFIGURE SPAN / MIRROR PORT
@@ -1902,7 +1787,7 @@ def show_user_guide():
 
   High disk usage?
     1. Menu → 1 (Status) → check /nsm usage
-    2. Increase VM disk in hypervisor if needed
+    2. Increase disk size if needed
 
   Services not running?
     1. Menu → 11 (Restart services) → restart all

@@ -107,8 +107,8 @@
   │       │  │   AI       │  │ • Config update (6h)     │  │
   │       │  └────────────┘  └──────────────────────────┘  │
   │       │                                                │
-  │  SSH (coderedai = restricted CLI)                       │
-  │  SSH (your admin user = full bash + sudo)               │
+  │  Management: sudo coderedndr                            │
+  │  SSH: customer's own user with sudo                     │
   └────────────────────────────────────────────────────────┘</code></pre>
 
 <table>
@@ -128,7 +128,7 @@
 <table>
   <tr><th>User</th><th>Auth</th><th>Shell</th><th>Purpose</th></tr>
   <tr><td><code>your admin user</code></td><td>SSH key</td><td>Full bash + sudo</td><td>Your maintenance access</td></tr>
-  <tr><td><code>coderedai</code></td><td>Password (<code>coderedai</code>)</td><td>Restricted CLI (cli.py)</td><td>Customer management</td></tr>
+  <tr><td>Customer's user</td><td>Their own SSH key/password</td><td>Full bash + sudo</td><td>Runs <code>sudo coderedndr</code> for management</td></tr>
   <tr><td><code>root</code></td><td>Disabled</td><td>No SSH login</td><td>Use admin + sudo</td></tr>
 </table>
 
@@ -137,15 +137,12 @@
 
 PermitRootLogin no
 
-# coderedai: password only, forced into cli.py
-Match User coderedai
-    PasswordAuthentication yes
-    PubkeyAuthentication no
-    ForceCommand /usr/bin/python3 /opt/codered/shell/cli.py</code></pre>
+# Customer uses their own user + sudo coderedndr
+# No special SSH config needed — customer's server, their SSH</code></pre>
 
 <div class="callout callout-danger">
   <div class="callout-title">NEVER share your admin SSH key with customers</div>
-  The customer should only know about the <code>coderedai</code> account.
+  Customer uses their own SSH user and runs <code>sudo coderedndr</code> for management.
 </div>
 
 <!-- ─── 3 ─── -->
@@ -165,7 +162,7 @@ Match User coderedai
   <tr><td><code>/etc/suricata/suricata.yaml</code></td><td>Suricata config</td></tr>
   <tr><td><code>/etc/suricata/rules/</code></td><td>Suricata detection rules</td></tr>
   <tr><td><code>/var/log/suricata/eve.json</code></td><td>Suricata alerts + metadata</td></tr>
-  <tr><td><code>/nsm/zeek/logs/</code></td><td>Zeek log storage</td></tr>
+  <tr><td><code>/opt/zeek/logs/</code></td><td>Zeek log storage</td></tr>
   <tr><td><code>/var/log/codered/audit.log</code></td><td>Customer action audit trail</td></tr>
   <tr><td><code>/var/log/codered/rule-update.log</code></td><td>Rule update history</td></tr>
   <tr><td><code>/var/log/codered/cli.log</code></td><td>CLI application log</td></tr>
@@ -244,7 +241,7 @@ sudo systemctl restart suricata</code></pre>
 
 <table>
   <tr><th>Log Source</th><th>Path</th><th>Format</th></tr>
-  <tr><td>Zeek</td><td><code>/opt/zeek/logs/current/*.log</code> or <code>/nsm/zeek/logs/current/*.log</code></td><td>NDJSON</td></tr>
+  <tr><td>Zeek</td><td><code>/opt/zeek/logs/current/*.log</code> or <code>/opt/zeek/logs/current/*.log</code></td><td>NDJSON</td></tr>
   <tr><td>Suricata</td><td><code>/var/log/suricata/eve.json</code></td><td>NDJSON</td></tr>
 </table>
 
@@ -262,7 +259,7 @@ filebeat test output</code></pre>
   <tr><th>Control</th><th>Status</th><th>Verify</th></tr>
   <tr><td>Root SSH disabled</td><td>Enforced</td><td><code>grep PermitRootLogin /etc/ssh/sshd_config.d/*</code></td></tr>
   <tr><td>Strong SSH ciphers</td><td>Enforced</td><td><code>sshd -T | grep ciphers</code></td></tr>
-  <tr><td>ForceCommand for coderedai</td><td>Enforced</td><td><code>sshd -T -C user=coderedai | grep forcecommand</code></td></tr>
+  <tr><td>CLI requires root</td><td>Enforced</td><td><code>coderedndr</code> checks euid==0</td></tr>
   <tr><td>UFW firewall</td><td>Enforced</td><td><code>ufw status verbose</code></td></tr>
   <tr><td>Fail2ban</td><td>Enforced</td><td><code>fail2ban-client status sshd</code></td></tr>
   <tr><td>AppArmor</td><td>Enforced</td><td><code>aa-status | grep codered</code></td></tr>
@@ -312,7 +309,7 @@ curl -sk https://&lt;codered-ai-ip&gt;:9200</code></pre>
 
 <h2>Customer Locked Out</h2>
 <pre><code># SSH as your admin user, reset password:
-echo "coderedai:coderedai" | sudo chpasswd</code></pre>
+# Customer manages their own user password via standard 'passwd' command</code></pre>
 
 <h2>Rule Update Failing</h2>
 <pre><code>cat /var/log/codered/rule-update.log
@@ -338,7 +335,7 @@ curl -sSL https://raw.githubusercontent.com/lolomee/CodeRed-NDR/main/install.sh 
 sudo cp sensor.conf /etc/codered/sensor.conf
 sudo cp local.rules /etc/suricata/rules/ 2>/dev/null
 
-# 3. Login as coderedai, start NDR (option 9)</code></pre>
+# 3. Run: sudo coderedndr → option 9 (Start NDR)</code></pre>
 
 <!-- ─── 12 ─── -->
 <h1 id="fleet">12. Multi-Sensor Fleet Management</h1>
@@ -384,7 +381,7 @@ wait</code></pre>
   <tr><td>Force config update</td><td><code>/opt/codered/bin/codered-update.sh</code></td></tr>
   <tr><td>View customer config</td><td><code>cat /etc/codered/sensor.conf</code></td></tr>
   <tr><td>View audit log</td><td><code>cat /var/log/codered/audit.log</code></td></tr>
-  <tr><td>Reset customer password</td><td><code>echo "coderedai:coderedai" | chpasswd</code></td></tr>
+  <tr><td>Run management CLI</td><td><code>sudo coderedndr</code></td></tr>
   <tr><td>View Zeek logs</td><td><code>tail -f /opt/zeek/logs/current/conn.log</code></td></tr>
   <tr><td>View Suricata alerts</td><td><code>tail -f /var/log/suricata/eve.json | jq 'select(.event_type=="alert")'</code></td></tr>
   <tr><td>Check firewall</td><td><code>ufw status verbose</code></td></tr>
