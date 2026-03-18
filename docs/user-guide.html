@@ -264,18 +264,16 @@ curl -sSL https://raw.githubusercontent.com/lolomee/CodeRed-NDR/main/install.sh 
   <li>Installs <strong>Zeek</strong> (network metadata engine)</li>
   <li>Installs <strong>Suricata</strong> (IDS/IPS engine with 50,000+ rules)</li>
   <li>Installs <strong>Filebeat</strong> (log forwarder to CodeRed AI)</li>
-  <li>Installs the <strong>CodeRed NDR management CLI</strong></li>
-  <li>Creates the <code>coderedai</code> management user</li>
-  <li>Applies <strong>security hardening</strong> (SSH, firewall, AppArmor, fail2ban, kernel)</li>
+  <li>Installs the <strong>CodeRed NDR management CLI</strong> (<code>coderedndr</code> command)</li>
+  <li>Applies <strong>kernel security hardening</strong></li>
 </ol>
 
 <p>All NDR services are installed but <strong>not started</strong> — you start them after configuring the sensor.</p>
 
 <h2>After Installation</h2>
 
-<pre><code># SSH in as the management user:
-ssh coderedai@&lt;your-server-ip&gt;
-Password: coderedai</code></pre>
+<pre><code># Launch the management CLI:
+sudo coderedndr</code></pre>
 
 <p>You'll see the management menu. Follow the setup steps in Section 7.</p>
 
@@ -365,10 +363,9 @@ aws ec2 create-traffic-mirror-session --network-interface-id eni-SOURCE --traffi
 <!-- ─── Section 7 ─── -->
 <h1 id="setup">7. Sensor Setup</h1>
 
-<p>After installation, SSH in as <code>coderedai</code> to configure the sensor:</p>
+<p>After installation, launch the management CLI:</p>
 
-<pre><code>ssh coderedai@&lt;your-server-ip&gt;
-Password: coderedai</code></pre>
+<pre><code>sudo coderedndr</code></pre>
 
 <p>The management menu shows a <strong>setup checklist</strong> at the top. Complete these steps:</p>
 
@@ -384,10 +381,6 @@ Password: coderedai</code></pre>
 
 <p>Once all checklist items show [✓], the sensor is active and monitoring.</p>
 
-<div class="callout callout-tip">
-  <div class="callout-title">Change default password</div>
-  Use <strong>option 15</strong> to change the default <code>coderedai</code> password after setup.
-</div>
 
 <!-- ─── Section 8 ─── -->
 <h1 id="menu">8. Management Menu Reference</h1>
@@ -408,10 +401,9 @@ Password: coderedai</code></pre>
   <tr><td>12</td><td>Test monitor interfaces</td><td>Live packet capture test on each monitor NIC</td></tr>
   <tr><td>13</td><td>Test CodeRed AI</td><td>Test connectivity to your CodeRed AI platform</td></tr>
   <tr><td>14</td><td>Support bundle</td><td>Generate diagnostic tarball for support</td></tr>
-  <tr><td>15</td><td>Change password</td><td>Change the coderedai login password</td></tr>
-  <tr><td>16</td><td>Reboot</td><td>Reboot the server</td></tr>
-  <tr><td>17</td><td>Shutdown</td><td>Shut down the server (stops all monitoring)</td></tr>
-  <tr><td>18</td><td>User guide</td><td>View this guide in the terminal</td></tr>
+  <tr><td>15</td><td>Reboot</td><td>Reboot the server</td></tr>
+  <tr><td>16</td><td>Shutdown</td><td>Shut down the server (stops all monitoring)</td></tr>
+  <tr><td>17</td><td>User guide</td><td>View this guide in the terminal</td></tr>
 </table>
 
 <!-- ─── Section 9 ─── -->
@@ -456,8 +448,7 @@ Password: coderedai</code></pre>
   <table>
     <tr><th style="width:40%">Item</th><th>Value</th></tr>
     <tr><td>Install command</td><td><code>curl -sSL https://raw.githubusercontent.com/lolomee/CodeRed-NDR/main/install.sh | sudo bash</code></td></tr>
-    <tr><td>Default login</td><td><code>coderedai</code> / <code>coderedai</code></td></tr>
-    <tr><td>SSH command</td><td><code>ssh coderedai@&lt;server-ip&gt;</code></td></tr>
+    <tr><td>Management CLI</td><td><code>sudo coderedndr</code></td></tr>
     <tr><td>CodeRed AI default port</td><td>9200</td></tr>
     <tr><td>VM minimum specs</td><td>4 CPU, 8 GB RAM, 100 GB disk, Ubuntu 22/24</td></tr>
     <tr><td>VM recommended specs</td><td>8 CPU, 16 GB RAM, 500 GB disk</td></tr>
@@ -472,7 +463,6 @@ Password: coderedai</code></pre>
     <tr><td>Test monitor interfaces</td><td>Option 12</td></tr>
     <tr><td>Test CodeRed AI connection</td><td>Option 13</td></tr>
     <tr><td>Start NDR services</td><td>Option 9</td></tr>
-    <tr><td>Change default password</td><td>Option 15</td></tr>
   </table>
 </div>
 
