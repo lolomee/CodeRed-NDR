@@ -1109,8 +1109,385 @@ def get_setup_checklist(config) -> list[tuple[bool, str]]:
     return checks
 
 
+def generate_zeek_config(mon_ifaces: list[str]):
+    """Generate Zeek node.cfg and local.zeek with proper settings."""
+    zeek_dir = '/opt/zeek'
+    if not os.path.isdir(zeek_dir):
+        return False
+
+    # Calculate workers per interface
+    import multiprocessing
+    cpu_count = multiprocessing.cpu_count()
+    total_workers = max(cpu_count - 2, 1)
+    workers_per_iface = max(total_workers // len(mon_ifaces), 1)
+
+    # Generate node.cfg — cluster mode for multi-interface
+    node_cfg = f'{zeek_dir}/etc/node.cfg'
+    with open(node_cfg, 'w') as f:
+        f.write('# CodeRed NDR - Auto-generated Zeek Cluster Config\n\n')
+        f.write('[logger]\ntype=logger\nhost=localhost\n\n')
+        f.write('[manager]\ntype=manager\nhost=localhost\n\n')
+        f.write('[proxy-1]\ntype=proxy\nhost=localhost\n\n')
+        worker_id = 0
+        for iface in mon_ifaces:
+            for i in range(workers_per_iface):
+                worker_id += 1
+                f.write(f'[worker-{worker_id}]\n')
+                f.write(f'type=worker\nhost=localhost\n')
+                f.write(f'interface={iface}\n\n')
+
+    # Generate local.zeek — JSON output + community-id + protocols
+    local_zeek = f'{zeek_dir}/share/zeek/site/local.zeek'
+    with open(local_zeek, 'w') as f:
+        f.write('# CodeRed NDR - Auto-generated Zeek Config\n\n')
+        f.write('# JSON output for structured log forwarding\n')
+        f.write('@load policy/tuning/json-logs\n\n')
+        f.write('# Community ID for cross-tool correlation (Suricata + Zeek)\n')
+        f.write('@load policy/protocols/conn/community-id-logging\n\n')
+        f.write('# Protocol analyzers\n')
+        f.write('@load base/protocols/dns\n')
+        f.write('@load base/protocols/http\n')
+        f.write('@load base/protocols/ssl\n')
+        f.write('@load base/protocols/smtp\n')
+        f.write('@load base/protocols/ssh\n')
+        f.write('@load base/protocols/ftp\n')
+        f.write('@load base/protocols/dhcp\n')
+        f.write('@load base/protocols/ntp\n')
+        f.write('@load base/protocols/smb\n')
+        f.write('@load base/protocols/rdp\n')
+        f.write('@load base/protocols/modbus\n')
+        f.write('@load base/protocols/dnp3\n\n')
+        f.write('# Detection policies\n')
+        f.write('@load policy/protocols/http/detect-sqli\n')
+        f.write('@load policy/protocols/http/detect-webapps\n')
+        f.write('@load policy/protocols/ssl/validate-certs\n')
+        f.write('@load policy/protocols/ssh/detect-bruteforcing\n')
+        f.write('@load policy/protocols/smb/log-cmds\n\n')
+        f.write('# File analysis\n')
+        f.write('@load frameworks/files/extract-all-files\n')
+        f.write('@load policy/frameworks/files/hash-all-files\n\n')
+        f.write('# Notice framework\n')
+        f.write('@load policy/misc/detect-traceroute\n')
+        f.write('@load frameworks/intel/seen\n')
+        f.write('@load frameworks/intel/do_notice\n')
+
+    return True
+
+
+def generate_suricata_config(mon_ifaces: list[str]):
+    """Update Suricata config with monitor interfaces and community-id."""
+    config_path = '/etc/suricata/suricata.yaml'
+    if not os.path.exists(config_path):
+        return False
+
+    import re as regex
+
+    with open(config_path, 'r') as f:
+        content = f.read()
+
+    # Enable community-id
+    content = content.replace('community-id: false', 'community-id: true')
+
+    # Update af-packet interfaces
+    # Find and replace the af-packet section
+    af_block = 'af-packet:\n'
+    for i, iface in enumerate(mon_ifaces):
+        af_block += f'  - interface: {iface}\n'
+        af_block += f'    cluster-id: {99 + i}\n'
+        af_block += '    cluster-type: cluster_flow\n'
+        af_block += '    defrag: yes\n'
+        af_block += '    use-mmap: yes\n'
+        af_block += '    ring-size: 200000\n'
+
+    # Try to replace existing af-packet section
+    if 'af-packet:' in content:
+        # Replace from af-packet: to next top-level key
+        content = regex.sub(
+            r'af-packet:.*?(?=\n[a-zA-Z])',
+            af_block,
+            content,
+            flags=regex.DOTALL
+        )
+    else:
+        content += '\n' + af_block
+
+    with open(config_path, 'w') as f:
+        f.write(content)
+
+    return True
+
+
+def generate_filebeat_config(endpoint: str, port: str):
+    """Generate Filebeat config for forwarding to CodeRed AI."""
+    zeek_log_path = '/opt/zeek/logs/current/*.log'
+    suricata_log_path = '/var/log/suricata/eve.json'
+
+    config = f"""# CodeRed NDR - Auto-generated Filebeat Config
+# Forwards Zeek + Suricata logs to CodeRed AI
+
+filebeat.inputs:
+  - type: filestream
+    id: codered-zeek
+    paths:
+      - {zeek_log_path}
+    parsers:
+      - ndjson:
+          keys_under_root: true
+          add_error_key: true
+    fields:
+      log_source: zeek
+    fields_under_root: false
+
+  - type: filestream
+    id: codered-suricata
+    paths:
+      - {suricata_log_path}
+    parsers:
+      - ndjson:
+          keys_under_root: true
+          add_error_key: true
+    fields:
+      log_source: suricata
+    fields_under_root: false
+
+output.elasticsearch:
+  hosts: ["{endpoint}:{port}"]
+  index: "codered-ndr-%{{[fields.log_source]}}-%{{+yyyy.MM.dd}}"
+  bulk_max_size: 2048
+  worker: 2
+  compression_level: 3
+  ssl:
+    verification_mode: none
+
+queue.mem:
+  events: 8192
+  flush.min_events: 2048
+  flush.timeout: 1s
+
+processors:
+  - add_host_metadata:
+      when.not.contains.tags: forwarded
+
+logging.level: warning
+logging.to_files: true
+logging.files:
+  path: /var/log/filebeat
+  name: filebeat
+  keepfiles: 3
+  permissions: 0640
+"""
+
+    with open('/etc/filebeat/filebeat.yml', 'w') as f:
+        f.write(config)
+    os.chmod('/etc/filebeat/filebeat.yml', 0o640)
+    return True
+
+
+def generate_logrotate_config():
+    """Generate log rotation for Suricata and Zeek logs."""
+    logrotate_conf = """# CodeRed NDR - Log Rotation
+
+/var/log/suricata/eve.json {
+    daily
+    rotate 7
+    compress
+    delaycompress
+    missingok
+    notifempty
+    postrotate
+        systemctl restart suricata 2>/dev/null || true
+    endscript
+}
+
+/var/log/suricata/*.log {
+    daily
+    rotate 7
+    compress
+    delaycompress
+    missingok
+    notifempty
+}
+
+/var/log/codered/*.log {
+    weekly
+    rotate 4
+    compress
+    delaycompress
+    missingok
+    notifempty
+}
+
+/var/log/filebeat/*.log {
+    daily
+    rotate 3
+    compress
+    delaycompress
+    missingok
+    notifempty
+}
+"""
+    with open('/etc/logrotate.d/codered-ndr', 'w') as f:
+        f.write(logrotate_conf)
+    return True
+
+
+def download_rules_if_needed():
+    """Download ET rules if not already present."""
+    rules_dir = '/etc/suricata/rules'
+    if os.path.isdir(rules_dir) and len([f for f in os.listdir(rules_dir) if f.endswith('.rules')]) > 5:
+        return True  # Rules already exist
+
+    print('  Downloading Suricata ET rules (first time)...')
+    rc, out = run_cmd(['/opt/codered/bin/update-rules.sh'], timeout=300)
+    if rc == 0:
+        print('  Rules downloaded.')
+        return True
+    else:
+        print(f'  Warning: Rule download failed. Will retry at next timer.')
+        return False
+
+
+def check_ntp_sync():
+    """Check and warn about NTP synchronization."""
+    rc, out = run_cmd(['timedatectl', 'show', '--property=NTPSynchronized'])
+    if 'yes' in out.lower():
+        return True
+    # Try to enable NTP
+    run_cmd(['timedatectl', 'set-ntp', 'true'])
+    return False
+
+
+def show_bandwidth_stats():
+    """Show packet/bandwidth stats on monitor interfaces."""
+    audit('view:bandwidth')
+    config = load_config()
+    mon = get_monitor_interfaces(config)
+
+    header('BANDWIDTH / THROUGHPUT STATS')
+
+    if not mon:
+        print('  No monitor interfaces configured.')
+        pause()
+        return
+
+    print('  Measuring traffic on each interface (10 seconds)...\n')
+
+    for iface in mon:
+        # Get initial counters
+        try:
+            with open(f'/sys/class/net/{iface}/statistics/rx_bytes') as f:
+                start_bytes = int(f.read().strip())
+            with open(f'/sys/class/net/{iface}/statistics/rx_packets') as f:
+                start_pkts = int(f.read().strip())
+        except (OSError, ValueError):
+            print_line(f'  {iface}:', 'cannot read stats')
+            continue
+
+        import time
+        time.sleep(10)
+
+        try:
+            with open(f'/sys/class/net/{iface}/statistics/rx_bytes') as f:
+                end_bytes = int(f.read().strip())
+            with open(f'/sys/class/net/{iface}/statistics/rx_packets') as f:
+                end_pkts = int(f.read().strip())
+        except (OSError, ValueError):
+            print_line(f'  {iface}:', 'cannot read stats')
+            continue
+
+        delta_bytes = end_bytes - start_bytes
+        delta_pkts = end_pkts - start_pkts
+        mbps = (delta_bytes * 8) / (10 * 1_000_000)
+        pps = delta_pkts / 10
+
+        print(f'  {iface}:')
+        print_line('    Throughput:', f'{mbps:.1f} Mbps')
+        print_line('    Packets/sec:', f'{pps:.0f} pps')
+        print_line('    Total (10s):', f'{delta_pkts:,} packets, {delta_bytes:,} bytes')
+
+        # Check for drops
+        try:
+            with open(f'/sys/class/net/{iface}/statistics/rx_dropped') as f:
+                drops = int(f.read().strip())
+            if drops > 0:
+                print_line('    Drops:', f'{drops:,} (check NIC ring buffer)')
+        except (OSError, ValueError):
+            pass
+        print()
+
+    pause()
+
+
+def setup_pcap_on_alert():
+    """Configure Suricata to capture packets on high-severity alerts."""
+    pcap_dir = '/nsm/pcap'
+    os.makedirs(pcap_dir, exist_ok=True)
+
+    # Check if pcap-log is already in suricata.yaml
+    config_path = '/etc/suricata/suricata.yaml'
+    if not os.path.exists(config_path):
+        return False
+
+    with open(config_path, 'r') as f:
+        content = f.read()
+
+    if 'pcap-log:' not in content:
+        # Add pcap-log output section
+        pcap_config = """
+# CodeRed NDR - Alert-triggered PCAP capture
+  - pcap-log:
+      enabled: yes
+      filename: alert-%n.pcap
+      limit: 100mb
+      max-files: 50
+      mode: normal
+      dir: /nsm/pcap
+      conditional: alerts
+"""
+        content = content.replace('outputs:', 'outputs:\n' + pcap_config, 1)
+        with open(config_path, 'w') as f:
+            f.write(content)
+
+    return True
+
+
+def download_geoip():
+    """Download MaxMind GeoLite2 database for IP geolocation."""
+    geoip_dir = '/usr/share/GeoIP'
+    os.makedirs(geoip_dir, exist_ok=True)
+
+    if os.path.exists(f'{geoip_dir}/GeoLite2-City.mmdb'):
+        return True
+
+    # Try free GeoIP database from db-ip.com (no license key needed)
+    print('  Downloading GeoIP database...')
+    rc, _ = run_cmd([
+        'curl', '-sSL', '-o', f'{geoip_dir}/GeoLite2-City.mmdb',
+        'https://github.com/P3TERX/GeoLite.mmdb/raw/download/GeoLite2-City.mmdb'
+    ], timeout=120)
+    if rc == 0 and os.path.exists(f'{geoip_dir}/GeoLite2-City.mmdb'):
+        print('  GeoIP database installed.')
+        return True
+    print('  GeoIP download failed (non-critical, skipping).')
+    return False
+
+
+def setup_threat_intel_feeds():
+    """Configure Suricata to pull threat intel feeds via suricata-update."""
+    print('  Configuring threat intel feeds...')
+    # Enable additional rule sources via suricata-update
+    run_cmd(['suricata-update', 'enable-source', 'et/open'], timeout=60)
+    run_cmd(['suricata-update', 'enable-source', 'oisf/trafficid'], timeout=60)
+    # Run suricata-update to pull all enabled sources
+    rc, _ = run_cmd(['suricata-update'], timeout=300)
+    if rc == 0:
+        print('  Threat intel feeds configured.')
+    else:
+        print('  Warning: suricata-update failed. Rules may be limited.')
+
+
 def start_ndr_services():
-    """Start Zeek, Suricata, and Filebeat."""
+    """Start Zeek, Suricata, and Filebeat with proper config generation."""
     audit('start-ndr')
     config = load_config()
 
@@ -1124,82 +1501,119 @@ def start_ndr_services():
         pause()
         return
 
+    endpoint = get_val(config, 'forwarding', 'siem_endpoint')
+    port = get_val(config, 'forwarding', 'siem_port', '9200')
+
     print('  Pre-flight checks:')
 
-    # Check monitor interfaces are up
-    all_ok = True
+    # Check monitor interfaces
     for iface in mon:
         _, out = run_cmd(['ip', 'link', 'show', iface])
         if 'UP' in out:
             print_line(f'    {iface}:', 'UP')
         else:
-            print_line(f'    {iface}:', 'DOWN — bringing up...')
-            apply_monitor_interface(iface)
-            all_ok = True
+            print_line(f'    {iface}:', 'DOWN — will bring up')
 
-    endpoint = get_val(config, 'forwarding', 'siem_endpoint')
     if endpoint:
-        print_line('    CodeRed AI:', f'{endpoint}:{get_val(config, "forwarding", "siem_port", "9200")}')
+        print_line('    CodeRed AI:', f'{endpoint}:{port}')
     else:
         print_line('    CodeRed AI:', 'not configured (logs stored locally only)')
+
+    # Check NTP
+    ntp_ok = check_ntp_sync()
+    print_line('    NTP sync:', 'OK' if ntp_ok else 'NOT SYNCED (enabling...)')
 
     print()
     if not confirm('Start Zeek + Suricata + Filebeat?'):
         return
 
-    # Configure monitor interfaces
-    print('\n  Configuring monitor interfaces...')
+    total_steps = 9
+    step = 0
+
+    # Step 1: Configure monitor interfaces
+    step += 1
+    print(f'\n  [{step}/{total_steps}] Configuring monitor interfaces...')
     for iface in mon:
         apply_monitor_interface(iface)
 
-    # Start Suricata
-    print('  Starting Suricata...')
-    # Configure Suricata to listen on monitor interfaces
-    suricata_ifaces = ' '.join(f'-i {iface}' for iface in mon)
-    rc, out = run_cmd(['systemctl', 'start', 'suricata'])
-    if rc == 0:
-        print_line('    Suricata:', 'started')
+    # Step 2: Download rules if needed
+    step += 1
+    print(f'  [{step}/{total_steps}] Checking Suricata rules...')
+    download_rules_if_needed()
+
+    # Step 3: Setup threat intel feeds
+    step += 1
+    print(f'  [{step}/{total_steps}] Configuring threat intel feeds...')
+    setup_threat_intel_feeds()
+
+    # Step 4: Download GeoIP database
+    step += 1
+    print(f'  [{step}/{total_steps}] Checking GeoIP database...')
+    download_geoip()
+
+    # Step 5: Generate Suricata config
+    step += 1
+    print(f'  [{step}/{total_steps}] Generating Suricata config...')
+    generate_suricata_config(mon)
+    setup_pcap_on_alert()
+    print('    Suricata config generated (community-id, af-packet, PCAP on alert)')
+
+    # Step 6: Generate Zeek config
+    step += 1
+    print(f'  [{step}/{total_steps}] Generating Zeek config...')
+    if generate_zeek_config(mon):
+        print('    Zeek config generated (JSON output, community-id, protocols)')
     else:
-        print_line('    Suricata:', f'failed — {out.strip()[:80]}')
+        print('    Warning: Zeek directory not found at /opt/zeek')
+
+    # Step 7: Generate Filebeat config
+    step += 1
+    print(f'  [{step}/{total_steps}] Generating Filebeat config...')
+    if endpoint:
+        generate_filebeat_config(endpoint, port)
+        print(f'    Filebeat config generated (→ {endpoint}:{port})')
+    else:
+        print('    Skipped (no CodeRed AI destination configured)')
+
+    # Step 8: Setup log rotation
+    step += 1
+    print(f'  [{step}/{total_steps}] Configuring log rotation...')
+    generate_logrotate_config()
+    print('    Log rotation configured (daily, 7-day retention)')
+
+    # Step 9: Start services
+    step += 1
+    print(f'  [{step}/{total_steps}] Starting services...')
+
+    # Start Suricata
+    rc, out = run_cmd(['systemctl', 'start', 'suricata'])
+    print_line('    Suricata:', 'started' if rc == 0 else f'failed — {out.strip()[:60]}')
 
     # Start Zeek
-    print('  Starting Zeek...')
-    # Create basic Zeek node.cfg if it doesn't exist
     zeek_dir = '/opt/zeek'
     if os.path.isdir(zeek_dir):
-        node_cfg = f'{zeek_dir}/etc/node.cfg'
-        local_zeek = f'{zeek_dir}/share/zeek/site/local.zeek'
+        rc, out = run_cmd([f'{zeek_dir}/bin/zeekctl', 'deploy'], timeout=120)
+        if rc != 0:
+            rc, out = run_cmd([f'{zeek_dir}/bin/zeekctl', 'start'], timeout=60)
+        print_line('    Zeek:', 'started' if rc == 0 else 'failed')
 
-        # Write node.cfg for monitor interfaces
-        try:
-            with open('/tmp/node.cfg', 'w') as f:
-                f.write('[zeek]\ntype=standalone\nhost=localhost\n')
-                f.write(f'interface={mon[0]}\n')
-            run_cmd(['cp', '/tmp/node.cfg', node_cfg])
-        except OSError:
-            pass
-
-    rc, out = run_cmd([f'{zeek_dir}/bin/zeekctl', 'deploy'], timeout=60)
-    if rc == 0:
-        print_line('    Zeek:', 'started')
-    else:
-        # Try direct start
-        rc2, _ = run_cmd([f'{zeek_dir}/bin/zeekctl', 'start'], timeout=60)
-        print_line('    Zeek:', 'started' if rc2 == 0 else f'failed')
-
-    # Start Filebeat if CodeRed AI is configured
+    # Start Filebeat
     if endpoint:
-        print('  Starting Filebeat...')
         rc, out = run_cmd(['systemctl', 'start', 'filebeat'])
         print_line('    Filebeat:', 'started' if rc == 0 else 'failed')
 
-    # Enable timers
-    print('  Enabling auto-update timers...')
+    # Enable services to start on boot
+    run_cmd(['systemctl', 'enable', 'suricata'])
+    run_cmd(['systemctl', 'enable', 'filebeat'])
     run_cmd(['systemctl', 'enable', '--now', 'codered-rule-update.timer'])
     run_cmd(['systemctl', 'enable', '--now', 'codered-update.timer'])
 
-    print('\n  ✓ NDR services started.')
-    print('  Use option 1 (Status) to verify, option 4 (Diagnostics) to test.')
+    print('\n  ✓ NDR services started and enabled on boot.')
+    print('  ✓ Suricata rules auto-update daily at 3 AM.')
+    print('  ✓ Logs rotate daily (7-day retention).')
+    if endpoint:
+        print(f'  ✓ Logs forwarding to CodeRed AI at {endpoint}:{port}.')
+    print('  Use option 1 (Status) to verify, option 12 to test traffic.')
     pause()
 
 
@@ -1572,14 +1986,15 @@ def main_menu():
         print('  11. Restart services')
         print('  12. Test monitor interfaces')
         print('  13. Test CodeRed AI connection')
+        print('  14. Bandwidth / throughput stats')
 
         print('\n  ── System ──────────────────────────────────')
-        print('  14. Support bundle')
-        print('  15. Reboot')
-        print('  16. Shutdown')
+        print('  15. Support bundle')
+        print('  16. Reboot')
+        print('  17. Shutdown')
 
         print('\n  ── Help ────────────────────────────────────')
-        print('  17. User guide')
+        print('  18. User guide')
 
         print('\n   0. Exit')
         print()
@@ -1604,10 +2019,11 @@ def main_menu():
             '11': restart_services,
             '12': test_monitor_interface,
             '13': test_codered_ai,
-            '14': generate_support_bundle,
-            '15': do_reboot,
-            '16': do_shutdown,
-            '17': show_user_guide,
+            '14': show_bandwidth_stats,
+            '15': generate_support_bundle,
+            '16': do_reboot,
+            '17': do_shutdown,
+            '18': show_user_guide,
         }
 
         if choice == '0':

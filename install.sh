@@ -389,6 +389,36 @@ chmod 755 /etc/codered
 
 log "CodeRed NDR CLI installed."
 
+# ─── Step 4b: Download initial Suricata rules ────
+
+log "Downloading initial Suricata rules..."
+if command -v suricata-update &>/dev/null; then
+    suricata-update enable-source et/open 2>/dev/null || true
+    suricata-update enable-source oisf/trafficid 2>/dev/null || true
+    suricata-update 2>/dev/null && log "Suricata rules downloaded via suricata-update." || {
+        # Fallback: download ET rules directly
+        RULES_TMP=$(mktemp -d)
+        curl -sSL --max-time 120 -o "${RULES_TMP}/emerging.rules.tar.gz" \
+            "https://rules.emergingthreats.net/open/suricata-6.0/emerging.rules.tar.gz" 2>/dev/null && {
+            mkdir -p /etc/suricata/rules
+            tar xzf "${RULES_TMP}/emerging.rules.tar.gz" -C "${RULES_TMP}"
+            find "${RULES_TMP}" -name "*.rules" -exec cp {} /etc/suricata/rules/ \;
+            RULE_COUNT=$(grep -r "^alert\|^drop" /etc/suricata/rules/*.rules 2>/dev/null | wc -l)
+            log "Downloaded ${RULE_COUNT} Suricata rules."
+        } || warn "Rule download failed. Rules will download on first timer run (3 AM)."
+        rm -rf "${RULES_TMP}"
+    }
+else
+    warn "suricata-update not found. Rules will download on first timer run."
+fi
+
+# Download GeoIP database (free, no license key needed)
+log "Downloading GeoIP database..."
+mkdir -p /usr/share/GeoIP
+curl -sSL --max-time 60 -o /usr/share/GeoIP/GeoLite2-City.mmdb \
+    "https://github.com/P3TERX/GeoLite.mmdb/raw/download/GeoLite2-City.mmdb" 2>/dev/null && \
+    log "GeoIP database installed." || warn "GeoIP download failed (non-critical)."
+
 # ─── Step 5: Install coderedndr Command ──────────
 
 step 5 "Installing coderedndr command..."
