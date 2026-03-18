@@ -1,0 +1,20 @@
+[Unit]
+Description=CodeRed NDR First Boot Configuration Wizard
+After=network-online.target
+Wants=network-online.target
+ConditionPathExists=!/etc/codered/.setup-complete
+Before=multi-user.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/python3 /opt/codered/firstboot/wizard.py
+StandardInput=tty
+StandardOutput=tty
+TTYPath=/dev/tty1
+TTYReset=yes
+TTYVHangup=yes
+RemainAfterExit=no
+TimeoutStartSec=7200
+
+[Install]
+WantedBy=multi-user.target

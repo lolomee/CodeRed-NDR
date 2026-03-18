@@ -1,0 +1,45 @@
+# CodeRed NDR - Default Configuration
+# These values are used when not overridden by /etc/codered/sensor.conf
+
+[sensor]
+hostname = codered-sensor
+sensor_name = sensor-01
+registration_token =
+
+[network]
+mgmt_interface = ens32
+mgmt_mode = dhcp
+mgmt_ip =
+mgmt_netmask = 255.255.255.0
+mgmt_gateway =
+mgmt_dns = 8.8.8.8,8.8.4.4
+monitor_interface = ens34
+
+[forwarding]
+backend = elastic-agent
+siem_endpoint =
+siem_port = 9200
+
+[zeek]
+workers = auto
+protocols = dns,http,ssl,smtp,ssh,ftp,dhcp,ntp,smb,rdp,modbus,dnp3
+community_id = yes
+
+[suricata]
+ips_mode = no
+threads = auto
+rule_sources = et/open
+community_id = yes
+eve_types = alert,anomaly,dns,http,tls,files,smtp,ssh,flow,netflow
+
+[hardening]
+apparmor = yes
+readonly_usr = yes
+fail2ban = yes
+firewall = yes
+
+[autoupdate]
+enabled = yes
+repo_url =
+branch = main
+interval = 6h

@@ -1,0 +1,38 @@
+name: Lint
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install linters
+        run: |
+          pip install pylint yamllint
+          sudo apt-get install -y shellcheck
+
+      - name: Shellcheck
+        run: |
+          find build/ -name '*.sh' -exec shellcheck {} +
+          shellcheck shell/rbash_profile
+
+      - name: Python lint
+        run: |
+          python -m pylint firstboot/*.py shell/*.py \
+            --disable=C0114,C0115,C0116,C0411,E0401,W0511 \
+            --exit-zero
+
+      - name: YAML lint
+        run: |
+          yamllint -d relaxed salt/

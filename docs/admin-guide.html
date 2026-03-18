@@ -1,0 +1,1035 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CodeRed NDR - Admin Guide</title>
+<style>
+  @page { size: A4; margin: 20mm 18mm; }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: 'Segoe UI', 'Helvetica Neue', Arial, sans-serif; font-size: 10.5pt; line-height: 1.6; color: #1a1a2e; background: #fff; }
+
+  .cover { page-break-after: always; display: flex; flex-direction: column; justify-content: center; align-items: center; min-height: 100vh; text-align: center; background: linear-gradient(135deg, #0f0f23 0%, #1a1a3e 40%, #8e44ad 100%); color: white; padding: 60px 40px; }
+  .cover-logo { font-family: 'Courier New', monospace; font-size: 14pt; letter-spacing: 1px; white-space: pre; margin-bottom: 40px; color: #bb86fc; text-shadow: 0 0 20px rgba(187,134,252,0.3); }
+  .cover h1 { font-size: 36pt; font-weight: 700; margin-bottom: 8px; }
+  .cover h2 { font-size: 18pt; font-weight: 300; color: #e0e0e0; margin-bottom: 60px; }
+  .cover-meta { font-size: 11pt; color: #aaa; margin-top: auto; }
+  .cover-meta .version { font-size: 13pt; color: #bb86fc; font-weight: 600; margin-bottom: 10px; }
+
+  .toc { page-break-after: always; padding: 50px 40px; }
+  .toc h2 { font-size: 20pt; color: #8e44ad; margin-bottom: 30px; padding-bottom: 10px; border-bottom: 3px solid #8e44ad; }
+  .toc ul { list-style: none; padding: 0; }
+  .toc li { padding: 10px 0; border-bottom: 1px solid #eee; font-size: 12pt; }
+  .toc li a { color: #1a1a2e; text-decoration: none; }
+  .toc .section-num { color: #8e44ad; font-weight: 700; margin-right: 12px; min-width: 30px; }
+
+  .content { padding: 0 40px 40px 40px; }
+  h1 { font-size: 22pt; color: #8e44ad; margin: 50px 0 20px 0; padding-bottom: 8px; border-bottom: 3px solid #8e44ad; page-break-after: avoid; }
+  h2 { font-size: 15pt; color: #1a1a2e; margin: 35px 0 12px 0; padding-bottom: 5px; border-bottom: 1px solid #ddd; page-break-after: avoid; }
+  h3 { font-size: 12pt; color: #444; margin: 20px 0 8px 0; page-break-after: avoid; }
+  p { margin: 8px 0; }
+
+  table { width: 100%; border-collapse: collapse; margin: 15px 0; font-size: 10pt; page-break-inside: avoid; }
+  th { background: #1a1a2e; color: white; padding: 10px 14px; text-align: left; font-weight: 600; font-size: 9.5pt; text-transform: uppercase; letter-spacing: 0.5px; }
+  td { padding: 9px 14px; border-bottom: 1px solid #e8e8e8; }
+  tr:nth-child(even) { background: #f8f9fa; }
+
+  pre { background: #0f0f23; color: #e0e0e0; padding: 16px 20px; border-radius: 6px; font-family: 'Cascadia Code', 'Fira Code', 'Courier New', monospace; font-size: 9.5pt; line-height: 1.5; overflow-x: auto; margin: 12px 0; border-left: 4px solid #8e44ad; page-break-inside: avoid; }
+  code { background: #f0f0f5; padding: 2px 6px; border-radius: 3px; font-family: 'Cascadia Code', 'Fira Code', 'Courier New', monospace; font-size: 9.5pt; color: #8e44ad; }
+  pre code { background: none; padding: 0; color: inherit; }
+
+  .callout { border-radius: 6px; padding: 14px 18px; margin: 15px 0; page-break-inside: avoid; }
+  .callout-danger { background: #fff0f0; border-left: 4px solid #e74c3c; }
+  .callout-warning { background: #fff8e1; border-left: 4px solid #f39c12; }
+  .callout-info { background: #f0f4ff; border-left: 4px solid #2980b9; }
+  .callout-tip { background: #f0fff4; border-left: 4px solid #27ae60; }
+  .callout-title { font-weight: 700; font-size: 10pt; margin-bottom: 4px; }
+  .callout-danger .callout-title { color: #e74c3c; }
+  .callout-warning .callout-title { color: #f39c12; }
+  .callout-info .callout-title { color: #2980b9; }
+  .callout-tip .callout-title { color: #27ae60; }
+
+  ul, ol { margin: 8px 0 8px 24px; }
+  li { margin: 4px 0; }
+  hr { border: none; height: 1px; background: #e0e0e0; margin: 30px 0; }
+
+  .page-footer { text-align: center; font-size: 8pt; color: #999; padding-top: 20px; margin-top: 40px; border-top: 1px solid #eee; }
+
+  @media print { body { padding: 0; } .cover { min-height: 100vh; } .content { padding: 0; } pre { font-size: 8.5pt; } }
+</style>
+</head>
+<body>
+
+<!-- ═══════════════════ COVER PAGE ═══════════════════ -->
+<div class="cover">
+  <div class="cover-logo">
+   ____          _      ____          _      _    ___
+  / ___|___   __| | ___|  _ \ ___  __| |   / \  |_ _|
+ | |   / _ \ / _` |/ _ \ |_) / _ \/ _` |  / _ \  | |
+ | |__| (_) | (_| |  __/  _ &lt;  __/ (_| | / ___ \ | |
+  \____\___/ \__,_|\___|_| \_\___|\__,_|/_/   \_\___|
+  </div>
+  <h1>CodeRed NDR</h1>
+  <h2>Administrator Guide</h2>
+  <h2 style="font-size:16pt; font-weight:400; color:#bb86fc; margin-bottom:30px;">Internal &mdash; Not For Customer Distribution</h2>
+  <div class="cover-meta">
+    <div class="version">Version 1.0</div>
+    <div>CONFIDENTIAL &mdash; CodeRed AI Internal Only</div>
+    <div style="margin-top:8px;">CodeRed AI &copy; 2026. All Rights Reserved.</div>
+  </div>
+</div>
+
+<!-- ═══════════════════ TABLE OF CONTENTS ═══════════════════ -->
+<div class="toc">
+  <h2>Table of Contents</h2>
+  <ul>
+    <li><a href="#architecture"><span class="section-num">1</span> Architecture Overview</a></li>
+    <li><a href="#access"><span class="section-num">2</span> Access Model &amp; Credentials</a></li>
+    <li><a href="#filesystem"><span class="section-num">3</span> File System Layout</a></li>
+    <li><a href="#services"><span class="section-num">4</span> Services &amp; Processes</a></li>
+    <li><a href="#updates"><span class="section-num">5</span> Updates &amp; Maintenance</a></li>
+    <li><a href="#rules"><span class="section-num">6</span> Suricata Rules Management</a></li>
+    <li><a href="#salt"><span class="section-num">7</span> Salt States &amp; Configuration</a></li>
+    <li><a href="#forwarding"><span class="section-num">8</span> Log Forwarding Configuration</a></li>
+    <li><a href="#hardening"><span class="section-num">9</span> Security Hardening Details</a></li>
+    <li><a href="#monitoring"><span class="section-num">10</span> Sensor Health Monitoring</a></li>
+    <li><a href="#troubleshooting"><span class="section-num">11</span> Troubleshooting Playbook</a></li>
+    <li><a href="#backup"><span class="section-num">12</span> Backup &amp; Recovery</a></li>
+    <li><a href="#ova"><span class="section-num">13</span> OVA Build &amp; Deployment</a></li>
+    <li><a href="#multitenancy"><span class="section-num">14</span> Multi-Sensor Fleet Management</a></li>
+    <li><a href="#reference"><span class="section-num">15</span> Quick Reference</a></li>
+  </ul>
+</div>
+
+<!-- ═══════════════════ CONTENT ═══════════════════ -->
+<div class="content">
+
+<!-- ─── Section 1 ─── -->
+<h1 id="architecture">1. Architecture Overview</h1>
+
+<h2>Sensor Internal Architecture</h2>
+
+<pre><code>┌──────────────────────────────────────────────────────────────────────┐
+│                        CodeRed NDR Sensor                            │
+│                                                                      │
+│  ┌─────────────┐   ┌─────────────┐   ┌───────────────────────────┐  │
+│  │   ens32      │   │ ens34,35,36 │   │      Security Onion       │  │
+│  │   Mgmt NIC   │   │ Monitor NICs│   │      2.4.x Base           │  │
+│  └──────┬───────┘   └──────┬──────┘   │                           │  │
+│         │                  │          │  ┌───────┐  ┌──────────┐  │  │
+│         │                  └──────────┼─▶│ Zeek  │  │ Suricata │  │  │
+│         │                             │  │(JSON) │  │(eve.json)│  │  │
+│         │                             │  └───┬───┘  └────┬─────┘  │  │
+│         │                             │      │           │        │  │
+│         │                             │      ▼           ▼        │  │
+│         │                             │  /nsm/zeek/  /nsm/suricata│  │
+│         │                             └───────────────────────────┘  │
+│         │                                    │           │           │
+│         │                  ┌─────────────────┘           │           │
+│         │                  ▼                             ▼           │
+│         │           ┌──────────────────────────────────────┐        │
+│         │           │     Log Forwarder                     │        │
+│         │           │  (Elastic Agent / Filebeat / Vector)  │        │
+│         │           └──────────────┬───────────────────────┘        │
+│         │                          │                                 │
+│  ┌──────┴──────┐                   │                                 │
+│  │ SSH (22)    │                   │                                 │
+│  │ cli.py      │                   │  Port 9200                     │
+│  └─────────────┘                   │                                 │
+│                                    │                                 │
+│  ┌─────────────┐    ┌──────────────┴──────┐    ┌─────────────────┐  │
+│  │ Salt Minion │    │ Auto-Update Timer   │    │ Rule Update     │  │
+│  │ (local)     │    │ (6h git pull)       │    │ Timer (daily)   │  │
+│  └─────────────┘    └────────────────────┘    └─────────────────┘  │
+│                                                                      │
+└──────────────────────────────────────────────────────────────────────┘</code></pre>
+
+<h2>Technology Stack</h2>
+
+<table>
+  <tr><th>Component</th><th>Technology</th><th>Purpose</th></tr>
+  <tr><td>Base OS</td><td>Security Onion 2.4.x (Oracle Linux 9 / Ubuntu)</td><td>Hardened OS with NDR tooling</td></tr>
+  <tr><td>Network metadata</td><td>Zeek (JSON output)</td><td>Protocol parsing, behavioral analytics, UEBA data</td></tr>
+  <tr><td>IDS/IPS engine</td><td>Suricata 7.x</td><td>Signature detection, 50K+ ET rules, optional IPS</td></tr>
+  <tr><td>Log forwarding</td><td>Elastic Agent / Filebeat / Vector</td><td>Ships logs to CodeRed AI platform</td></tr>
+  <tr><td>Configuration</td><td>SaltStack (local mode)</td><td>Idempotent config management</td></tr>
+  <tr><td>Container runtime</td><td>Docker</td><td>SO services run in containers</td></tr>
+  <tr><td>Customer CLI</td><td>Python 3 (cli.py)</td><td>Restricted SSH menu for customers</td></tr>
+  <tr><td>Firewall</td><td>UFW</td><td>Strict inbound/outbound rules</td></tr>
+  <tr><td>MAC</td><td>AppArmor</td><td>Mandatory access control profiles</td></tr>
+</table>
+
+<!-- ─── Section 2 ─── -->
+<h1 id="access">2. Access Model &amp; Credentials</h1>
+
+<h2>User Accounts</h2>
+
+<table>
+  <tr><th>User</th><th>Auth Method</th><th>Shell</th><th>Access Level</th><th>Purpose</th></tr>
+  <tr><td><code>ubuntu</code></td><td>SSH key (PEM) only</td><td>Full bash + sudo</td><td>Admin (you)</td><td>Full system access, maintenance, debugging</td></tr>
+  <tr><td><code>coderedai</code></td><td>Password (<code>coderedai</code>)</td><td>Restricted CLI (cli.py)</td><td>Customer</td><td>Setup wizard, status, basic config changes</td></tr>
+  <tr><td><code>root</code></td><td>Disabled</td><td>nologin (no SSH)</td><td>None</td><td>Locked — use <code>ubuntu</code> + sudo instead</td></tr>
+</table>
+
+<h2>SSH Configuration</h2>
+
+<pre><code># sshd_config enforces:
+PermitRootLogin no
+AllowUsers ubuntu coderedai
+
+# ubuntu = key-only (no password SSH)
+Match User ubuntu
+    PasswordAuthentication no
+    PubkeyAuthentication yes
+
+# coderedai = password-only (no key upload escape)
+Match User coderedai
+    PasswordAuthentication yes
+    PubkeyAuthentication no
+    ForceCommand /usr/bin/python3 /opt/codered/shell/cli.py</code></pre>
+
+<h2>How to SSH In</h2>
+
+<pre><code># As admin (full access):
+ssh -i NDR.pem ubuntu@&lt;sensor-ip&gt;
+
+# As customer would (restricted CLI):
+ssh coderedai@&lt;sensor-ip&gt;
+# Password: coderedai (default)</code></pre>
+
+<div class="callout callout-danger">
+  <div class="callout-title">⚠ NEVER share the PEM key or ubuntu account with customers</div>
+  <p>The customer should only know about the <code>coderedai</code> account. The <code>ubuntu</code> account is your administrative backdoor for maintenance and troubleshooting.</p>
+</div>
+
+<h2>Customer Sudoers (Limited)</h2>
+
+<p>The <code>coderedai</code> user can only run these commands via sudo (defined in <code>/etc/sudoers.d/codered</code>):</p>
+
+<pre><code># Allowed commands (NOPASSWD):
+hostnamectl, nmcli, ip, ethtool         # Network config
+so-status, so-restart, so-*-restart      # SO service management
+salt-call --local                        # Apply Salt states
+systemctl is-active/restart              # Service status
+docker ps                                # Container status
+shutdown                                 # Reboot/shutdown
+timedatectl, journalctl, pgrep           # Diagnostics
+chpasswd                                 # Password change
+cp/chmod/mkdir for /etc/codered/         # Config file writes</code></pre>
+
+<!-- ─── Section 3 ─── -->
+<h1 id="filesystem">3. File System Layout</h1>
+
+<h2>CodeRed NDR Files</h2>
+
+<table>
+  <tr><th>Path</th><th>Purpose</th><th>Managed By</th></tr>
+  <tr><td><code>/opt/codered/</code></td><td>Main CodeRed installation directory</td><td>OVA build + auto-update</td></tr>
+  <tr><td><code>/opt/codered/shell/cli.py</code></td><td>Customer restricted CLI (main entry point)</td><td>Salt + auto-update</td></tr>
+  <tr><td><code>/opt/codered/bin/update-rules.sh</code></td><td>Suricata ET rule updater script</td><td>Salt</td></tr>
+  <tr><td><code>/opt/codered/bin/codered-update.sh</code></td><td>Auto-update script (git pull + salt-call)</td><td>Salt</td></tr>
+  <tr><td><code>/opt/codered/VERSION</code></td><td>Sensor version number</td><td>Git repo</td></tr>
+  <tr><td><code>/opt/codered/repo/</code></td><td>Git clone of your CodeRed repo (for auto-updates)</td><td>Git</td></tr>
+  <tr><td><code>/etc/codered/sensor.conf</code></td><td>Customer's sensor configuration (INI format)</td><td>cli.py wizard</td></tr>
+  <tr><td><code>/etc/codered/codered.defaults</code></td><td>Default config values</td><td>OVA build</td></tr>
+  <tr><td><code>/etc/codered/.setup-complete</code></td><td>Sentinel file — if exists, wizard skips to menu</td><td>cli.py</td></tr>
+</table>
+
+<h2>Security Onion Paths</h2>
+
+<table>
+  <tr><th>Path</th><th>Purpose</th></tr>
+  <tr><td><code>/opt/so/saltstack/local/salt/codered/</code></td><td>CodeRed Salt states (our overlay on SO)</td></tr>
+  <tr><td><code>/opt/so/saltstack/local/pillar/codered/</code></td><td>CodeRed Salt pillars</td></tr>
+  <tr><td><code>/nsm/zeek/logs/current/</code></td><td>Live Zeek logs (conn.log, dns.log, http.log, etc.)</td></tr>
+  <tr><td><code>/nsm/zeek/logs/</code></td><td>Rotated Zeek logs (by date)</td></tr>
+  <tr><td><code>/nsm/suricata/eve.json</code></td><td>Live Suricata alerts + metadata</td></tr>
+  <tr><td><code>/nsm/pcap/</code></td><td>Packet captures (if enabled)</td></tr>
+</table>
+
+<h2>Log Files</h2>
+
+<table>
+  <tr><th>Path</th><th>Purpose</th><th>Rotation</th></tr>
+  <tr><td><code>/var/log/codered/cli.log</code></td><td>CLI application log</td><td>Manual</td></tr>
+  <tr><td><code>/var/log/codered/audit.log</code></td><td>Customer action audit trail</td><td>Manual</td></tr>
+  <tr><td><code>/var/log/codered/rule-update.log</code></td><td>Suricata rule update history</td><td>Overwritten per run</td></tr>
+  <tr><td><code>/var/log/codered/last-rule-update.log</code></td><td>Timestamp + count of last rule update</td><td>Overwritten per run</td></tr>
+  <tr><td><code>/var/log/codered/update.log</code></td><td>Auto-update (git pull) history</td><td>Appends</td></tr>
+  <tr><td><code>/var/log/codered/last-update.log</code></td><td>Timestamp of last auto-update</td><td>Overwritten per run</td></tr>
+</table>
+
+<!-- ─── Section 4 ─── -->
+<h1 id="services">4. Services &amp; Processes</h1>
+
+<h2>Core Services</h2>
+
+<table>
+  <tr><th>Service</th><th>Type</th><th>Check Status</th><th>Restart</th></tr>
+  <tr><td>Zeek</td><td>Docker (SO)</td><td><code>so-status</code></td><td><code>so-zeek-restart</code></td></tr>
+  <tr><td>Suricata</td><td>Docker (SO)</td><td><code>so-status</code></td><td><code>so-suricata-restart</code></td></tr>
+  <tr><td>Elastic Agent</td><td>Docker (SO)</td><td><code>so-status</code></td><td><code>so-elastic-agent-restart</code></td></tr>
+  <tr><td>Docker</td><td>systemd</td><td><code>systemctl status docker</code></td><td><code>systemctl restart docker</code></td></tr>
+  <tr><td>Salt Minion</td><td>systemd</td><td><code>systemctl status salt-minion</code></td><td><code>systemctl restart salt-minion</code></td></tr>
+  <tr><td>SSH</td><td>systemd</td><td><code>systemctl status sshd</code></td><td><code>systemctl restart sshd</code></td></tr>
+  <tr><td>UFW (firewall)</td><td>systemd</td><td><code>ufw status</code></td><td><code>ufw reload</code></td></tr>
+  <tr><td>Fail2ban</td><td>systemd</td><td><code>systemctl status fail2ban</code></td><td><code>systemctl restart fail2ban</code></td></tr>
+  <tr><td>AppArmor</td><td>systemd</td><td><code>aa-status</code></td><td><code>systemctl restart apparmor</code></td></tr>
+</table>
+
+<h2>Systemd Timers (Automated Tasks)</h2>
+
+<table>
+  <tr><th>Timer</th><th>Interval</th><th>What It Does</th><th>Check</th></tr>
+  <tr><td><code>codered-rule-update.timer</code></td><td>Daily 3:00 AM ±30min</td><td>Downloads latest ET Open Suricata rules</td><td><code>systemctl status codered-rule-update.timer</code></td></tr>
+  <tr><td><code>codered-update.timer</code></td><td>Every 6 hours</td><td>Git pull + apply Salt states</td><td><code>systemctl status codered-update.timer</code></td></tr>
+</table>
+
+<h2>Useful Commands</h2>
+
+<pre><code># View all SO container status
+so-status
+
+# View all running containers
+docker ps --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}"
+
+# Restart everything
+so-restart
+
+# View all timers
+systemctl list-timers --all
+
+# Force rule update now
+/opt/codered/bin/update-rules.sh
+
+# Force auto-update now
+/opt/codered/bin/codered-update.sh
+
+# Re-apply all CodeRed Salt states
+salt-call --local state.apply codered
+
+# Re-apply specific component
+salt-call --local state.apply codered.zeek
+salt-call --local state.apply codered.suricata
+salt-call --local state.apply codered.forwarding
+salt-call --local state.apply codered.hardening</code></pre>
+
+<!-- ─── Section 5 ─── -->
+<h1 id="updates">5. Updates &amp; Maintenance</h1>
+
+<h2>Update Types</h2>
+
+<table>
+  <tr><th>Update Type</th><th>What Changes</th><th>How</th><th>Frequency</th><th>Downtime</th></tr>
+  <tr><td><strong>Detection rules</strong></td><td>Suricata ET Open signatures</td><td>Automatic (daily timer)</td><td>Daily</td><td>None (live reload)</td></tr>
+  <tr><td><strong>CodeRed config</strong></td><td>Salt states, cli.py, configs</td><td>Automatic (6h git timer)</td><td>When you push to repo</td><td>None</td></tr>
+  <tr><td><strong>OS patches</strong></td><td>Security updates, kernel</td><td>Manual SSH</td><td>Monthly recommended</td><td>Reboot for kernel</td></tr>
+  <tr><td><strong>SO update</strong></td><td>Zeek/Suricata/Docker images</td><td>Manual SSH (<code>soup</code>)</td><td>Quarterly</td><td>Brief (service restart)</td></tr>
+  <tr><td><strong>Full upgrade</strong></td><td>New OVA version</td><td>Re-deploy OVA</td><td>Major versions</td><td>Full replacement</td></tr>
+</table>
+
+<h2>Applying OS Security Patches</h2>
+
+<pre><code># SSH as admin
+ssh -i NDR.pem ubuntu@&lt;sensor-ip&gt;
+
+# Check available updates
+sudo dnf check-update        # Oracle Linux / RHEL
+sudo apt list --upgradable   # Ubuntu / Debian
+
+# Apply security patches only
+sudo dnf update --security -y        # Oracle Linux
+sudo apt-get upgrade -y              # Ubuntu
+
+# If kernel was updated, reboot
+sudo reboot</code></pre>
+
+<div class="callout callout-warning">
+  <div class="callout-title">⚠ Notify customer before rebooting</div>
+  <p>OS patches that require a reboot will cause a brief monitoring gap. Schedule during a maintenance window and notify the customer.</p>
+</div>
+
+<h2>Updating Security Onion</h2>
+
+<pre><code># SSH as admin
+ssh -i NDR.pem ubuntu@&lt;sensor-ip&gt;
+
+# Check current SO version
+cat /etc/soversion
+
+# Run SO update (soup = Security Onion UPdate)
+sudo soup
+
+# This will:
+# - Pull latest Docker images for Zeek, Suricata, etc.
+# - Update SO Salt states
+# - Restart affected containers
+# Takes 10-30 minutes</code></pre>
+
+<div class="callout callout-danger">
+  <div class="callout-title">⚠ Test soup on a lab sensor first</div>
+  <p>SO updates can occasionally break customizations. Always test on a non-production sensor before rolling out to customer sensors.</p>
+</div>
+
+<h2>Pushing CodeRed Config Updates to All Sensors</h2>
+
+<p>When you push changes to your CodeRed git repository, all sensors will automatically pull within 6 hours. To force immediate update:</p>
+
+<pre><code># Force update on a single sensor
+ssh -i NDR.pem ubuntu@&lt;sensor-ip&gt; "sudo /opt/codered/bin/codered-update.sh"
+
+# Force update on multiple sensors
+for ip in 10.0.1.10 10.0.1.11 10.0.1.12; do
+    echo "Updating $ip..."
+    ssh -i NDR.pem ubuntu@$ip "sudo /opt/codered/bin/codered-update.sh" &amp;
+done
+wait
+echo "All sensors updated."</code></pre>
+
+<!-- ─── Section 6 ─── -->
+<h1 id="rules">6. Suricata Rules Management</h1>
+
+<h2>Auto-Update Flow</h2>
+
+<pre><code>Daily at 3:00 AM (±30 min jitter)
+    │
+    ├─ Download ET Open rules from rules.emergingthreats.net
+    ├─ Validate: is gzip? rule count &gt; 1000?
+    ├─ Backup current rules (keep last 3 backups)
+    ├─ Deploy new rules to /opt/so/saltstack/local/salt/suricata/rules/
+    ├─ Reload Suricata (live rule reload — no traffic gap)
+    └─ Log result to /var/log/codered/rule-update.log</code></pre>
+
+<h2>Manual Rule Management</h2>
+
+<pre><code># Force immediate rule update
+sudo /opt/codered/bin/update-rules.sh
+
+# Check last update
+cat /var/log/codered/last-rule-update.log
+# Example output: 2026-03-18T03:14:22Z rules=52847
+
+# View update history
+cat /var/log/codered/rule-update.log
+
+# View current rule count
+grep -c "^alert\|^drop" /opt/so/saltstack/local/salt/suricata/rules/*.rules
+
+# Check timer status
+systemctl status codered-rule-update.timer
+systemctl list-timers codered-rule-update
+
+# Manually disable a noisy rule (add to threshold.config)
+echo 'suppress gen_id 1, sig_id 2027757, track by_src, ip 10.0.0.0/8' \
+    >> /opt/so/saltstack/local/salt/suricata/files/threshold.config
+so-suricata-restart</code></pre>
+
+<h2>Adding Custom Rules</h2>
+
+<pre><code># Create custom rules file
+sudo vi /opt/so/saltstack/local/salt/suricata/rules/local.rules
+
+# Example custom rules:
+alert http any any -> any any (msg:"CUSTOM Suspicious User-Agent"; \
+    http.user_agent; content:"evil-bot"; sid:9000001; rev:1;)
+
+alert dns any any -> any any (msg:"CUSTOM Blocked Domain"; \
+    dns.query; content:"malware-domain.com"; sid:9000002; rev:1;)
+
+# Reload
+so-suricata-restart</code></pre>
+
+<h2>Adding Threat Intel Feeds</h2>
+
+<pre><code># Add IP blocklist to Suricata
+# Download a threat intel IP list
+curl -sL https://rules.emergingthreats.net/fwrules/emerging-Block-IPs.txt \
+    | grep -v "^#" > /tmp/blocklist.txt
+
+# Convert to Suricata rules
+while read ip; do
+    echo "drop ip $ip any -> any any (msg:\"THREAT-INTEL Blocked IP $ip\"; sid:9100001; rev:1;)"
+done < /tmp/blocklist.txt >> /opt/so/saltstack/local/salt/suricata/rules/threat-intel.rules
+
+so-suricata-restart</code></pre>
+
+<!-- ─── Section 7 ─── -->
+<h1 id="salt">7. Salt States &amp; Configuration</h1>
+
+<h2>Salt State Tree</h2>
+
+<pre><code>/opt/so/saltstack/local/salt/codered/
+├── init.sls              # Meta-state: includes all sub-states
+├── sensor.sls            # Hostname, grains, base packages
+├── zeek/
+│   ├── init.sls          # Zeek tuning: workers, protocols
+│   └── files/
+│       ├── local.zeek.jinja    # Zeek protocol/script config
+│       └── node.cfg.jinja      # Worker distribution across interfaces
+├── suricata/
+│   ├── init.sls          # Suricata tuning + af-packet config
+│   ├── ips.sls           # IPS mode (nfqueue) — conditional
+│   ├── rules-update.sls  # ET rule auto-update timer
+│   └── files/
+│       ├── suricata.yaml.jinja     # Suricata config overlay
+│       └── threshold.config.jinja  # Rule suppressions
+├── forwarding/
+│   ├── init.sls           # Dispatcher (selects backend)
+│   ├── elastic_agent.sls  # Elastic Agent output config
+│   ├── filebeat.sls       # Filebeat alternative
+│   ├── vector.sls         # Vector alternative
+│   └── files/             # Jinja templates for each backend
+├── hardening/
+│   ├── init.sls           # Meta-state for all hardening
+│   ├── ssh.sls            # SSH hardening + fail2ban
+│   ├── rbash.sls          # coderedai user + restricted CLI
+│   ├── firewall.sls       # UFW rules
+│   ├── apparmor.sls       # AppArmor profiles
+│   ├── readonly.sls       # Immutable files + sysctl
+│   └── files/
+│       └── sshd_config.jinja
+└── autoupdate/
+    ├── init.sls           # Git-based auto-update timer
+    └── files/
+        ├── codered-update.sh
+        ├── codered-update.service
+        └── codered-update.timer</code></pre>
+
+<h2>How Salt Works on the Sensor</h2>
+
+<pre><code># Salt runs in LOCAL mode (no master needed)
+# All states are applied via:
+salt-call --local state.apply codered
+
+# Apply a specific sub-state:
+salt-call --local state.apply codered.zeek
+salt-call --local state.apply codered.hardening
+
+# Test a state without applying (dry run):
+salt-call --local state.apply codered.zeek test=True
+
+# View pillar values:
+salt-call --local pillar.items
+
+# View grains:
+salt-call --local grains.items</code></pre>
+
+<h2>Customer Config ↔ Salt Pillar Flow</h2>
+
+<pre><code>Customer CLI (cli.py)
+    │
+    ├─ Writes /etc/codered/sensor.conf
+    │
+    ▼
+Salt Pillar (/opt/so/saltstack/local/pillar/codered/init.sls)
+    │
+    ├─ Reads sensor.conf via ini.get_ini()
+    ├─ Exposes values as pillar['codered']['network']['monitor_interfaces'], etc.
+    │
+    ▼
+Salt States
+    │
+    ├─ Use pillar values in Jinja templates
+    ├─ Generate Zeek node.cfg, Suricata suricata.yaml, etc.
+    └─ Apply configs + restart services</code></pre>
+
+<!-- ─── Section 8 ─── -->
+<h1 id="forwarding">8. Log Forwarding Configuration</h1>
+
+<h2>Backend Selection</h2>
+
+<p>Set in <code>/etc/codered/sensor.conf</code> under <code>[forwarding] backend = </code>:</p>
+
+<table>
+  <tr><th>Backend</th><th>Best For</th><th>Config Template</th></tr>
+  <tr><td><code>elastic-agent</code></td><td>Default (SO already runs it)</td><td><code>forwarding/files/elastic-agent.yml.jinja</code></td></tr>
+  <tr><td><code>filebeat</code></td><td>Lightweight, Beats protocol</td><td><code>forwarding/files/filebeat.yml.jinja</code></td></tr>
+  <tr><td><code>vector</code></td><td>High-throughput, transforms</td><td><code>forwarding/files/vector.toml.jinja</code></td></tr>
+</table>
+
+<h2>What Gets Forwarded</h2>
+
+<table>
+  <tr><th>Log Source</th><th>Path</th><th>Format</th><th>Content</th></tr>
+  <tr><td>Zeek</td><td><code>/nsm/zeek/logs/current/*.log</code></td><td>NDJSON</td><td>conn, dns, http, ssl, ssh, smtp, files, notice, etc.</td></tr>
+  <tr><td>Suricata</td><td><code>/nsm/suricata/eve.json</code></td><td>NDJSON</td><td>alerts, anomaly, dns, http, tls, flow, netflow</td></tr>
+  <tr><td>Wazuh (if used)</td><td><code>/var/ossec/logs/alerts/alerts.json</code></td><td>NDJSON</td><td>Host-based alerts</td></tr>
+</table>
+
+<h2>Changing the Backend</h2>
+
+<pre><code># Edit the config
+sudo vi /etc/codered/sensor.conf
+# Change: backend = filebeat
+
+# Apply
+salt-call --local state.apply codered.forwarding</code></pre>
+
+<h2>Testing Forwarding</h2>
+
+<pre><code># Check if logs are being shipped
+# For Elastic Agent:
+docker logs so-elastic-agent 2>&1 | tail -20
+
+# For Filebeat:
+filebeat test output
+journalctl -u filebeat -f
+
+# For Vector:
+vector top
+journalctl -u vector -f
+
+# Verify data reaches CodeRed AI:
+curl -s "http://&lt;codered-ai-ip&gt;:9200/_cat/indices?v" | grep codered</code></pre>
+
+<!-- ─── Section 9 ─── -->
+<h1 id="hardening">9. Security Hardening Details</h1>
+
+<h2>Hardening Checklist</h2>
+
+<table>
+  <tr><th>Layer</th><th>Control</th><th>Status</th><th>Verify Command</th></tr>
+  <tr><td>SSH</td><td>Root login disabled</td><td>Enforced</td><td><code>grep PermitRootLogin /etc/ssh/sshd_config.d/*</code></td></tr>
+  <tr><td>SSH</td><td>Strong ciphers only</td><td>Enforced</td><td><code>ssh -Q cipher</code></td></tr>
+  <tr><td>SSH</td><td>Key-only for admin</td><td>Enforced</td><td><code>grep PasswordAuthentication /etc/ssh/sshd_config.d/*</code></td></tr>
+  <tr><td>SSH</td><td>ForceCommand for customer</td><td>Enforced</td><td><code>grep ForceCommand /etc/ssh/sshd_config.d/*</code></td></tr>
+  <tr><td>Firewall</td><td>UFW deny all inbound</td><td>Enforced</td><td><code>ufw status verbose</code></td></tr>
+  <tr><td>Firewall</td><td>Only SSH (22) inbound</td><td>Enforced</td><td><code>ufw status numbered</code></td></tr>
+  <tr><td>MAC</td><td>AppArmor active</td><td>Enforced</td><td><code>aa-status</code></td></tr>
+  <tr><td>MAC</td><td>cli.py profile loaded</td><td>Enforced</td><td><code>aa-status | grep codered</code></td></tr>
+  <tr><td>Kernel</td><td>ASLR enabled</td><td>Enforced</td><td><code>cat /proc/sys/kernel/randomize_va_space</code> (should be 2)</td></tr>
+  <tr><td>Kernel</td><td>SYN cookies</td><td>Enforced</td><td><code>cat /proc/sys/net/ipv4/tcp_syncookies</code> (should be 1)</td></tr>
+  <tr><td>Kernel</td><td>Source routing disabled</td><td>Enforced</td><td><code>cat /proc/sys/net/ipv4/conf/all/accept_source_route</code> (should be 0)</td></tr>
+  <tr><td>Kernel</td><td>Core dumps disabled</td><td>Enforced</td><td><code>ulimit -c</code> (should be 0)</td></tr>
+  <tr><td>Files</td><td>Critical files immutable</td><td>Enforced</td><td><code>lsattr /opt/codered/shell/cli.py</code> (should show 'i')</td></tr>
+  <tr><td>Files</td><td>Customer .bashrc read-only</td><td>Enforced</td><td><code>ls -la /home/coderedai/.bashrc</code> (should be 0444)</td></tr>
+  <tr><td>Brute force</td><td>Fail2ban on SSH</td><td>Enforced</td><td><code>fail2ban-client status sshd</code></td></tr>
+  <tr><td>Audit</td><td>All customer actions logged</td><td>Enforced</td><td><code>cat /var/log/codered/audit.log</code></td></tr>
+</table>
+
+<h2>Firewall Rules</h2>
+
+<pre><code># View current rules
+sudo ufw status verbose
+
+# Expected rules:
+# Default: deny (incoming), allow (outgoing)
+# ALLOW IN on management interface: 22/tcp (SSH)
+# ALLOW OUT: 9200/tcp (CodeRed AI), 53 (DNS), 123/udp (NTP), 443/tcp (HTTPS)
+# ALLOW OUT: 4505-4506/tcp (Salt, if using remote master)</code></pre>
+
+<h2>Reviewing Customer Audit Log</h2>
+
+<pre><code># View all customer actions
+cat /var/log/codered/audit.log
+
+# Example entries:
+# 2026-03-18T14:32:05Z user=coderedai src=10.0.1.50 action=login
+# 2026-03-18T14:32:10Z user=coderedai src=10.0.1.50 action=selected:1
+# 2026-03-18T14:33:00Z user=coderedai src=10.0.1.50 action=reconfigure:network
+# 2026-03-18T14:35:00Z user=coderedai src=10.0.1.50 action=restart-all:confirmed
+# 2026-03-18T14:36:00Z user=coderedai src=10.0.1.50 action=logout
+
+# Filter by action type
+grep "reconfigure\|restart\|reboot\|shutdown\|change-password" /var/log/codered/audit.log</code></pre>
+
+<!-- ─── Section 10 ─── -->
+<h1 id="monitoring">10. Sensor Health Monitoring</h1>
+
+<h2>Key Metrics to Watch</h2>
+
+<table>
+  <tr><th>Metric</th><th>Warning Threshold</th><th>Critical Threshold</th><th>Check Command</th></tr>
+  <tr><td>CPU usage</td><td>&gt;70% sustained</td><td>&gt;90% sustained</td><td><code>top -bn1 | head -5</code></td></tr>
+  <tr><td>Memory usage</td><td>&gt;80%</td><td>&gt;95%</td><td><code>free -h</code></td></tr>
+  <tr><td>Root disk</td><td>&gt;80%</td><td>&gt;95%</td><td><code>df -h /</code></td></tr>
+  <tr><td>NSM disk (/nsm)</td><td>&gt;75%</td><td>&gt;90%</td><td><code>df -h /nsm</code></td></tr>
+  <tr><td>Zeek process</td><td>N/A</td><td>Not running</td><td><code>pgrep -c zeek</code></td></tr>
+  <tr><td>Suricata process</td><td>N/A</td><td>Not running</td><td><code>pgrep -c suricata</code></td></tr>
+  <tr><td>Packet drops (Suricata)</td><td>&gt;1%</td><td>&gt;5%</td><td><code>suricatasc -c dump-counters | grep drop</code></td></tr>
+  <tr><td>Monitor NIC link</td><td>N/A</td><td>DOWN</td><td><code>ip link show ens34</code></td></tr>
+  <tr><td>Rule update age</td><td>&gt;48 hours</td><td>&gt;7 days</td><td><code>stat /var/log/codered/last-rule-update.log</code></td></tr>
+  <tr><td>Forwarding queue</td><td>Backing up</td><td>Disk buffer full</td><td>Check forwarder logs</td></tr>
+</table>
+
+<h2>Quick Health Check Script</h2>
+
+<pre><code>#!/bin/bash
+# Run on sensor as admin: sudo bash health-check.sh
+echo "=== CodeRed NDR Health Check ==="
+echo "Hostname: $(hostname)"
+echo "Uptime: $(uptime -p)"
+echo ""
+echo "=== CPU/Memory ==="
+echo "Load: $(cat /proc/loadavg | awk '{print $1, $2, $3}')"
+echo "Memory: $(free -h | grep Mem | awk '{print $3"/"$2}')"
+echo ""
+echo "=== Disk ==="
+df -h / /nsm 2>/dev/null
+echo ""
+echo "=== Services ==="
+for p in zeek suricata dockerd; do
+    pgrep -x $p &gt;/dev/null &amp;&amp; echo "$p: RUNNING" || echo "$p: DOWN !!!"
+done
+echo ""
+echo "=== Monitor Interfaces ==="
+for iface in $(grep monitor_interfaces /etc/codered/sensor.conf 2>/dev/null | cut -d= -f2 | tr ',' ' '); do
+    ip -br link show $iface 2>/dev/null | head -1
+done
+echo ""
+echo "=== Last Rule Update ==="
+cat /var/log/codered/last-rule-update.log 2>/dev/null || echo "Never"
+echo ""
+echo "=== Last Auto-Update ==="
+cat /var/log/codered/last-update.log 2>/dev/null || echo "Never"
+echo ""
+echo "=== Suricata Stats ==="
+docker exec so-suricata suricatasc -c dump-counters 2>/dev/null | grep -E "capture.kernel_packets|capture.kernel_drops" || echo "N/A"</code></pre>
+
+<!-- ─── Section 11 ─── -->
+<h1 id="troubleshooting">11. Troubleshooting Playbook</h1>
+
+<h2>Sensor Not Receiving Traffic</h2>
+
+<pre><code># 1. Check monitor interfaces are UP and PROMISC
+ip -d link show ens34 | grep -i promisc
+
+# 2. If not promisc, fix:
+sudo ip link set ens34 up promisc on
+
+# 3. Check if packets are arriving
+sudo tcpdump -i ens34 -c 10
+
+# 4. If no packets: problem is on switch/hypervisor side
+#    - Verify SPAN session is active
+#    - VMware: verify promiscuous mode on port group
+
+# 5. If packets arrive but no Zeek logs:
+docker logs so-zeek 2>&1 | tail -20
+so-zeek-restart</code></pre>
+
+<h2>Sensor Not Forwarding Logs</h2>
+
+<pre><code># 1. Check if logs exist locally
+ls -la /nsm/zeek/logs/current/
+ls -la /nsm/suricata/eve.json
+
+# 2. Check forwarder is running
+docker ps | grep -E "elastic-agent|filebeat"
+# or
+systemctl status filebeat vector
+
+# 3. Test connectivity to CodeRed AI
+curl -s -o /dev/null -w "%{http_code}" https://&lt;codered-ai-ip&gt;:9200
+# Should return 200 or 401
+
+# 4. Check forwarder logs
+docker logs so-elastic-agent 2>&1 | tail -50
+# or
+journalctl -u filebeat -n 50
+
+# 5. Verify firewall allows outbound
+ufw status | grep 9200</code></pre>
+
+<h2>High CPU / Memory</h2>
+
+<pre><code># 1. Identify the process
+top -bn1 | head -20
+
+# 2. If Zeek is using too much CPU:
+# Reduce workers
+sudo vi /etc/codered/sensor.conf
+# Change: workers = 2 (instead of auto)
+salt-call --local state.apply codered.zeek
+
+# 3. If Suricata is using too much memory:
+# Reduce stream memcap in suricata.yaml
+# Default: 512mb, try 256mb for small sensors
+
+# 4. If disk is full:
+# Check what's using space
+du -sh /nsm/* | sort -rh | head -10
+# Clean old Zeek logs
+find /nsm/zeek/logs -mtime +7 -delete
+# Clean old PCAP
+find /nsm/pcap -mtime +3 -delete</code></pre>
+
+<h2>Customer Locked Out</h2>
+
+<pre><code># 1. SSH as admin
+ssh -i NDR.pem ubuntu@&lt;sensor-ip&gt;
+
+# 2. Reset coderedai password
+echo "coderedai:coderedai" | sudo chpasswd
+
+# 3. If customer changed password and forgot it:
+echo "coderedai:NewTempPassword123" | sudo chpasswd
+# Tell customer the temp password, they can change it via menu option 11
+
+# 4. If SSH is completely broken:
+# Access via hypervisor console (VMware/Proxmox)
+# Login as ubuntu (if console login is available)
+# Fix SSH: sudo systemctl restart sshd</code></pre>
+
+<h2>Salt State Failure</h2>
+
+<pre><code># 1. Run Salt in debug mode
+salt-call --local state.apply codered -l debug 2>&amp;1 | tee /tmp/salt-debug.log
+
+# 2. Check specific state
+salt-call --local state.apply codered.zeek test=True
+
+# 3. View pillar (check sensor.conf is parsed correctly)
+salt-call --local pillar.items | grep -A5 codered
+
+# 4. Common fixes:
+# - sensor.conf has invalid INI syntax → fix and re-run
+# - Salt state has Jinja error → check template syntax
+# - Package install fails → check internet connectivity</code></pre>
+
+<h2>Rule Update Failing</h2>
+
+<pre><code># 1. Check the log
+cat /var/log/codered/rule-update.log
+
+# 2. Common causes:
+# - No internet: check DNS and HTTPS outbound
+curl -sI https://rules.emergingthreats.net
+# - Firewall blocking: check UFW
+ufw status | grep 443
+# - Disk full: check space
+df -h /opt
+
+# 3. Run manually with verbose output
+bash -x /opt/codered/bin/update-rules.sh</code></pre>
+
+<!-- ─── Section 12 ─── -->
+<h1 id="backup">12. Backup &amp; Recovery</h1>
+
+<h2>What to Backup</h2>
+
+<table>
+  <tr><th>Item</th><th>Path</th><th>Why</th></tr>
+  <tr><td>Sensor config</td><td><code>/etc/codered/sensor.conf</code></td><td>Customer's settings (IP, hostname, interfaces, CodeRed AI endpoint)</td></tr>
+  <tr><td>Custom rules</td><td><code>/opt/so/saltstack/local/salt/suricata/rules/local.rules</code></td><td>Any custom Suricata rules you wrote</td></tr>
+  <tr><td>Threshold config</td><td><code>/opt/so/saltstack/local/salt/suricata/files/threshold.config</code></td><td>Rule suppressions tuned for this customer</td></tr>
+  <tr><td>SSH keys</td><td><code>/home/ubuntu/.ssh/authorized_keys</code></td><td>Your admin access</td></tr>
+</table>
+
+<h2>Backup Script</h2>
+
+<pre><code>#!/bin/bash
+# Run as admin: sudo bash backup-sensor.sh
+BACKUP_DIR="/tmp/codered-backup-$(hostname)-$(date +%Y%m%d)"
+mkdir -p "$BACKUP_DIR"
+
+cp /etc/codered/sensor.conf "$BACKUP_DIR/"
+cp /opt/so/saltstack/local/salt/suricata/rules/local.rules "$BACKUP_DIR/" 2>/dev/null
+cp /opt/so/saltstack/local/salt/suricata/files/threshold.config "$BACKUP_DIR/" 2>/dev/null
+cp /home/ubuntu/.ssh/authorized_keys "$BACKUP_DIR/" 2>/dev/null
+cp /opt/codered/VERSION "$BACKUP_DIR/"
+hostname > "$BACKUP_DIR/hostname.txt"
+
+tar czf "${BACKUP_DIR}.tar.gz" -C /tmp "$(basename $BACKUP_DIR)"
+rm -rf "$BACKUP_DIR"
+echo "Backup: ${BACKUP_DIR}.tar.gz"
+
+# Download to your machine:
+# scp -i NDR.pem ubuntu@sensor-ip:${BACKUP_DIR}.tar.gz .</code></pre>
+
+<h2>Restore on New Sensor</h2>
+
+<pre><code># 1. Deploy fresh OVA
+# 2. SSH as admin
+ssh -i NDR.pem ubuntu@&lt;new-sensor-ip&gt;
+
+# 3. Upload backup
+scp -i NDR.pem codered-backup-*.tar.gz ubuntu@&lt;new-sensor-ip&gt;:/tmp/
+
+# 4. Restore
+sudo tar xzf /tmp/codered-backup-*.tar.gz -C /tmp/
+sudo cp /tmp/codered-backup-*/sensor.conf /etc/codered/sensor.conf
+sudo cp /tmp/codered-backup-*/local.rules /opt/so/saltstack/local/salt/suricata/rules/ 2>/dev/null
+sudo cp /tmp/codered-backup-*/threshold.config /opt/so/saltstack/local/salt/suricata/files/ 2>/dev/null
+
+# 5. Apply config
+sudo salt-call --local state.apply codered
+
+# 6. Mark setup complete (skip wizard)
+sudo touch /etc/codered/.setup-complete
+
+# Sensor is now a clone of the original</code></pre>
+
+<!-- ─── Section 13 ─── -->
+<h1 id="ova">13. OVA Build &amp; Deployment</h1>
+
+<h2>Building a New OVA</h2>
+
+<pre><code># Option 1: Using Packer (recommended for CI)
+cd codered-sensor/build/packer
+packer init .
+packer build -var "version=1.0.1" sensor.pkr.hcl
+
+# Option 2: From running AWS instance
+# 1. Clean the instance
+sudo /opt/codered/build/packer/scripts/04-cleanup.sh
+
+# 2. Create AMI
+aws ec2 create-image \
+    --instance-id i-0abc123 \
+    --name "codered-ndr-v1.0.1" \
+    --no-reboot
+
+# 3. Export AMI to OVA in S3
+aws ec2 export-image \
+    --image-id ami-0abc123 \
+    --disk-image-format VMDK \
+    --s3-export-location S3Bucket=your-bucket,S3Prefix=ova/</code></pre>
+
+<h2>Pre-Export Cleanup Checklist</h2>
+
+<pre><code>□ Remove /etc/codered/.setup-complete (triggers wizard on first boot)
+□ Remove SSH host keys (regenerated on boot)
+□ Reset machine-id
+□ Clear all logs
+□ Clear bash history
+□ Reset coderedai password to default
+□ Remove any customer-specific config from sensor.conf
+□ Zero free disk space (for smaller OVA)</code></pre>
+
+<h2>Deploying to Customer</h2>
+
+<ol>
+  <li>Send customer the OVA file + user guide (user-guide.html)</li>
+  <li>Customer imports OVA, assigns NICs, powers on</li>
+  <li>Customer SSHs in as <code>coderedai</code>, completes setup wizard</li>
+  <li>You SSH in as <code>ubuntu</code> to verify everything is working</li>
+  <li>Configure auto-update repo URL in <code>/etc/codered/sensor.conf</code></li>
+</ol>
+
+<!-- ─── Section 14 ─── -->
+<h1 id="multitenancy">14. Multi-Sensor Fleet Management</h1>
+
+<h2>Tracking Sensors</h2>
+
+<p>Maintain a spreadsheet or CMDB of all deployed sensors:</p>
+
+<table>
+  <tr><th>Customer</th><th>Sensor Name</th><th>Mgmt IP</th><th>Monitor NICs</th><th>Version</th><th>Deployed</th></tr>
+  <tr><td>Acme Corp</td><td>acme-hq-01</td><td>10.50.1.100</td><td>ens34, ens35</td><td>1.0.0</td><td>2026-03-15</td></tr>
+  <tr><td>Acme Corp</td><td>acme-dc-01</td><td>10.50.2.100</td><td>ens34</td><td>1.0.0</td><td>2026-03-16</td></tr>
+  <tr><td>Beta Inc</td><td>beta-hq-01</td><td>192.168.1.100</td><td>ens34, ens35, ens36</td><td>1.0.0</td><td>2026-03-18</td></tr>
+</table>
+
+<h2>Fleet Commands</h2>
+
+<pre><code># Create a sensor list file
+cat &gt; ~/sensors.txt &lt;&lt;EOF
+10.50.1.100
+10.50.2.100
+192.168.1.100
+EOF
+
+# Check status of all sensors
+for ip in $(cat ~/sensors.txt); do
+    echo "=== $ip ==="
+    ssh -i NDR.pem -o ConnectTimeout=5 ubuntu@$ip "hostname; uptime -p; cat /opt/codered/VERSION" 2>/dev/null || echo "UNREACHABLE"
+    echo ""
+done
+
+# Push rule update to all sensors
+for ip in $(cat ~/sensors.txt); do
+    echo "Updating rules on $ip..."
+    ssh -i NDR.pem ubuntu@$ip "sudo /opt/codered/bin/update-rules.sh" &amp;
+done
+wait
+
+# Push config update to all sensors
+for ip in $(cat ~/sensors.txt); do
+    echo "Updating $ip..."
+    ssh -i NDR.pem ubuntu@$ip "sudo /opt/codered/bin/codered-update.sh" &amp;
+done
+wait
+
+# Collect health from all sensors
+for ip in $(cat ~/sensors.txt); do
+    echo "=== $ip ==="
+    ssh -i NDR.pem ubuntu@$ip "hostname; df -h / /nsm | tail -2; pgrep -c zeek; pgrep -c suricata" 2>/dev/null
+    echo ""
+done</code></pre>
+
+<h2>Git Repo Structure for Auto-Updates</h2>
+
+<pre><code># Your central CodeRed repo (what sensors pull from):
+codered-sensor/
+├── VERSION                    # Increment this to trigger updates
+├── salt/
+│   ├── states/codered/        # Salt states pushed to all sensors
+│   └── pillar/codered/        # Salt pillars
+├── shell/
+│   └── cli.py                 # Customer CLI — updates automatically
+└── conf/
+    └── codered.defaults       # Default config values
+
+# Workflow:
+# 1. Make changes in your repo
+# 2. git push
+# 3. Sensors auto-pull within 6 hours
+# 4. Or force: ssh ubuntu@sensor "sudo /opt/codered/bin/codered-update.sh"</code></pre>
+
+<!-- ─── Section 15 ─── -->
+<h1 id="reference">15. Quick Reference</h1>
+
+<h2>Essential Commands</h2>
+
+<table>
+  <tr><th>Task</th><th>Command</th></tr>
+  <tr><td>SSH as admin</td><td><code>ssh -i NDR.pem ubuntu@&lt;ip&gt;</code></td></tr>
+  <tr><td>View sensor status</td><td><code>so-status</code></td></tr>
+  <tr><td>Restart all services</td><td><code>so-restart</code></td></tr>
+  <tr><td>Restart Zeek</td><td><code>so-zeek-restart</code></td></tr>
+  <tr><td>Restart Suricata</td><td><code>so-suricata-restart</code></td></tr>
+  <tr><td>Apply Salt states</td><td><code>salt-call --local state.apply codered</code></td></tr>
+  <tr><td>Force rule update</td><td><code>/opt/codered/bin/update-rules.sh</code></td></tr>
+  <tr><td>Force config update</td><td><code>/opt/codered/bin/codered-update.sh</code></td></tr>
+  <tr><td>View customer config</td><td><code>cat /etc/codered/sensor.conf</code></td></tr>
+  <tr><td>View audit log</td><td><code>cat /var/log/codered/audit.log</code></td></tr>
+  <tr><td>View rule update log</td><td><code>cat /var/log/codered/rule-update.log</code></td></tr>
+  <tr><td>Check firewall</td><td><code>ufw status verbose</code></td></tr>
+  <tr><td>Check AppArmor</td><td><code>aa-status</code></td></tr>
+  <tr><td>Reset customer password</td><td><code>echo "coderedai:coderedai" | chpasswd</code></td></tr>
+  <tr><td>Re-run setup wizard</td><td><code>rm /etc/codered/.setup-complete</code> then customer re-logins</td></tr>
+  <tr><td>View Zeek logs</td><td><code>tail -f /nsm/zeek/logs/current/conn.log</code></td></tr>
+  <tr><td>View Suricata alerts</td><td><code>tail -f /nsm/suricata/eve.json | jq 'select(.event_type=="alert")'</code></td></tr>
+  <tr><td>Check packet capture</td><td><code>tcpdump -i ens34 -c 10</code></td></tr>
+  <tr><td>Check timers</td><td><code>systemctl list-timers</code></td></tr>
+</table>
+
+<h2>Important File Paths</h2>
+
+<table>
+  <tr><th>Path</th><th>What</th></tr>
+  <tr><td><code>/etc/codered/sensor.conf</code></td><td>Customer config</td></tr>
+  <tr><td><code>/etc/codered/.setup-complete</code></td><td>Delete to re-trigger wizard</td></tr>
+  <tr><td><code>/opt/codered/shell/cli.py</code></td><td>Customer CLI</td></tr>
+  <tr><td><code>/opt/codered/bin/update-rules.sh</code></td><td>Rule updater</td></tr>
+  <tr><td><code>/opt/codered/bin/codered-update.sh</code></td><td>Config updater</td></tr>
+  <tr><td><code>/opt/codered/VERSION</code></td><td>Sensor version</td></tr>
+  <tr><td><code>/nsm/zeek/logs/current/</code></td><td>Live Zeek logs</td></tr>
+  <tr><td><code>/nsm/suricata/eve.json</code></td><td>Live Suricata alerts</td></tr>
+  <tr><td><code>/var/log/codered/audit.log</code></td><td>Customer action audit</td></tr>
+  <tr><td><code>/var/log/codered/rule-update.log</code></td><td>Rule update history</td></tr>
+  <tr><td><code>/etc/ssh/sshd_config.d/99-codered-hardening.conf</code></td><td>SSH hardening</td></tr>
+  <tr><td><code>/etc/sudoers.d/codered</code></td><td>Customer sudo whitelist</td></tr>
+  <tr><td><code>/etc/profile.d/codered-cli.sh</code></td><td>Restricted shell launcher</td></tr>
+  <tr><td><code>/etc/apparmor.d/opt.codered.shell.cli</code></td><td>AppArmor profile</td></tr>
+</table>
+
+<!-- ─── Footer ─── -->
+<div class="page-footer">
+  CodeRed NDR Admin Guide v1.0 &nbsp;&bull;&nbsp; CONFIDENTIAL &mdash; Internal Only &nbsp;&bull;&nbsp; &copy; 2026 CodeRed AI. All Rights Reserved.
+</div>
+
+</div>
+</body>
+</html>

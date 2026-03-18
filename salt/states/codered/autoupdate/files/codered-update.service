@@ -1,0 +1,11 @@
+[Unit]
+Description=CodeRed NDR Auto-Update
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/opt/codered/bin/codered-update.sh
+TimeoutStartSec=600
+StandardOutput=journal
+StandardError=journal

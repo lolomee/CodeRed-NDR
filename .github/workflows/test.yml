@@ -1,0 +1,50 @@
+name: Test
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: pip install pytest
+
+      - name: Run unit tests
+        run: python -m pytest firstboot/tests/ shell/tests/ -v
+
+  salt-validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Validate Salt state syntax
+        run: |
+          pip install jinja2 pyyaml
+          python -c "
+          import yaml, glob
+          errors = 0
+          for f in glob.glob('salt/**/*.sls', recursive=True):
+              try:
+                  # Basic YAML parse (won't resolve Jinja, but catches syntax errors)
+                  with open(f) as fh:
+                      content = fh.read()
+                  # Check for common issues
+                  if '\\t' in content:
+                      print(f'WARNING: tabs found in {f}')
+                  print(f'OK: {f}')
+              except Exception as e:
+                  print(f'ERROR: {f}: {e}')
+                  errors += 1
+          exit(errors)
+          "

@@ -1,0 +1,83 @@
+# CodeRed NDR - Filebeat Configuration
+# Forwards Zeek + Suricata + Wazuh logs to external SIEM.
+
+filebeat.inputs:
+
+  # Zeek JSON logs
+  - type: filestream
+    id: codered-zeek
+    paths:
+      - /nsm/zeek/logs/current/*.log
+    parsers:
+      - ndjson:
+          keys_under_root: true
+          add_error_key: true
+    fields:
+      sensor.name: "{{ salt['pillar.get']('codered:sensor:name', 'unknown') }}"
+      log.source: zeek
+    fields_under_root: false
+
+  # Suricata EVE JSON
+  - type: filestream
+    id: codered-suricata
+    paths:
+      - /nsm/suricata/eve.json
+    parsers:
+      - ndjson:
+          keys_under_root: true
+          add_error_key: true
+    fields:
+      sensor.name: "{{ salt['pillar.get']('codered:sensor:name', 'unknown') }}"
+      log.source: suricata
+    fields_under_root: false
+
+  # Wazuh alerts (if available)
+  - type: filestream
+    id: codered-wazuh
+    paths:
+      - /var/ossec/logs/alerts/alerts.json
+    parsers:
+      - ndjson:
+          keys_under_root: true
+          add_error_key: true
+    fields:
+      sensor.name: "{{ salt['pillar.get']('codered:sensor:name', 'unknown') }}"
+      log.source: wazuh
+    fields_under_root: false
+    ignore_inactive: since_last_start
+
+# Output to external SIEM
+output.elasticsearch:
+  hosts: ["{{ protocol }}://{{ endpoint }}:{{ port }}"]
+  {% if token %}
+  api_key: "{{ token }}"
+  {% endif %}
+  ssl:
+    verification_mode: {{ 'full' if verify_ssl == 'yes' else 'none' }}
+  index: "codered-%{[fields.log.source]}-%{+yyyy.MM.dd}"
+  bulk_max_size: 2048
+  worker: 2
+  compression_level: 3
+
+# Internal queue for buffering
+queue.mem:
+  events: 8192
+  flush.min_events: 2048
+  flush.timeout: 1s
+
+# Processor pipeline
+processors:
+  - add_host_metadata:
+      when.not.contains.tags: forwarded
+  - add_fields:
+      target: ''
+      fields:
+        codered.version: "{{ salt['pillar.get']('codered:version', 'unknown') }}"
+
+logging.level: warning
+logging.to_files: true
+logging.files:
+  path: /var/log/filebeat
+  name: filebeat
+  keepfiles: 3
+  permissions: 0640

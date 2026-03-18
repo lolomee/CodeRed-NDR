@@ -1,0 +1,87 @@
+# CodeRed NDR - Vector Configuration
+# High-performance log forwarding with optional transforms.
+
+# ─── Sources ───────────────────────────────────────────
+
+[sources.zeek_logs]
+type = "file"
+include = ["/nsm/zeek/logs/current/*.log"]
+read_from = "end"
+line_delimiter = "\n"
+
+[sources.suricata_eve]
+type = "file"
+include = ["/nsm/suricata/eve.json"]
+read_from = "end"
+line_delimiter = "\n"
+
+[sources.wazuh_alerts]
+type = "file"
+include = ["/var/ossec/logs/alerts/alerts.json"]
+read_from = "end"
+line_delimiter = "\n"
+ignore_not_found = true
+
+# ─── Transforms ────────────────────────────────────────
+
+[transforms.parse_zeek]
+type = "remap"
+inputs = ["zeek_logs"]
+source = '''
+. = parse_json!(.message)
+.sensor_name = "{{ salt['pillar.get']('codered:sensor:name', 'unknown') }}"
+.log_source = "zeek"
+.codered_version = "{{ salt['pillar.get']('codered:version', 'unknown') }}"
+'''
+
+[transforms.parse_suricata]
+type = "remap"
+inputs = ["suricata_eve"]
+source = '''
+. = parse_json!(.message)
+.sensor_name = "{{ salt['pillar.get']('codered:sensor:name', 'unknown') }}"
+.log_source = "suricata"
+.codered_version = "{{ salt['pillar.get']('codered:version', 'unknown') }}"
+'''
+
+[transforms.parse_wazuh]
+type = "remap"
+inputs = ["wazuh_alerts"]
+source = '''
+. = parse_json!(.message)
+.sensor_name = "{{ salt['pillar.get']('codered:sensor:name', 'unknown') }}"
+.log_source = "wazuh"
+.codered_version = "{{ salt['pillar.get']('codered:version', 'unknown') }}"
+'''
+
+# Filter high-severity Suricata alerts for priority forwarding
+[transforms.high_severity_alerts]
+type = "filter"
+inputs = ["parse_suricata"]
+condition = '.alert.severity <= 2'
+
+# ─── Sinks ─────────────────────────────────────────────
+
+[sinks.siem_elasticsearch]
+type = "elasticsearch"
+inputs = ["parse_zeek", "parse_suricata", "parse_wazuh"]
+endpoints = ["{{ protocol }}://{{ endpoint }}:{{ port }}"]
+bulk.index = "codered-sensor-{{ '{{ log_source }}' }}-%Y.%m.%d"
+{% if token %}
+auth.strategy = "basic"
+auth.password = "{{ token }}"
+auth.user = "elastic"
+{% endif %}
+tls.verify_certificate = {{ 'true' if verify_ssl == 'yes' else 'false' }}
+compression = "gzip"
+batch.max_bytes = 10485760
+batch.timeout_secs = 1
+buffer.type = "disk"
+buffer.max_size = 268435456
+buffer.when_full = "block"
+
+# Console sink for debugging (disabled by default)
+# [sinks.console_debug]
+# type = "console"
+# inputs = ["high_severity_alerts"]
+# encoding.codec = "json"
