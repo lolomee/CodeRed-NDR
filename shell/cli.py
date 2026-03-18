@@ -817,10 +817,28 @@ def reconfigure_forwarding():
 
     if confirm('Apply forwarding changes?'):
         save_config(config)
-        print('\n  Applying forwarding configuration...')
-        rc, _ = run_cmd(['salt-call', '--local', 'state.apply', 'codered.forwarding'], timeout=120)
-        print(f'  {"Done." if rc == 0 else "Completed with warnings."}')
+        if endpoint:
+            port_val = get_val(config, 'forwarding', 'siem_port', '9200')
+            print('\n  Generating Filebeat config...')
+            generate_filebeat_config(endpoint, port_val)
+            print(f'  Restarting Filebeat → {endpoint}:{port_val}')
+            run_cmd(['systemctl', 'restart', 'filebeat'])
+            print('  Done.')
+        else:
+            print('\n  No endpoint configured. Stopping Filebeat...')
+            run_cmd(['systemctl', 'stop', 'filebeat'])
+            print('  Done.')
         pause()
+
+
+def _regen_and_restart(ifaces: list[str]):
+    """Regenerate Zeek/Suricata configs and restart services."""
+    print('  Regenerating configs and restarting services...')
+    generate_zeek_config(ifaces)
+    generate_suricata_config(ifaces)
+    run_cmd(['/opt/zeek/bin/zeekctl', 'deploy'], timeout=60)
+    run_cmd(['systemctl', 'restart', 'suricata'])
+    print('  Done.')
 
 
 def reconfigure_monitor():
@@ -855,22 +873,19 @@ def reconfigure_monitor():
         save_config(config)
         print('\n  Applying monitor interfaces...')
         apply_monitor_interfaces(new_ifaces)
-        print('  Restarting Zeek and Suricata...')
-        run_cmd(['salt-call', '--local', 'state.apply', 'codered.zeek', 'codered.suricata'], timeout=300)
-        print('  Done.')
+        _regen_and_restart(new_ifaces)
         pause()
 
     elif choice == '2':
         print(f'\n  Current: {", ".join(current)}')
         add_ifaces = prompt_multi_interface('Interface(s) to add', exclude=[mgmt] + current)
-        new_list = current + add_ifaces
-        config.set('network', 'monitor_interfaces', ','.join(new_list))
+        updated = current + add_ifaces
+        config.set('network', 'monitor_interfaces', ','.join(updated))
         save_config(config)
         print('\n  Configuring new interfaces...')
         apply_monitor_interfaces(add_ifaces)
-        print('  Restarting Zeek and Suricata...')
-        run_cmd(['salt-call', '--local', 'state.apply', 'codered.zeek', 'codered.suricata'], timeout=300)
-        print(f'  Monitor interfaces: {", ".join(new_list)}')
+        _regen_and_restart(updated)
+        print(f'  Monitor interfaces: {", ".join(updated)}')
         pause()
 
     elif choice == '3':
@@ -899,17 +914,16 @@ def reconfigure_monitor():
             pause()
             return
 
-        new_list = [i for i in current if i not in to_remove]
-        if not new_list:
+        updated = [i for i in current if i not in to_remove]
+        if not updated:
             print('  Cannot remove all interfaces — at least one must remain.')
             pause()
             return
 
-        if confirm(f'Remove {", ".join(to_remove)}? Remaining: {", ".join(new_list)}'):
-            config.set('network', 'monitor_interfaces', ','.join(new_list))
+        if confirm(f'Remove {", ".join(to_remove)}? Remaining: {", ".join(updated)}'):
+            config.set('network', 'monitor_interfaces', ','.join(updated))
             save_config(config)
-            print('  Restarting Zeek and Suricata...')
-            run_cmd(['salt-call', '--local', 'state.apply', 'codered.zeek', 'codered.suricata'], timeout=300)
+            _regen_and_restart(updated)
             print('  Done.')
             pause()
 
@@ -1219,8 +1233,8 @@ def generate_suricata_config(mon_ifaces: list[str]):
 
 def generate_filebeat_config(endpoint: str, port: str):
     """Generate Filebeat config for forwarding to CodeRed AI."""
-    zeek_log_path = '/opt/zeek/logs/current/*.log'
-    suricata_log_path = '/var/log/suricata/eve.json'
+    zeek_log_path = '/nsm/zeek/logs/current/*.log'
+    suricata_log_path = '/nsm/suricata/eve.json'
 
     config = f"""# CodeRed NDR - Auto-generated Filebeat Config
 # Forwards Zeek + Suricata logs to CodeRed AI
@@ -1665,7 +1679,7 @@ def test_monitor_interface():
         print(f'  Listening on {iface}...', end=' ', flush=True)
         rc, out = run_cmd(
             ['timeout', '5', 'tcpdump', '-i', iface, '-c', '100', '-q', '--immediate-mode'],
-            sudo=True, timeout=10
+            timeout=10
         )
 
         # Parse packet count from tcpdump output
@@ -1891,7 +1905,7 @@ def show_user_guide():
     2. Increase VM disk in hypervisor if needed
 
   Services not running?
-    1. Menu → 9 (Restart services) → restart all
+    1. Menu → 11 (Restart services) → restart all
 
 
   QUICK REFERENCE
