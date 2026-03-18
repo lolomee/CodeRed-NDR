@@ -389,229 +389,32 @@ chmod 755 /etc/codered
 
 log "CodeRed NDR CLI installed."
 
-# ─── Step 5: Create coderedai User ───────────────
+# ─── Step 5: Install coderedndr Command ──────────
 
-step 5 "Creating coderedai user and applying security..."
+step 5 "Installing coderedndr command..."
 
-# Create user
-if ! id coderedai &>/dev/null; then
-    useradd -m -s /bin/bash -G adm coderedai
-fi
-echo "coderedai:coderedai" | chpasswd
+# Create the coderedndr command
+cat > /usr/local/bin/coderedndr << 'CMD'
+#!/bin/bash
+# CodeRed NDR Management CLI
+# Usage: sudo coderedndr
+exec /usr/bin/python3 /opt/codered/shell/cli.py "$@"
+CMD
+chmod 755 /usr/local/bin/coderedndr
 
 # Log file permissions
 touch /var/log/codered/cli.log /var/log/codered/audit.log
-chown coderedai:adm /var/log/codered/cli.log /var/log/codered/audit.log
 chmod 664 /var/log/codered/cli.log /var/log/codered/audit.log
 
-# Restricted shell profile
-cat > /etc/profile.d/codered-cli.sh << 'PROFILE'
-#!/bin/bash
-if [ "$(whoami)" = "coderedai" ]; then
-    export PATH=""
-    unset ENV BASH_ENV CDPATH GLOBIGNORE
-    readonly HISTFILE=/dev/null
-    set -r
-    logger -t codered-audit "coderedai login from ${SSH_CLIENT%% *:-console}"
-    exec /usr/bin/python3 /opt/codered/shell/cli.py
-    exit 0
-fi
-PROFILE
-chmod 644 /etc/profile.d/codered-cli.sh
+log "Command 'coderedndr' installed. Usage: sudo coderedndr"
 
-# Lock home files
-cat > /home/coderedai/.bashrc << 'EOF'
-# CodeRed NDR - Managed
-EOF
-chown root:coderedai /home/coderedai/.bashrc
-chmod 444 /home/coderedai/.bashrc
+# ─── Step 6: Apply Kernel Hardening ──────────────
 
-cat > /home/coderedai/.bash_profile << 'EOF'
-# CodeRed NDR - Managed
-source /etc/profile
-EOF
-chown root:coderedai /home/coderedai/.bash_profile
-chmod 444 /home/coderedai/.bash_profile
+step 6 "Applying kernel hardening..."
 
-# Sudoers
-cat > /etc/sudoers.d/codered << 'SUDOERS'
-coderedai ALL=(root) NOPASSWD: /usr/bin/hostnamectl *
-coderedai ALL=(root) NOPASSWD: /usr/bin/nmcli *
-coderedai ALL=(root) NOPASSWD: /usr/sbin/ip *
-coderedai ALL=(root) NOPASSWD: /usr/sbin/ethtool *
-coderedai ALL=(root) NOPASSWD: /usr/bin/systemctl is-active *
-coderedai ALL=(root) NOPASSWD: /usr/bin/systemctl restart suricata
-coderedai ALL=(root) NOPASSWD: /usr/bin/systemctl restart filebeat
-coderedai ALL=(root) NOPASSWD: /usr/bin/systemctl restart zeek
-coderedai ALL=(root) NOPASSWD: /usr/bin/systemctl start suricata
-coderedai ALL=(root) NOPASSWD: /usr/bin/systemctl start filebeat
-coderedai ALL=(root) NOPASSWD: /usr/bin/systemctl start zeek
-coderedai ALL=(root) NOPASSWD: /usr/bin/systemctl stop suricata
-coderedai ALL=(root) NOPASSWD: /usr/bin/systemctl stop filebeat
-coderedai ALL=(root) NOPASSWD: /usr/bin/systemctl stop zeek
-coderedai ALL=(root) NOPASSWD: /usr/bin/systemctl status *
-coderedai ALL=(root) NOPASSWD: /usr/bin/systemctl enable *
-coderedai ALL=(root) NOPASSWD: /usr/bin/docker ps *
-coderedai ALL=(root) NOPASSWD: /usr/sbin/shutdown *
-coderedai ALL=(root) NOPASSWD: /usr/bin/timedatectl *
-coderedai ALL=(root) NOPASSWD: /usr/bin/journalctl *
-coderedai ALL=(root) NOPASSWD: /usr/bin/pgrep *
-coderedai ALL=(root) NOPASSWD: /usr/bin/cp /tmp/*.conf /etc/codered/sensor.conf
-coderedai ALL=(root) NOPASSWD: /usr/bin/chmod 640 /etc/codered/sensor.conf
-coderedai ALL=(root) NOPASSWD: /usr/bin/mkdir -p /etc/codered
-coderedai ALL=(root) NOPASSWD: /usr/bin/bash -c echo "coderedai\:*" | chpasswd
-coderedai ALL=(root) NOPASSWD: /usr/bin/tcpdump *
-coderedai ALL=(root) NOPASSWD: /opt/zeek/bin/zeekctl *
-SUDOERS
-chmod 440 /etc/sudoers.d/codered
-visudo -cf /etc/sudoers.d/codered || { rm -f /etc/sudoers.d/codered; warn "Sudoers validation failed"; }
-
-log "User coderedai created with restricted access."
-
-# ─── Step 6: Hardening ───────────────────────────
-
-step 6 "Applying security hardening..."
-
-# SSH hardening
-cat > /etc/ssh/sshd_config.d/99-codered-hardening.conf << 'SSHCONF'
-PermitRootLogin no
-PermitEmptyPasswords no
-X11Forwarding no
-AllowTcpForwarding no
-AllowAgentForwarding no
-PermitTunnel no
-GatewayPorts no
-MaxAuthTries 3
-MaxSessions 3
-LoginGraceTime 30
-ClientAliveInterval 300
-ClientAliveCountMax 2
-LogLevel VERBOSE
-SyslogFacility AUTH
-KexAlgorithms curve25519-sha256@libssh.org,curve25519-sha256,diffie-hellman-group16-sha512,diffie-hellman-group18-sha512
-Ciphers chacha20-poly1305@openssh.com,aes256-gcm@openssh.com,aes128-gcm@openssh.com
-MACs hmac-sha2-512-etm@openssh.com,hmac-sha2-256-etm@openssh.com
-
-Match User coderedai
-    PasswordAuthentication yes
-    PubkeyAuthentication no
-    ForceCommand /usr/bin/python3 /opt/codered/shell/cli.py
-
-Banner /etc/ssh/codered-banner
-SSHCONF
-chmod 600 /etc/ssh/sshd_config.d/99-codered-hardening.conf
-
-# Banner
-cat > /etc/ssh/codered-banner << 'BANNER'
-
-╔══════════════════════════════════════════════════════════╗
-║              CodeRed NDR Appliance                       ║
-║                                                          ║
-║  Authorized access only. All sessions are logged.        ║
-╚══════════════════════════════════════════════════════════╝
-
-BANNER
-chmod 644 /etc/ssh/codered-banner
-
-# Test and restart SSH
-SSH_SVC="ssh"
-systemctl list-units --type=service | grep -q "sshd.service" && SSH_SVC="sshd"
-
-if sshd -t 2>/dev/null; then
-    systemctl restart "$SSH_SVC"
-    log "SSH hardened."
-else
-    warn "SSH config test failed. Reverting..."
-    rm -f /etc/ssh/sshd_config.d/99-codered-hardening.conf
-    systemctl restart "$SSH_SVC"
-fi
-
-# Firewall
-ufw --force reset >/dev/null 2>&1
-ufw default deny incoming
-ufw default allow outgoing
-ufw allow 22/tcp comment "SSH"
-ufw allow out 9200/tcp comment "CodeRed AI"
-ufw allow out 53 comment "DNS"
-ufw allow out 123/udp comment "NTP"
-ufw allow out 443/tcp comment "HTTPS"
-ufw --force enable
-log "Firewall configured."
-
-# Fail2ban
-cat > /etc/fail2ban/jail.d/codered.conf << 'F2B'
-[sshd]
-enabled = true
-port = ssh
-filter = sshd
-logpath = /var/log/auth.log
-maxretry = 3
-bantime = 3600
-findtime = 600
-F2B
-systemctl enable fail2ban 2>/dev/null
-systemctl restart fail2ban 2>/dev/null
-log "Fail2ban configured."
-
-# AppArmor
-if command -v apparmor_parser &>/dev/null; then
-    cat > /etc/apparmor.d/opt.codered.shell.cli << 'APPARMOR'
-#include <tunables/global>
-/opt/codered/shell/cli.py {
-  #include <abstractions/base>
-  #include <abstractions/python>
-  #include <abstractions/nameservice>
-  /etc/codered/ r,
-  /etc/codered/** r,
-  /proc/** r,
-  /sys/class/net/** r,
-  /usr/bin/ip rix,
-  /usr/bin/df rix,
-  /usr/bin/uptime rix,
-  /usr/bin/hostname rix,
-  /usr/bin/tail rix,
-  /usr/bin/head rix,
-  /usr/bin/systemctl rix,
-  /usr/bin/docker rix,
-  /usr/sbin/shutdown rix,
-  /usr/bin/sudo rix,
-  /usr/bin/timedatectl rix,
-  /usr/bin/journalctl rix,
-  /usr/bin/pgrep rix,
-  /usr/bin/host rix,
-  /usr/bin/ping rix,
-  /var/log/codered/ rw,
-  /var/log/codered/** rw,
-  /nsm/zeek/logs/** r,
-  /nsm/suricata/** r,
-  /var/log/syslog r,
-  /var/log/auth.log r,
-  /tmp/*.conf rw,
-  /usr/lib/python3/** r,
-  /usr/lib/python3/dist-packages/** r,
-  /opt/codered/** r,
-  deny /bin/bash x,
-  deny /bin/sh x,
-  deny /usr/bin/bash x,
-  deny /usr/bin/sh x,
-  deny /usr/bin/su x,
-  deny /usr/bin/apt* x,
-  deny /usr/bin/dpkg x,
-  deny /usr/bin/pip* x,
-  deny /usr/bin/wget x,
-  deny /usr/bin/curl x,
-  deny /usr/bin/vi x,
-  deny /usr/bin/vim x,
-  deny /usr/bin/nano x,
-}
-APPARMOR
-    apparmor_parser -r /etc/apparmor.d/opt.codered.shell.cli 2>/dev/null && \
-        log "AppArmor profile loaded." || warn "AppArmor profile failed."
-fi
-
-# Kernel hardening
+# Kernel hardening (doesn't touch SSH or firewall — customer's server)
 cat > /etc/sysctl.d/99-codered-hardening.conf << 'SYSCTL'
-net.ipv4.ip_forward = 0
+# CodeRed NDR - Kernel Hardening
 net.ipv4.conf.all.accept_source_route = 0
 net.ipv4.conf.default.accept_source_route = 0
 net.ipv4.tcp_syncookies = 1
@@ -620,35 +423,18 @@ net.ipv4.conf.default.accept_redirects = 0
 net.ipv4.conf.all.send_redirects = 0
 net.ipv4.conf.all.log_martians = 1
 net.ipv4.icmp_echo_ignore_broadcasts = 1
-net.ipv6.conf.all.disable_ipv6 = 1
-net.ipv6.conf.default.disable_ipv6 = 1
 kernel.randomize_va_space = 2
 kernel.dmesg_restrict = 1
 kernel.kptr_restrict = 2
-kernel.unprivileged_bpf_disabled = 1
 SYSCTL
 sysctl --system >/dev/null 2>&1
-
-# Core dumps disabled
-cat > /etc/security/limits.d/codered-nocore.conf << 'EOF'
-* hard core 0
-* soft core 0
-EOF
-
-# Immutable files
-chattr +i "$CODERED_DIR/shell/cli.py" 2>/dev/null || true
-chattr +i /etc/profile.d/codered-cli.sh 2>/dev/null || true
-chattr +i /etc/ssh/sshd_config.d/99-codered-hardening.conf 2>/dev/null || true
-
-log "Security hardening applied."
+log "Kernel hardening applied."
 
 # ─── Cleanup ─────────────────────────────────────
 
 rm -rf "$CODERED_SRC"
 
 # ─── Done ────────────────────────────────────────
-
-CURRENT_IP=$(hostname -I 2>/dev/null | awk '{print $1}')
 
 echo ""
 echo -e "${GREEN}${BOLD}"
@@ -658,19 +444,16 @@ echo "  ╚═══════════════════════
 echo -e "${NC}"
 echo "  ┌──────────────────────────────────────────────────────────┐"
 echo "  │                                                          │"
-echo "  │  Login:    ssh coderedai@${CURRENT_IP}"
-echo "  │  Password: coderedai                                     │"
+echo "  │  Run:  sudo coderedndr                                   │"
 echo "  │                                                          │"
 echo "  │  Next steps:                                             │"
-echo "  │    1. SSH in as coderedai                                │"
+echo "  │    1. sudo coderedndr                                    │"
 echo "  │    2. Select monitor interfaces  (option 7)              │"
 echo "  │    3. Set CodeRed AI destination (option 8)              │"
 echo "  │    4. Start NDR services         (option 9)              │"
 echo "  │                                                          │"
-echo "  │  Admin access: your existing SSH user still works        │"
-echo "  │                                                          │"
 echo "  └──────────────────────────────────────────────────────────┘"
 echo ""
-echo "  Installed: Zeek + Suricata + Filebeat + CodeRed NDR CLI"
-echo "  Services:  All stopped (start via coderedai menu option 9)"
+echo "  Installed: Zeek + Suricata + Filebeat + coderedndr CLI"
+echo "  Services:  All stopped (start via coderedndr menu option 9)"
 echo ""

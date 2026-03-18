@@ -1,13 +1,10 @@
 #!/usr/bin/env python3
-"""CodeRed NDR - Unified SSH CLI.
+"""CodeRed NDR - Management CLI.
 
-Single entry point for all sensor management. Replaces both the
-first-boot wizard and the restricted management menu.
+Usage: sudo coderedndr
 
-- First login (unconfigured): runs setup wizard
-- Subsequent logins: management menu with reconfigure options
-
-Designed to feel like FortiGate/Palo Alto CLI over SSH.
+Provides a management menu for configuring and operating the
+CodeRed NDR sensor. Must be run as root (sudo).
 """
 
 import configparser
@@ -135,10 +132,8 @@ def get_version() -> str:
     except OSError:
         return 'unknown'
 
-def run_cmd(cmd: list[str], timeout: int = 30, sudo: bool = False) -> tuple[int, str]:
-    """Run a command. If sudo=True, prepend sudo for privileged ops."""
-    if sudo:
-        cmd = ['sudo'] + cmd
+def run_cmd(cmd: list[str], timeout: int = 30, **kwargs) -> tuple[int, str]:
+    """Run a command. Already running as root via 'sudo coderedndr'."""
     try:
         r = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout)
         return r.returncode, r.stdout + r.stderr
@@ -161,17 +156,12 @@ def load_config() -> configparser.ConfigParser:
     return config
 
 def save_config(config: configparser.ConfigParser):
-    import tempfile
-    # Write to temp file first, then sudo move to /etc/codered/
-    run_cmd(['mkdir', '-p', CONF_DIR], sudo=True)
-    with tempfile.NamedTemporaryFile(mode='w', suffix='.conf', delete=False) as f:
+    os.makedirs(CONF_DIR, mode=0o755, exist_ok=True)
+    with open(CONF_FILE, 'w') as f:
         f.write('# CodeRed NDR Configuration\n')
         f.write(f'# Last modified: {datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ")}\n\n')
         config.write(f)
-        tmp_path = f.name
-    run_cmd(['cp', tmp_path, CONF_FILE], sudo=True)
-    run_cmd(['chmod', '640', CONF_FILE], sudo=True)
-    os.unlink(tmp_path)
+    os.chmod(CONF_FILE, 0o640)
 
 def get_val(config, section, key, fallback=''):
     return config.get(section, key, fallback=fallback)
@@ -334,7 +324,7 @@ def pause():
 
 def apply_hostname(hostname: str) -> bool:
     audit(f'set-hostname:{hostname}')
-    rc, out = run_cmd(['hostnamectl', 'set-hostname', hostname], sudo=True)
+    rc, out = run_cmd(['hostnamectl', 'set-hostname', hostname])
     return rc == 0
 
 def apply_network(config: configparser.ConfigParser) -> bool:
@@ -346,12 +336,12 @@ def apply_network(config: configparser.ConfigParser) -> bool:
     audit(f'apply-network:{iface}:{mode}')
 
     # Delete existing connection
-    run_cmd(['nmcli', 'connection', 'delete', conn_name], sudo=True)
+    run_cmd(['nmcli', 'connection', 'delete', conn_name])
 
     if mode == 'dhcp':
         rc, out = run_cmd(['nmcli', 'connection', 'add',
             'con-name', conn_name, 'ifname', iface, 'type', 'ethernet',
-            'ipv4.method', 'auto', 'connection.autoconnect', 'yes'], sudo=True)
+            'ipv4.method', 'auto', 'connection.autoconnect', 'yes'])
     else:
         ip = get_val(config, 'network', 'mgmt_ip')
         mask = get_val(config, 'network', 'mgmt_netmask', '255.255.255.0')
@@ -366,22 +356,22 @@ def apply_network(config: configparser.ConfigParser) -> bool:
             'ipv4.addresses', f'{ip}/{cidr}',
             'ipv4.gateway', gw,
             'ipv4.dns', dns_str,
-            'connection.autoconnect', 'yes'], sudo=True)
+            'connection.autoconnect', 'yes'])
 
     if rc != 0:
         print(f'    ! Network config failed: {out}')
         return False
 
-    run_cmd(['nmcli', 'connection', 'up', conn_name], timeout=15, sudo=True)
+    run_cmd(['nmcli', 'connection', 'up', conn_name], timeout=15)
     return True
 
 def apply_monitor_interface(iface: str) -> bool:
     """Set a single monitoring interface to promiscuous, no IP."""
     audit(f'apply-monitor:{iface}')
-    run_cmd(['ip', 'link', 'set', iface, 'up', 'promisc', 'on'], sudo=True)
-    run_cmd(['ip', 'addr', 'flush', 'dev', iface], sudo=True)
+    run_cmd(['ip', 'link', 'set', iface, 'up', 'promisc', 'on'])
+    run_cmd(['ip', 'addr', 'flush', 'dev', iface])
     for feature in ['rx', 'tx', 'sg', 'tso', 'gso', 'gro', 'lro']:
-        run_cmd(['ethtool', '-K', iface, feature, 'off'], sudo=True)
+        run_cmd(['ethtool', '-K', iface, feature, 'off'])
     return True
 
 
@@ -500,7 +490,7 @@ def run_setup():
     apply_monitor_interfaces(mon_ifaces)
 
     print('  [5/5] Applying sensor services...')
-    rc, out = run_cmd(['salt-call', '--local', 'state.apply', 'codered'], timeout=600, sudo=True)
+    rc, out = run_cmd(['salt-call', '--local', 'state.apply', 'codered'], timeout=600)
     if rc != 0:
         logging.error('Salt apply failed: %s', out)
         print('    ! Warning: Some services may not have started correctly.')
@@ -556,9 +546,9 @@ def show_status():
     print()
     print('  Services:')
     for svc_name, check in [
-        ('Zeek', lambda: run_cmd(['pgrep', '-x', 'zeek'], sudo=True)[0] == 0),
-        ('Suricata', lambda: run_cmd(['systemctl', 'is-active', 'suricata'], sudo=True)[1].strip() == 'active'),
-        ('Filebeat', lambda: run_cmd(['systemctl', 'is-active', 'filebeat'], sudo=True)[1].strip() == 'active'),
+        ('Zeek', lambda: run_cmd(['pgrep', '-x', 'zeek'])[0] == 0),
+        ('Suricata', lambda: run_cmd(['systemctl', 'is-active', 'suricata'])[1].strip() == 'active'),
+        ('Filebeat', lambda: run_cmd(['systemctl', 'is-active', 'filebeat'])[1].strip() == 'active'),
     ]:
         is_running = check()
         print_line(f'    {svc_name}:', 'RUNNING' if is_running else 'stopped', 20)
@@ -668,13 +658,13 @@ def restart_services():
             audit(f'restart:{name}')
             print(f'\n  Restarting {name}...')
             if svc == 'all':
-                run_cmd(['systemctl', 'restart', 'suricata'], sudo=True)
-                run_cmd(['/opt/zeek/bin/zeekctl', 'restart'], sudo=True, timeout=60)
-                run_cmd(['systemctl', 'restart', 'filebeat'], sudo=True)
+                run_cmd(['systemctl', 'restart', 'suricata'])
+                run_cmd(['/opt/zeek/bin/zeekctl', 'restart'], timeout=60)
+                run_cmd(['systemctl', 'restart', 'filebeat'])
             elif svc == 'zeek':
-                run_cmd(['/opt/zeek/bin/zeekctl', 'restart'], sudo=True, timeout=60)
+                run_cmd(['/opt/zeek/bin/zeekctl', 'restart'], timeout=60)
             else:
-                run_cmd(['systemctl', 'restart', svc], sudo=True)
+                run_cmd(['systemctl', 'restart', svc])
             print('  Done.')
             pause()
 
@@ -761,7 +751,7 @@ def reconfigure_network():
         print('\n  ⚠ WARNING: The IP address is changing.')
         print('  Your SSH session will disconnect after applying.')
         if mode == 'static':
-            print(f'\n  Reconnect with: ssh coderedai@{ip}')
+            print(f'\n  Reconnect with: ssh <your-user>@{ip}')
         else:
             print('\n  Reconnect using the DHCP-assigned IP.')
             print('  Check your DHCP server or VM console for the new IP.')
@@ -773,7 +763,7 @@ def reconfigure_network():
     apply_network(config)
 
     if ip_changing and mode == 'static':
-        print(f'\n  ✓ Network applied. Reconnect: ssh coderedai@{ip}')
+        print(f'\n  ✓ Network applied. Reconnect: ssh <your-user>@{ip}')
         print('  Session will disconnect in 3 seconds...')
         import time
         time.sleep(3)
@@ -828,7 +818,7 @@ def reconfigure_forwarding():
     if confirm('Apply forwarding changes?'):
         save_config(config)
         print('\n  Applying forwarding configuration...')
-        rc, _ = run_cmd(['salt-call', '--local', 'state.apply', 'codered.forwarding'], timeout=120, sudo=True)
+        rc, _ = run_cmd(['salt-call', '--local', 'state.apply', 'codered.forwarding'], timeout=120)
         print(f'  {"Done." if rc == 0 else "Completed with warnings."}')
         pause()
 
@@ -866,7 +856,7 @@ def reconfigure_monitor():
         print('\n  Applying monitor interfaces...')
         apply_monitor_interfaces(new_ifaces)
         print('  Restarting Zeek and Suricata...')
-        run_cmd(['salt-call', '--local', 'state.apply', 'codered.zeek', 'codered.suricata'], timeout=300, sudo=True)
+        run_cmd(['salt-call', '--local', 'state.apply', 'codered.zeek', 'codered.suricata'], timeout=300)
         print('  Done.')
         pause()
 
@@ -879,7 +869,7 @@ def reconfigure_monitor():
         print('\n  Configuring new interfaces...')
         apply_monitor_interfaces(add_ifaces)
         print('  Restarting Zeek and Suricata...')
-        run_cmd(['salt-call', '--local', 'state.apply', 'codered.zeek', 'codered.suricata'], timeout=300, sudo=True)
+        run_cmd(['salt-call', '--local', 'state.apply', 'codered.zeek', 'codered.suricata'], timeout=300)
         print(f'  Monitor interfaces: {", ".join(new_list)}')
         pause()
 
@@ -919,7 +909,7 @@ def reconfigure_monitor():
             config.set('network', 'monitor_interfaces', ','.join(new_list))
             save_config(config)
             print('  Restarting Zeek and Suricata...')
-            run_cmd(['salt-call', '--local', 'state.apply', 'codered.zeek', 'codered.suricata'], timeout=300, sudo=True)
+            run_cmd(['salt-call', '--local', 'state.apply', 'codered.zeek', 'codered.suricata'], timeout=300)
             print('  Done.')
             pause()
 
@@ -939,7 +929,7 @@ def run_diagnostics():
     config = load_config()
     gw = get_val(config, 'network', 'mgmt_gateway')
     if gw:
-        rc, _ = run_cmd(['ping', '-c', '1', '-W', '3', gw], sudo=False)
+        rc, _ = run_cmd(['ping', '-c', '1', '-W', '3', gw])
         print_line('Gateway reachable:', 'OK' if rc == 0 else 'FAIL')
 
     # CodeRed AI connectivity
@@ -952,7 +942,7 @@ def run_diagnostics():
         print_line(f'CodeRed AI ({endpoint}:{port}):', 'OK' if rc == 0 else 'UNREACHABLE')
 
     # NTP sync
-    rc, out = run_cmd(['timedatectl', 'show', '--property=NTPSynchronized'], sudo=True)
+    rc, out = run_cmd(['timedatectl', 'show', '--property=NTPSynchronized'])
     synced = 'yes' in out.lower() if rc == 0 else False
     print_line('NTP synchronized:', 'OK' if synced else 'NOT SYNCED')
 
@@ -976,7 +966,7 @@ def run_diagnostics():
     # Monitor interfaces
     mon_ifaces = get_monitor_interfaces(config)
     for mon in mon_ifaces:
-        _, link_out = run_cmd(['ip', 'link', 'show', mon], sudo=True)
+        _, link_out = run_cmd(['ip', 'link', 'show', mon])
         if 'PROMISC' in link_out:
             print_line(f'Monitor ({mon}):', 'UP, PROMISC')
         elif 'UP' in link_out:
@@ -1002,7 +992,7 @@ def run_diagnostics():
     print()
     print('  Service Health:')
     for svc, proc in [('Zeek', 'zeek'), ('Suricata', 'suricata'), ('Filebeat', 'filebeat')]:
-        rc, _ = run_cmd(['pgrep', '-x', proc], sudo=True)
+        rc, _ = run_cmd(['pgrep', '-x', proc])
         print_line(f'    {svc}:', 'running' if rc == 0 else 'NOT RUNNING')
 
     pause()
@@ -1042,7 +1032,7 @@ def generate_support_bundle():
     rm -rf $TMPDIR
     """
 
-    rc, _ = run_cmd(['bash', '-c', script], timeout=60, sudo=True)
+    rc, _ = run_cmd(['bash', '-c', script], timeout=60)
     if rc == 0 and os.path.exists(bundle_path):
         size = os.path.getsize(bundle_path) // 1024
         print(f'  Bundle created: {bundle_path} ({size} KB)')
@@ -1057,7 +1047,7 @@ def do_reboot():
     audit('reboot')
     if confirm('Reboot the sensor now?', default=False):
         print('\n  Rebooting...')
-        run_cmd(['shutdown', '-r', 'now'], sudo=True)
+        run_cmd(['shutdown', '-r', 'now'])
 
 
 def do_shutdown():
@@ -1065,45 +1055,8 @@ def do_shutdown():
     audit('shutdown')
     if confirm('Shut down the sensor? All monitoring will stop.', default=False):
         print('\n  Shutting down...')
-        run_cmd(['shutdown', '-h', 'now'], sudo=True)
+        run_cmd(['shutdown', '-h', 'now'])
 
-
-def change_password():
-    """Change the coderedai user password."""
-    audit('change-password')
-    header('CHANGE PASSWORD')
-    print('  Change the login password for this sensor.\n')
-
-    import getpass
-    try:
-        current = getpass.getpass('  Current password: ')
-        new_pw = getpass.getpass('  New password: ')
-        confirm_pw = getpass.getpass('  Confirm new password: ')
-    except EOFError:
-        return
-
-    if new_pw != confirm_pw:
-        print('\n  Passwords do not match.')
-        pause()
-        return
-
-    if len(new_pw) < 8:
-        print('\n  Password must be at least 8 characters.')
-        pause()
-        return
-
-    # Use chpasswd via sudo
-    rc, out = run_cmd(
-        ['bash', '-c', f'echo "coderedai:{new_pw}" | chpasswd'],
-        sudo=True
-    )
-    if rc == 0:
-        print('\n  Password changed successfully.')
-        audit('change-password:success')
-    else:
-        print(f'\n  Failed to change password: {out}')
-        audit('change-password:failed')
-    pause()
 
 
 def get_setup_checklist(config) -> list[tuple[bool, str]]:
@@ -1144,8 +1097,8 @@ def get_setup_checklist(config) -> list[tuple[bool, str]]:
         checks.append((False, 'CodeRed AI destination (not configured)'))
 
     # NDR services
-    zeek_running = run_cmd(['pgrep', '-x', 'zeek'], sudo=True)[0] == 0
-    suri_running = run_cmd(['pgrep', '-x', 'suricata'], sudo=True)[0] == 0
+    zeek_running = run_cmd(['pgrep', '-x', 'zeek'])[0] == 0
+    suri_running = run_cmd(['pgrep', '-x', 'suricata'])[0] == 0
     if zeek_running and suri_running:
         checks.append((True, 'NDR services running'))
     elif zeek_running or suri_running:
@@ -1176,7 +1129,7 @@ def start_ndr_services():
     # Check monitor interfaces are up
     all_ok = True
     for iface in mon:
-        _, out = run_cmd(['ip', 'link', 'show', iface], sudo=True)
+        _, out = run_cmd(['ip', 'link', 'show', iface])
         if 'UP' in out:
             print_line(f'    {iface}:', 'UP')
         else:
@@ -1203,7 +1156,7 @@ def start_ndr_services():
     print('  Starting Suricata...')
     # Configure Suricata to listen on monitor interfaces
     suricata_ifaces = ' '.join(f'-i {iface}' for iface in mon)
-    rc, out = run_cmd(['systemctl', 'start', 'suricata'], sudo=True)
+    rc, out = run_cmd(['systemctl', 'start', 'suricata'])
     if rc == 0:
         print_line('    Suricata:', 'started')
     else:
@@ -1222,28 +1175,28 @@ def start_ndr_services():
             with open('/tmp/node.cfg', 'w') as f:
                 f.write('[zeek]\ntype=standalone\nhost=localhost\n')
                 f.write(f'interface={mon[0]}\n')
-            run_cmd(['cp', '/tmp/node.cfg', node_cfg], sudo=True)
+            run_cmd(['cp', '/tmp/node.cfg', node_cfg])
         except OSError:
             pass
 
-    rc, out = run_cmd([f'{zeek_dir}/bin/zeekctl', 'deploy'], sudo=True, timeout=60)
+    rc, out = run_cmd([f'{zeek_dir}/bin/zeekctl', 'deploy'], timeout=60)
     if rc == 0:
         print_line('    Zeek:', 'started')
     else:
         # Try direct start
-        rc2, _ = run_cmd([f'{zeek_dir}/bin/zeekctl', 'start'], sudo=True, timeout=60)
+        rc2, _ = run_cmd([f'{zeek_dir}/bin/zeekctl', 'start'], timeout=60)
         print_line('    Zeek:', 'started' if rc2 == 0 else f'failed')
 
     # Start Filebeat if CodeRed AI is configured
     if endpoint:
         print('  Starting Filebeat...')
-        rc, out = run_cmd(['systemctl', 'start', 'filebeat'], sudo=True)
+        rc, out = run_cmd(['systemctl', 'start', 'filebeat'])
         print_line('    Filebeat:', 'started' if rc == 0 else 'failed')
 
     # Enable timers
     print('  Enabling auto-update timers...')
-    run_cmd(['systemctl', 'enable', '--now', 'codered-rule-update.timer'], sudo=True)
-    run_cmd(['systemctl', 'enable', '--now', 'codered-update.timer'], sudo=True)
+    run_cmd(['systemctl', 'enable', '--now', 'codered-rule-update.timer'])
+    run_cmd(['systemctl', 'enable', '--now', 'codered-update.timer'])
 
     print('\n  ✓ NDR services started.')
     print('  Use option 1 (Status) to verify, option 4 (Diagnostics) to test.')
@@ -1263,9 +1216,9 @@ def stop_ndr_services():
 
     zeek_dir = '/opt/zeek'
     if os.path.isdir(f'{zeek_dir}/bin'):
-        run_cmd([f'{zeek_dir}/bin/zeekctl', 'stop'], sudo=True, timeout=60)
-    run_cmd(['systemctl', 'stop', 'suricata'], sudo=True)
-    run_cmd(['systemctl', 'stop', 'filebeat'], sudo=True)
+        run_cmd([f'{zeek_dir}/bin/zeekctl', 'stop'], timeout=60)
+    run_cmd(['systemctl', 'stop', 'suricata'])
+    run_cmd(['systemctl', 'stop', 'filebeat'])
 
     print('  ✓ All NDR services stopped. No traffic is being monitored.')
     pause()
@@ -1290,7 +1243,7 @@ def test_monitor_interface():
 
     for iface in mon:
         # Check interface is UP
-        _, link_out = run_cmd(['ip', 'link', 'show', iface], sudo=True)
+        _, link_out = run_cmd(['ip', 'link', 'show', iface])
         if 'UP' not in link_out:
             print_line(f'  {iface}:', 'DOWN — skipping (bring up first)')
             continue
@@ -1412,9 +1365,9 @@ def show_user_guide():
   2. Assign two NICs:
      - NIC 1 → your management network
      - NIC 2 → your SPAN/mirror port group
-  3. Power on, SSH in: ssh coderedai@<ip>
-  4. Complete the setup wizard
-  5. Sensor starts monitoring automatically
+  3. Run: curl ... | sudo bash
+  4. Run: sudo coderedndr
+  5. Configure and start NDR
 
 
   HOW TO CONFIGURE SPAN / MIRROR PORT
@@ -1529,7 +1482,7 @@ def show_user_guide():
 
   QUICK REFERENCE
   ───────────────
-  Default login:     coderedai / coderedai
+  Management:       sudo coderedndr
   Management NIC:    ens32 (needs IP address)
   Monitor NICs:      ens34, ens35... (SPAN ports, no IP)
   CodeRed AI default port: 9200
@@ -1622,14 +1575,13 @@ def main_menu():
 
         print('\n  ── System ──────────────────────────────────')
         print('  14. Support bundle')
-        print('  15. Change password')
-        print('  16. Reboot')
-        print('  17. Shutdown')
+        print('  15. Reboot')
+        print('  16. Shutdown')
 
         print('\n  ── Help ────────────────────────────────────')
-        print('  18. User guide')
+        print('  17. User guide')
 
-        print('\n   0. Logout')
+        print('\n   0. Exit')
         print()
 
         try:
@@ -1653,15 +1605,14 @@ def main_menu():
             '12': test_monitor_interface,
             '13': test_codered_ai,
             '14': generate_support_bundle,
-            '15': change_password,
-            '16': do_reboot,
-            '17': do_shutdown,
-            '18': show_user_guide,
+            '15': do_reboot,
+            '16': do_shutdown,
+            '17': show_user_guide,
         }
 
         if choice == '0':
-            if confirm('Logout?'):
-                audit('logout')
+            if confirm('Exit?'):
+                audit('exit')
                 print('\n  Goodbye.\n')
                 sys.exit(0)
         elif choice in actions:
@@ -1674,18 +1625,20 @@ def main_menu():
 # ─── Entry Point ───────────────────────────────────────
 
 def main():
-    # Block escape attempts
-    signal.signal(signal.SIGTSTP, signal.SIG_IGN)
-    signal.signal(signal.SIGQUIT, signal.SIG_IGN)
+    # Must be run as root
+    if os.geteuid() != 0:
+        print('\n  Error: coderedndr must be run as root.')
+        print('  Usage: sudo coderedndr\n')
+        sys.exit(1)
 
     setup_logging()
-    audit('login')
+    audit('start')
 
     try:
         main_menu()
     except KeyboardInterrupt:
         print('\n')
-        audit('logout:ctrl-c')
+        audit('exit:ctrl-c')
         sys.exit(0)
 
 
