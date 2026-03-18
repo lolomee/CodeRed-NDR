@@ -408,13 +408,33 @@ chmod 664 /var/log/codered/cli.log /var/log/codered/audit.log
 
 log "Command 'coderedndr' installed. Usage: sudo coderedndr"
 
-# ─── Step 6: Apply Kernel Hardening ──────────────
+# ─── Step 6: Optional Kernel Hardening ───────────
 
-step 6 "Applying kernel hardening..."
+step 6 "Kernel hardening (optional)..."
 
-# Kernel hardening (doesn't touch SSH or firewall — customer's server)
-cat > /etc/sysctl.d/99-codered-hardening.conf << 'SYSCTL'
+echo ""
+echo "  CodeRed NDR can apply kernel-level security hardening:"
+echo ""
+echo "    - Block source-routed packets (prevent path manipulation)"
+echo "    - Enable SYN flood protection (TCP SYN cookies)"
+echo "    - Ignore ICMP redirects (prevent MITM routing attacks)"
+echo "    - Log suspicious packets (martian source addresses)"
+echo "    - Block broadcast ICMP (prevent Smurf DDoS)"
+echo "    - Enable full ASLR (memory exploit mitigation)"
+echo "    - Restrict kernel log access (information leak prevention)"
+echo "    - Hide kernel memory addresses (exploit mitigation)"
+echo ""
+echo "  These settings are written to /etc/sysctl.d/99-codered-hardening.conf"
+echo "  and will NOT modify your existing sysctl settings."
+echo ""
+read -p "  Apply kernel hardening? (y/N): " APPLY_HARDENING
+
+if [[ "$APPLY_HARDENING" =~ ^[Yy]$ ]]; then
+    cat > /etc/sysctl.d/99-codered-hardening.conf << 'SYSCTL'
 # CodeRed NDR - Kernel Hardening
+# Applied during install. Remove this file to revert:
+#   rm /etc/sysctl.d/99-codered-hardening.conf && sysctl --system
+
 net.ipv4.conf.all.accept_source_route = 0
 net.ipv4.conf.default.accept_source_route = 0
 net.ipv4.tcp_syncookies = 1
@@ -427,8 +447,11 @@ kernel.randomize_va_space = 2
 kernel.dmesg_restrict = 1
 kernel.kptr_restrict = 2
 SYSCTL
-sysctl --system >/dev/null 2>&1
-log "Kernel hardening applied."
+    sysctl --system >/dev/null 2>&1
+    log "Kernel hardening applied."
+else
+    log "Kernel hardening skipped (can be applied later via: sudo coderedndr → Diagnostics)."
+fi
 
 # ─── Cleanup ─────────────────────────────────────
 

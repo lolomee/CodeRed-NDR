@@ -264,9 +264,31 @@ curl -sSL https://raw.githubusercontent.com/lolomee/CodeRed-NDR/main/install.sh 
   <li>Installs <strong>Zeek</strong> (network metadata engine)</li>
   <li>Installs <strong>Suricata</strong> (IDS/IPS engine with 50,000+ rules)</li>
   <li>Installs <strong>Filebeat</strong> (log forwarder to CodeRed AI)</li>
-  <li>Installs the <strong>CodeRed NDR management CLI</strong> (<code>coderedndr</code> command)</li>
-  <li>Applies <strong>kernel security hardening</strong></li>
+  <li>Installs the <strong>CodeRed NDR management CLI</strong> (<code>sudo coderedndr</code> command)</li>
+  <li>Asks whether to apply <strong>kernel security hardening</strong> (optional)</li>
 </ol>
+
+<h2>Kernel Hardening (Optional)</h2>
+
+<p>During installation, you'll be asked whether to apply kernel-level security hardening. This is <strong>recommended</strong> but optional — you may skip it if your server already has custom sysctl tuning.</p>
+
+<table>
+  <tr><th>Setting</th><th>What It Does</th></tr>
+  <tr><td>Block source-routed packets</td><td>Prevents attackers from forcing a specific packet path through the network</td></tr>
+  <tr><td>SYN flood protection</td><td>Enables TCP SYN cookies to protect against DDoS SYN flood attacks</td></tr>
+  <tr><td>Ignore ICMP redirects</td><td>Prevents MITM routing attacks via forged ICMP redirect messages</td></tr>
+  <tr><td>Log suspicious packets</td><td>Logs packets with impossible source addresses (martian packets) for analysis</td></tr>
+  <tr><td>Block broadcast ICMP</td><td>Prevents Smurf DDoS amplification attacks</td></tr>
+  <tr><td>Full ASLR</td><td>Randomizes memory layout, making memory exploitation significantly harder</td></tr>
+  <tr><td>Restrict kernel log access</td><td>Prevents non-root users from reading kernel messages (information leak prevention)</td></tr>
+  <tr><td>Hide kernel memory addresses</td><td>Hides kernel pointer addresses from non-root users (exploit mitigation)</td></tr>
+</table>
+
+<div class="callout callout-info">
+  <div class="callout-title">Reversing Kernel Hardening</div>
+  <p>If you applied kernel hardening and need to revert, run:<br>
+  <code>sudo rm /etc/sysctl.d/99-codered-hardening.conf &amp;&amp; sudo sysctl --system</code></p>
+</div>
 
 <p>All NDR services are installed but <strong>not started</strong> — you start them after configuring the sensor.</p>
 
