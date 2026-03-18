@@ -403,29 +403,62 @@ aws ec2 create-traffic-mirror-session --network-interface-id eni-SOURCE --traffi
 
 <p>Once all checklist items show [✓], the sensor is active and monitoring.</p>
 
+<h2>What "Start NDR" Does</h2>
+
+<p>When you select <strong>option 9 (Start NDR)</strong>, the sensor automatically performs a 9-step setup:</p>
+
+<table>
+  <tr><th>Step</th><th>Action</th><th>Details</th></tr>
+  <tr><td>1</td><td>Configure monitor interfaces</td><td>Sets NICs to promiscuous mode, disables offloading</td></tr>
+  <tr><td>2</td><td>Download Suricata rules</td><td>Downloads 50,000+ ET Open signatures if not already present</td></tr>
+  <tr><td>3</td><td>Configure threat intel feeds</td><td>Enables ET/Open and OISF TrafficID rule sources</td></tr>
+  <tr><td>4</td><td>Download GeoIP database</td><td>Installs IP geolocation data for log enrichment</td></tr>
+  <tr><td>5</td><td>Generate Suricata config</td><td>Configures af-packet capture on your interfaces, enables community-id, alert-triggered PCAP</td></tr>
+  <tr><td>6</td><td>Generate Zeek config</td><td>Configures cluster workers across interfaces, JSON output, community-id, 12+ protocol analyzers</td></tr>
+  <tr><td>7</td><td>Generate Filebeat config</td><td>Points log forwarding to your CodeRed AI endpoint</td></tr>
+  <tr><td>8</td><td>Setup log rotation</td><td>Daily rotation with 7-day retention for Suricata, Zeek, Filebeat logs</td></tr>
+  <tr><td>9</td><td>Start services</td><td>Starts Suricata, Zeek, Filebeat and enables auto-start on reboot</td></tr>
+</table>
+
+<div class="callout callout-info">
+  <div class="callout-title">Automatic After Start</div>
+  <ul>
+    <li>Suricata rules auto-update <strong>daily at 3 AM</strong></li>
+    <li>Logs rotate <strong>daily</strong> with 7-day retention (disk won't fill up)</li>
+    <li>Services <strong>auto-start on reboot</strong></li>
+    <li>Full PCAP captured on <strong>high-severity alerts</strong> (saved to /nsm/pcap/)</li>
+    <li>CodeRed NDR software auto-updates every <strong>6 hours</strong> from central repo</li>
+  </ul>
+</div>
 
 <!-- ─── Section 8 ─── -->
 <h1 id="menu">8. Management Menu Reference</h1>
 
 <table>
   <tr><th>#</th><th>Option</th><th>What It Does</th></tr>
-  <tr><td>1</td><td>Sensor status</td><td>CPU, memory, disk, service health, CodeRed AI connection</td></tr>
+  <tr><td colspan="3" style="background:#f0f0f5; font-weight:600;">Status</td></tr>
+  <tr><td>1</td><td>Sensor status</td><td>CPU, memory, disk, service health, CodeRed AI connection, rule update status</td></tr>
   <tr><td>2</td><td>Network interfaces</td><td>Show all NICs, IP addresses, promiscuous mode status</td></tr>
   <tr><td>3</td><td>View logs</td><td>Tail Suricata alerts, Zeek DNS/conn/HTTP logs, system log</td></tr>
-  <tr><td>4</td><td>Diagnostics</td><td>Test DNS, gateway, CodeRed AI connectivity, NTP sync, disk health</td></tr>
+  <tr><td>4</td><td>Diagnostics</td><td>Test DNS, gateway, CodeRed AI connectivity, NTP sync, disk health, service health</td></tr>
+  <tr><td colspan="3" style="background:#f0f0f5; font-weight:600;">Configure</td></tr>
   <tr><td>5</td><td>Network settings</td><td>Change sensor IP, gateway, DNS</td></tr>
   <tr><td>6</td><td>Hostname</td><td>Change sensor hostname</td></tr>
-  <tr><td>7</td><td>Monitor interfaces</td><td>Add, remove, or replace monitoring NICs</td></tr>
+  <tr><td>7</td><td>Monitor interfaces</td><td>Add, remove, or replace monitoring NICs for multi-zone SPAN</td></tr>
   <tr><td>8</td><td>CodeRed AI destination</td><td>Change CodeRed AI IP address and port</td></tr>
-  <tr><td>9</td><td>Start NDR</td><td>Start Zeek + Suricata + Filebeat</td></tr>
+  <tr><td colspan="3" style="background:#f0f0f5; font-weight:600;">NDR Services</td></tr>
+  <tr><td>9</td><td>Start NDR</td><td>Full 9-step setup: generate configs, download rules, start Zeek + Suricata + Filebeat</td></tr>
   <tr><td>10</td><td>Stop NDR</td><td>Stop all monitoring services</td></tr>
-  <tr><td>11</td><td>Restart services</td><td>Restart individual or all services</td></tr>
-  <tr><td>12</td><td>Test monitor interfaces</td><td>Live packet capture test on each monitor NIC</td></tr>
-  <tr><td>13</td><td>Test CodeRed AI</td><td>Test connectivity to your CodeRed AI platform</td></tr>
-  <tr><td>14</td><td>Support bundle</td><td>Generate diagnostic tarball for support</td></tr>
-  <tr><td>15</td><td>Reboot</td><td>Reboot the server</td></tr>
-  <tr><td>16</td><td>Shutdown</td><td>Shut down the server (stops all monitoring)</td></tr>
-  <tr><td>17</td><td>User guide</td><td>View this guide in the terminal</td></tr>
+  <tr><td>11</td><td>Restart services</td><td>Restart Zeek, Suricata, Filebeat individually or all</td></tr>
+  <tr><td>12</td><td>Test monitor interfaces</td><td>Live 5-second packet capture test on each monitor NIC</td></tr>
+  <tr><td>13</td><td>Test CodeRed AI</td><td>3-step connectivity test: DNS resolve, TCP port, service response</td></tr>
+  <tr><td>14</td><td>Bandwidth stats</td><td>10-second throughput measurement: Mbps, packets/sec, drops per interface</td></tr>
+  <tr><td colspan="3" style="background:#f0f0f5; font-weight:600;">System</td></tr>
+  <tr><td>15</td><td>Support bundle</td><td>Generate diagnostic tarball for support (configs, logs, status)</td></tr>
+  <tr><td>16</td><td>Reboot</td><td>Reboot the server (services restart automatically)</td></tr>
+  <tr><td>17</td><td>Shutdown</td><td>Shut down the server (stops all monitoring)</td></tr>
+  <tr><td colspan="3" style="background:#f0f0f5; font-weight:600;">Help</td></tr>
+  <tr><td>18</td><td>User guide</td><td>View this guide in the terminal</td></tr>
 </table>
 
 <!-- ─── Section 9 ─── -->
@@ -450,7 +483,7 @@ aws ec2 create-traffic-mirror-session --network-interface-id eni-SOURCE --traffi
 <ol>
   <li>Menu option <strong>1</strong> &mdash; check which services show as stopped</li>
   <li>Menu option <strong>11</strong> &mdash; restart individual or all services</li>
-  <li>If services keep crashing, generate a support bundle (option <strong>14</strong>) and contact support</li>
+  <li>If services keep crashing, generate a support bundle (option <strong>15</strong>) and contact support</li>
 </ol>
 
 <h2>Performance Issues</h2>
@@ -458,9 +491,14 @@ aws ec2 create-traffic-mirror-session --network-interface-id eni-SOURCE --traffi
   <tr><th>Symptom</th><th>Likely Cause</th><th>Fix</th></tr>
   <tr><td>High CPU</td><td>Too much traffic for allocated CPUs</td><td>Increase vCPUs to 8+</td></tr>
   <tr><td>High memory</td><td>Large connection tables</td><td>Increase RAM to 16 GB+</td></tr>
-  <tr><td>Packet drops</td><td>NIC ring buffer full</td><td>Increase vCPUs, check SPAN rate</td></tr>
-  <tr><td>Disk filling fast</td><td>High traffic volume</td><td>Increase disk, reduce retention</td></tr>
+  <tr><td>Packet drops</td><td>NIC ring buffer full</td><td>Use option <strong>14</strong> (Bandwidth stats) to check drops. Increase vCPUs.</td></tr>
+  <tr><td>Disk filling fast</td><td>High traffic volume</td><td>Log rotation is automatic (7-day). Increase disk if needed.</td></tr>
 </table>
+
+<h2>Uninstalling CodeRed NDR</h2>
+<p>To cleanly remove CodeRed NDR from your server:</p>
+<pre><code>curl -sSL https://raw.githubusercontent.com/lolomee/CodeRed-NDR/main/uninstall.sh | sudo bash</code></pre>
+<p>This stops services, removes CodeRed files and configs, and reverts kernel hardening. Zeek/Suricata/Filebeat packages are left installed (remove manually with <code>apt-get remove</code> if needed).</p>
 
 <!-- ─── Section 10 ─── -->
 <h1 id="quickref">10. Quick Reference Card</h1>
@@ -470,6 +508,7 @@ aws ec2 create-traffic-mirror-session --network-interface-id eni-SOURCE --traffi
   <table>
     <tr><th style="width:40%">Item</th><th>Value</th></tr>
     <tr><td>Install command</td><td><code>curl -sSL https://raw.githubusercontent.com/lolomee/CodeRed-NDR/main/install.sh | sudo bash</code></td></tr>
+    <tr><td>Uninstall command</td><td><code>curl -sSL https://raw.githubusercontent.com/lolomee/CodeRed-NDR/main/uninstall.sh | sudo bash</code></td></tr>
     <tr><td>Management CLI</td><td><code>sudo coderedndr</code></td></tr>
     <tr><td>CodeRed AI default port</td><td>9200</td></tr>
     <tr><td>VM minimum specs</td><td>4 CPU, 8 GB RAM, 100 GB disk, Ubuntu 22/24</td></tr>
@@ -484,7 +523,19 @@ aws ec2 create-traffic-mirror-session --network-interface-id eni-SOURCE --traffi
     <tr><td>Set CodeRed AI destination</td><td>Option 8</td></tr>
     <tr><td>Test monitor interfaces</td><td>Option 12</td></tr>
     <tr><td>Test CodeRed AI connection</td><td>Option 13</td></tr>
+    <tr><td>Check bandwidth / drops</td><td>Option 14</td></tr>
     <tr><td>Start NDR services</td><td>Option 9</td></tr>
+  </table>
+  <br>
+  <table>
+    <tr><th style="width:40%">Automatic Features</th><th>Details</th></tr>
+    <tr><td>Suricata rule updates</td><td>Daily at 3 AM (50,000+ ET Open rules)</td></tr>
+    <tr><td>Log rotation</td><td>Daily, 7-day retention</td></tr>
+    <tr><td>Services on reboot</td><td>Auto-start after reboot</td></tr>
+    <tr><td>PCAP on alert</td><td>Full packets captured on high-severity alerts</td></tr>
+    <tr><td>Software updates</td><td>Every 6 hours from central repo</td></tr>
+    <tr><td>GeoIP enrichment</td><td>IP geolocation in logs</td></tr>
+    <tr><td>Threat intel feeds</td><td>ET/Open + OISF TrafficID</td></tr>
   </table>
 </div>
 
