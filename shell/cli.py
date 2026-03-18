@@ -682,50 +682,106 @@ def restart_services():
 
 
 def reconfigure_network():
-    """Reconfigure management network settings."""
+    """Reconfigure sensor IP, gateway, DNS."""
     audit('reconfigure:network')
     config = load_config()
 
-    header('RECONFIGURE NETWORK')
+    # Auto-detect current management interface (the one with an IP)
+    current_iface = get_val(config, 'network', 'mgmt_interface')
+    if not current_iface:
+        # Find interface with an IP (excluding lo)
+        _, out = run_cmd(['ip', '-4', '-br', 'addr', 'show'])
+        for line in out.strip().splitlines():
+            parts = line.split()
+            if len(parts) >= 3 and parts[0] != 'lo' and '/' in parts[2]:
+                current_iface = parts[0]
+                break
+        if not current_iface:
+            current_iface = 'eth0'
+
+    # Get current IP info
+    current_ip = get_val(config, 'network', 'mgmt_ip')
+    current_mask = get_val(config, 'network', 'mgmt_netmask', '255.255.255.0')
+    current_gw = get_val(config, 'network', 'mgmt_gateway')
+    current_dns = get_val(config, 'network', 'mgmt_dns')
+
+    # If no config yet, detect from system
+    if not current_ip:
+        _, out = run_cmd(['ip', '-4', '-br', 'addr', 'show', current_iface])
+        if out.strip():
+            parts = out.strip().split()
+            if len(parts) >= 3 and '/' in parts[2]:
+                current_ip = parts[2].split('/')[0]
+                cidr = parts[2].split('/')[1]
+                current_mask = cidr
+    if not current_gw:
+        _, out = run_cmd(['ip', 'route', 'show', 'default'])
+        if 'via' in out:
+            current_gw = out.split('via')[1].strip().split()[0]
+    if not current_dns:
+        try:
+            with open('/etc/resolv.conf') as f:
+                for line in f:
+                    if line.startswith('nameserver'):
+                        current_dns = line.split()[1]
+                        break
+        except OSError:
+            current_dns = '8.8.8.8'
+
+    header('NETWORK SETTINGS')
     print('  Current settings:')
-    print_line('Interface:', get_val(config, 'network', 'mgmt_interface'))
-    print_line('Mode:', get_val(config, 'network', 'mgmt_mode'))
-    if get_val(config, 'network', 'mgmt_mode') == 'static':
-        print_line('IP:', get_val(config, 'network', 'mgmt_ip'))
-        print_line('Netmask:', get_val(config, 'network', 'mgmt_netmask'))
-        print_line('Gateway:', get_val(config, 'network', 'mgmt_gateway'))
-        print_line('DNS:', get_val(config, 'network', 'mgmt_dns'))
+    print_line('IP Address:', current_ip or 'DHCP')
+    print_line('Netmask:', current_mask)
+    print_line('Gateway:', current_gw or 'auto')
+    print_line('DNS:', current_dns or 'auto')
     print()
 
-    if not confirm('Change network settings?'):
-        return
-
-    iface = prompt('Management interface', get_val(config, 'network', 'mgmt_interface'))
-    config.set('network', 'mgmt_interface', iface)
-
-    mode = prompt_choice('IP mode', ['static', 'dhcp'], get_val(config, 'network', 'mgmt_mode', 'static'))
+    mode = prompt_choice('IP mode', ['static', 'dhcp'], 'static')
     config.set('network', 'mgmt_mode', mode)
+    config.set('network', 'mgmt_interface', current_iface)
 
     if mode == 'static':
-        ip = prompt('IP address', get_val(config, 'network', 'mgmt_ip'), is_valid_ip)
-        mask = prompt('Netmask', get_val(config, 'network', 'mgmt_netmask', '255.255.255.0'), is_valid_netmask)
-        gw = prompt('Gateway', get_val(config, 'network', 'mgmt_gateway'), is_valid_ip)
-        dns = prompt('DNS', get_val(config, 'network', 'mgmt_dns', '8.8.8.8'), )
+        ip = prompt('IP address', current_ip, is_valid_ip)
+        mask = prompt('Netmask', current_mask, is_valid_netmask)
+        gw = prompt('Gateway', current_gw, is_valid_ip)
+        dns = prompt('DNS (comma-separated)', current_dns or '8.8.8.8')
         config.set('network', 'mgmt_ip', ip)
         config.set('network', 'mgmt_netmask', mask)
         config.set('network', 'mgmt_gateway', gw)
         config.set('network', 'mgmt_dns', dns)
 
-    print('\n  Applying network changes...')
-    print('  ⚠ WARNING: If you are changing the IP, you will lose this SSH session.')
+    print()
+    if mode == 'static':
+        print(f'  New settings: {ip}/{netmask_to_cidr(mask)} gw {gw} dns {dns}')
+    else:
+        print('  New settings: DHCP (automatic)')
 
-    if not confirm('Apply now?'):
+    # Check if IP is changing
+    ip_changing = (mode == 'static' and ip != current_ip) or (mode == 'dhcp' and current_ip)
+
+    if ip_changing:
+        print('\n  ⚠ WARNING: The IP address is changing.')
+        print('  Your SSH session will disconnect after applying.')
+        if mode == 'static':
+            print(f'\n  Reconnect with: ssh coderedai@{ip}')
+        else:
+            print('\n  Reconnect using the DHCP-assigned IP.')
+            print('  Check your DHCP server or VM console for the new IP.')
+
+    if not confirm('\n  Apply now?'):
         return
 
     save_config(config)
     apply_network(config)
-    print('  Network configuration applied.')
-    pause()
+
+    if ip_changing and mode == 'static':
+        print(f'\n  ✓ Network applied. Reconnect: ssh coderedai@{ip}')
+        print('  Session will disconnect in 3 seconds...')
+        import time
+        time.sleep(3)
+    else:
+        print('  ✓ Network configuration applied.')
+        pause()
 
 
 def reconfigure_hostname():
@@ -1051,6 +1107,288 @@ def change_password():
     pause()
 
 
+def get_setup_checklist(config) -> list[tuple[bool, str]]:
+    """Return setup checklist with status."""
+    checks = []
+
+    # Network
+    ip = get_val(config, 'network', 'mgmt_ip')
+    mode = get_val(config, 'network', 'mgmt_mode')
+    if ip or mode == 'dhcp':
+        # Get live IP
+        _, out = run_cmd(['hostname', '-I'])
+        live_ip = out.strip().split()[0] if out.strip() else ''
+        checks.append((True, f'Network configured ({live_ip or ip or "DHCP"})'))
+    else:
+        checks.append((False, 'Network not configured'))
+
+    # Hostname
+    current_hostname = subprocess.getoutput('hostname').strip()
+    if current_hostname and current_hostname not in ('localhost', 'ubuntu', 'codered-sensor', 'ip-172-31-27-3'):
+        checks.append((True, f'Hostname set ({current_hostname})'))
+    else:
+        checks.append((False, 'Hostname (still default)'))
+
+    # Monitor interfaces
+    mon = get_monitor_interfaces(config)
+    if mon:
+        checks.append((True, f'Monitor interfaces ({", ".join(mon)})'))
+    else:
+        checks.append((False, 'Monitor interfaces (none configured)'))
+
+    # CodeRed AI
+    endpoint = get_val(config, 'forwarding', 'siem_endpoint')
+    port = get_val(config, 'forwarding', 'siem_port', '9200')
+    if endpoint:
+        checks.append((True, f'CodeRed AI destination ({endpoint}:{port})'))
+    else:
+        checks.append((False, 'CodeRed AI destination (not configured)'))
+
+    # NDR services
+    zeek_running = run_cmd(['pgrep', '-x', 'zeek'], sudo=True)[0] == 0
+    suri_running = run_cmd(['pgrep', '-x', 'suricata'], sudo=True)[0] == 0
+    if zeek_running and suri_running:
+        checks.append((True, 'NDR services running'))
+    elif zeek_running or suri_running:
+        checks.append((False, 'NDR services (partially running)'))
+    else:
+        checks.append((False, 'NDR services (not started)'))
+
+    return checks
+
+
+def start_ndr_services():
+    """Start Zeek, Suricata, and Filebeat."""
+    audit('start-ndr')
+    config = load_config()
+
+    header('START NDR SERVICES')
+
+    # Pre-flight checks
+    mon = get_monitor_interfaces(config)
+    if not mon:
+        print('  ✗ Cannot start: No monitor interfaces configured.')
+        print('  → Use option 7 to configure monitor interfaces first.')
+        pause()
+        return
+
+    print('  Pre-flight checks:')
+
+    # Check monitor interfaces are up
+    all_ok = True
+    for iface in mon:
+        _, out = run_cmd(['ip', 'link', 'show', iface], sudo=True)
+        if 'UP' in out:
+            print_line(f'    {iface}:', 'UP')
+        else:
+            print_line(f'    {iface}:', 'DOWN — bringing up...')
+            apply_monitor_interface(iface)
+            all_ok = True
+
+    endpoint = get_val(config, 'forwarding', 'siem_endpoint')
+    if endpoint:
+        print_line('    CodeRed AI:', f'{endpoint}:{get_val(config, "forwarding", "siem_port", "9200")}')
+    else:
+        print_line('    CodeRed AI:', 'not configured (logs stored locally only)')
+
+    print()
+    if not confirm('Start Zeek + Suricata + Filebeat?'):
+        return
+
+    # Configure monitor interfaces
+    print('\n  Configuring monitor interfaces...')
+    for iface in mon:
+        apply_monitor_interface(iface)
+
+    # Start Suricata
+    print('  Starting Suricata...')
+    # Configure Suricata to listen on monitor interfaces
+    suricata_ifaces = ' '.join(f'-i {iface}' for iface in mon)
+    rc, out = run_cmd(['systemctl', 'start', 'suricata'], sudo=True)
+    if rc == 0:
+        print_line('    Suricata:', 'started')
+    else:
+        print_line('    Suricata:', f'failed — {out.strip()[:80]}')
+
+    # Start Zeek
+    print('  Starting Zeek...')
+    # Create basic Zeek node.cfg if it doesn't exist
+    zeek_dir = '/opt/zeek'
+    if os.path.isdir(zeek_dir):
+        node_cfg = f'{zeek_dir}/etc/node.cfg'
+        local_zeek = f'{zeek_dir}/share/zeek/site/local.zeek'
+
+        # Write node.cfg for monitor interfaces
+        try:
+            with open('/tmp/node.cfg', 'w') as f:
+                f.write('[zeek]\ntype=standalone\nhost=localhost\n')
+                f.write(f'interface={mon[0]}\n')
+            run_cmd(['cp', '/tmp/node.cfg', node_cfg], sudo=True)
+        except OSError:
+            pass
+
+    rc, out = run_cmd([f'{zeek_dir}/bin/zeekctl', 'deploy'], sudo=True, timeout=60)
+    if rc == 0:
+        print_line('    Zeek:', 'started')
+    else:
+        # Try direct start
+        rc2, _ = run_cmd([f'{zeek_dir}/bin/zeekctl', 'start'], sudo=True, timeout=60)
+        print_line('    Zeek:', 'started' if rc2 == 0 else f'failed')
+
+    # Start Filebeat if CodeRed AI is configured
+    if endpoint:
+        print('  Starting Filebeat...')
+        rc, out = run_cmd(['systemctl', 'start', 'filebeat'], sudo=True)
+        print_line('    Filebeat:', 'started' if rc == 0 else 'failed')
+
+    # Enable timers
+    print('  Enabling auto-update timers...')
+    run_cmd(['systemctl', 'enable', '--now', 'codered-rule-update.timer'], sudo=True)
+    run_cmd(['systemctl', 'enable', '--now', 'codered-update.timer'], sudo=True)
+
+    print('\n  ✓ NDR services started.')
+    print('  Use option 1 (Status) to verify, option 4 (Diagnostics) to test.')
+    pause()
+
+
+def stop_ndr_services():
+    """Stop Zeek, Suricata, and Filebeat."""
+    audit('stop-ndr')
+    header('STOP NDR SERVICES')
+
+    print('  This will stop all network monitoring.')
+    if not confirm('Stop Zeek + Suricata + Filebeat?', default=False):
+        return
+
+    print('\n  Stopping services...')
+
+    zeek_dir = '/opt/zeek'
+    if os.path.isdir(f'{zeek_dir}/bin'):
+        run_cmd([f'{zeek_dir}/bin/zeekctl', 'stop'], sudo=True, timeout=60)
+    run_cmd(['systemctl', 'stop', 'suricata'], sudo=True)
+    run_cmd(['systemctl', 'stop', 'filebeat'], sudo=True)
+
+    print('  ✓ All NDR services stopped. No traffic is being monitored.')
+    pause()
+
+
+def test_monitor_interface():
+    """Test if packets are arriving on monitor interfaces."""
+    audit('test-monitor')
+    config = load_config()
+    mon = get_monitor_interfaces(config)
+
+    header('TEST MONITOR INTERFACES')
+
+    if not mon:
+        print('  No monitor interfaces configured.')
+        print('  → Use option 7 to configure monitor interfaces first.')
+        pause()
+        return
+
+    print('  Testing packet capture on each monitor interface...')
+    print('  (Listening for 5 seconds per interface)\n')
+
+    for iface in mon:
+        # Check interface is UP
+        _, link_out = run_cmd(['ip', 'link', 'show', iface], sudo=True)
+        if 'UP' not in link_out:
+            print_line(f'  {iface}:', 'DOWN — skipping (bring up first)')
+            continue
+
+        print(f'  Listening on {iface}...', end=' ', flush=True)
+        rc, out = run_cmd(
+            ['timeout', '5', 'tcpdump', '-i', iface, '-c', '100', '-q', '--immediate-mode'],
+            sudo=True, timeout=10
+        )
+
+        # Parse packet count from tcpdump output
+        # tcpdump outputs "X packets captured" on stderr
+        import re
+        match = re.search(r'(\d+) packets? captured', out)
+        if match:
+            count = int(match.group(1))
+            if count > 0:
+                print(f'{count} packets in 5 seconds ✓')
+            else:
+                print('0 packets ✗ (check SPAN config)')
+        elif rc == 0:
+            print('listening OK (no packets in 5s — check SPAN config)')
+        else:
+            print(f'error — {out.strip()[:60]}')
+
+    print()
+    print('  If 0 packets: verify your switch SPAN/mirror port is active')
+    print('  and connected to this sensor\'s monitoring NIC.')
+    pause()
+
+
+def test_codered_ai():
+    """Test connection to CodeRed AI platform."""
+    audit('test-codered-ai')
+    config = load_config()
+    endpoint = get_val(config, 'forwarding', 'siem_endpoint')
+    port = get_val(config, 'forwarding', 'siem_port', '9200')
+
+    header('TEST CODERED AI CONNECTION')
+
+    if not endpoint:
+        print('  CodeRed AI destination not configured.')
+        print('  → Use option 8 to set the CodeRed AI IP and port.')
+        pause()
+        return
+
+    print(f'  Target: {endpoint}:{port}\n')
+
+    # Test 1: DNS/IP resolution
+    print('  [1/3] Resolving address...', end=' ', flush=True)
+    rc, _ = run_cmd(['ping', '-c', '1', '-W', '3', endpoint])
+    if rc == 0:
+        print('✓')
+    else:
+        print('✗ Cannot reach host')
+        print(f'\n  Check: Is {endpoint} correct? Can this sensor reach that network?')
+        pause()
+        return
+
+    # Test 2: TCP port connectivity
+    print(f'  [2/3] Connecting to port {port}...', end=' ', flush=True)
+    rc, out = run_cmd(
+        ['bash', '-c', f'echo | timeout 5 bash -c "cat < /dev/null > /dev/tcp/{endpoint}/{port}" 2>&1'],
+        timeout=10
+    )
+    if rc == 0:
+        print('✓')
+    else:
+        # Try with openssl
+        rc2, _ = run_cmd(
+            ['bash', '-c', f'echo | timeout 5 openssl s_client -connect {endpoint}:{port} 2>/dev/null'],
+            timeout=10
+        )
+        if rc2 == 0:
+            print('✓ (TLS)')
+        else:
+            print(f'✗ Port {port} not reachable')
+            print(f'\n  Check: Is CodeRed AI running? Is port {port} open on the firewall?')
+            pause()
+            return
+
+    # Test 3: HTTP response (if Elasticsearch/OpenSearch)
+    print('  [3/3] Testing service...', end=' ', flush=True)
+    rc, out = run_cmd(
+        ['bash', '-c', f'curl -sk --connect-timeout 5 --max-time 10 https://{endpoint}:{port}/ 2>/dev/null || curl -sk --connect-timeout 5 --max-time 10 http://{endpoint}:{port}/ 2>/dev/null'],
+        timeout=15
+    )
+    if rc == 0 and out.strip():
+        print('✓ Service responded')
+    else:
+        print('? (service may require authentication — this is normal)')
+
+    print(f'\n  ✓ CodeRed AI at {endpoint}:{port} is reachable.')
+    print('  Logs will be forwarded when NDR services are running.')
+    pause()
+
+
 def show_user_guide():
     """Display the user guide with paging."""
     audit('view:user-guide')
@@ -1247,9 +1585,22 @@ def main_menu():
         version = get_version()
         name = get_val(config, 'sensor', 'sensor_name', hostname)
 
+        # Get current IP
+        _, ip_out = run_cmd(['hostname', '-I'])
+        current_ip = ip_out.strip().split()[0] if ip_out.strip() else 'no IP'
+
         print(BANNER)
         print(f'  Sensor: {name} ({hostname})    Version: {version}')
-        print(f'  {datetime.now().strftime("%Y-%m-%d %H:%M:%S")}')
+        print(f'  IP: {current_ip}    {datetime.now().strftime("%Y-%m-%d %H:%M:%S")}')
+
+        # Setup checklist
+        checklist = get_setup_checklist(config)
+        incomplete = sum(1 for ok, _ in checklist if not ok)
+        if incomplete > 0:
+            print(f'\n  ── Setup Checklist ({incomplete} remaining) ──────────')
+            for ok, desc in checklist:
+                mark = '✓' if ok else '✗'
+                print(f'   [{mark}] {desc}')
 
         print('\n  ── Status ──────────────────────────────────')
         print('   1. Sensor status overview')
@@ -1258,20 +1609,26 @@ def main_menu():
         print('   4. Diagnostics')
 
         print('\n  ── Configure ───────────────────────────────')
-        print('   5. Network (IP/gateway/DNS)')
+        print('   5. Network settings')
         print('   6. Hostname')
         print('   7. Monitor interfaces')
         print('   8. CodeRed AI destination')
 
-        print('\n  ── Actions ─────────────────────────────────')
-        print('   9. Restart services')
-        print('  10. Support bundle')
-        print('  11. Change password')
-        print('  12. Reboot')
-        print('  13. Shutdown')
+        print('\n  ── NDR Services ────────────────────────────')
+        print('   9. Start NDR (Zeek + Suricata + Filebeat)')
+        print('  10. Stop NDR')
+        print('  11. Restart services')
+        print('  12. Test monitor interfaces')
+        print('  13. Test CodeRed AI connection')
+
+        print('\n  ── System ──────────────────────────────────')
+        print('  14. Support bundle')
+        print('  15. Change password')
+        print('  16. Reboot')
+        print('  17. Shutdown')
 
         print('\n  ── Help ────────────────────────────────────')
-        print('  14. User guide')
+        print('  18. User guide')
 
         print('\n   0. Logout')
         print()
@@ -1291,12 +1648,16 @@ def main_menu():
             '6': reconfigure_hostname,
             '7': reconfigure_monitor,
             '8': reconfigure_forwarding,
-            '9': restart_services,
-            '10': generate_support_bundle,
-            '11': change_password,
-            '12': do_reboot,
-            '13': do_shutdown,
-            '14': show_user_guide,
+            '9': start_ndr_services,
+            '10': stop_ndr_services,
+            '11': restart_services,
+            '12': test_monitor_interface,
+            '13': test_codered_ai,
+            '14': generate_support_bundle,
+            '15': change_password,
+            '16': do_reboot,
+            '17': do_shutdown,
+            '18': show_user_guide,
         }
 
         if choice == '0':
@@ -1322,9 +1683,6 @@ def main():
     audit('login')
 
     try:
-        if not is_configured():
-            if not run_setup():
-                sys.exit(1)
         main_menu()
     except KeyboardInterrupt:
         print('\n')

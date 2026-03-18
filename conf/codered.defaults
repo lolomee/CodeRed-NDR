@@ -40,6 +40,6 @@ firewall = yes
 
 [autoupdate]
 enabled = yes
-repo_url =
+repo_url = https://github.com/lolomee/CodeRed-NDR.git
 branch = main
 interval = 6h
