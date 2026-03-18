@@ -1,12 +1,11 @@
 #!/bin/bash
-# CodeRed NDR - Auto-Update Script
-# Pulls latest Salt states from central repo and applies them.
+# CodeRed NDR - Auto-Update Script (Standalone Mode)
+# Pulls latest code from central repo and updates sensor files.
 
 set -euo pipefail
 
 LOG_FILE="/var/log/codered/update.log"
 REPO_DIR="/opt/codered/repo"
-SALT_LOCAL="/opt/so/saltstack/local"
 TIMESTAMP=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
 
 log() {
@@ -42,24 +41,13 @@ fi
 log "Updates found: ${BEFORE:0:8} -> ${AFTER:0:8}"
 log "Changes: $(git log --oneline "$BEFORE".."$AFTER" | head -20)"
 
-# Copy updated Salt states
-if [ -d "$REPO_DIR/salt/states/codered" ]; then
-    log "Updating Salt states..."
-    cp -r "$REPO_DIR/salt/states/codered" "$SALT_LOCAL/salt/"
-fi
-
-if [ -d "$REPO_DIR/salt/pillar/codered" ]; then
-    log "Updating Salt pillars..."
-    cp -r "$REPO_DIR/salt/pillar/codered" "$SALT_LOCAL/pillar/"
-fi
-
-# Update shell and firstboot scripts
-if [ -d "$REPO_DIR/shell" ]; then
-    log "Updating shell scripts..."
-    # Remove immutable flags temporarily
-    chattr -i /opt/codered/shell/*.py 2>/dev/null || true
-    cp "$REPO_DIR/shell/"*.py /opt/codered/shell/
-    chattr +i /opt/codered/shell/menu.py /opt/codered/shell/actions.py 2>/dev/null || true
+# Update CLI
+if [ -f "$REPO_DIR/shell/cli.py" ]; then
+    log "Updating CLI..."
+    chattr -i /opt/codered/shell/cli.py 2>/dev/null || true
+    cp "$REPO_DIR/shell/cli.py" /opt/codered/shell/cli.py
+    chmod 755 /opt/codered/shell/cli.py
+    chattr +i /opt/codered/shell/cli.py 2>/dev/null || true
 fi
 
 # Update version
@@ -67,18 +55,17 @@ if [ -f "$REPO_DIR/VERSION" ]; then
     cp "$REPO_DIR/VERSION" /opt/codered/VERSION
 fi
 
-# Apply Salt states
-log "Applying Salt states..."
-if salt-call --local state.apply codered >> "$LOG_FILE" 2>&1; then
-    log "Salt states applied successfully."
-else
-    log "WARNING: Salt state apply had errors. Check $LOG_FILE for details."
+# Update defaults config
+if [ -f "$REPO_DIR/conf/codered.defaults" ]; then
+    cp "$REPO_DIR/conf/codered.defaults" /etc/codered/codered.defaults
+fi
+
+# Update rule updater script
+if [ -f "$REPO_DIR/install.sh" ]; then
+    log "Install script available for reference."
 fi
 
 # Record update timestamp
 echo "$TIMESTAMP" > /var/log/codered/last-update.log
-
-# Set grain for tracking
-salt-call --local grains.setval codered '{"last_update": "'"$TIMESTAMP"'", "version": "'"$(cat /opt/codered/VERSION 2>/dev/null || echo unknown)"'"}' 2>/dev/null || true
 
 log "Update complete."

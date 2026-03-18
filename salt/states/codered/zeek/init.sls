@@ -1,4 +1,4 @@
-# CodeRed NDR - Zeek Tuning
+# CodeRed NDR - Zeek Tuning (Standalone Mode)
 # Optimizes Zeek for behavioral metadata and UEBA log generation.
 
 {% set codered = salt['pillar.get']('codered', {}) %}
@@ -16,7 +16,7 @@
 # Deploy local.zeek for protocol and community-id configuration
 codered_zeek_local:
   file.managed:
-    - name: /opt/so/saltstack/local/salt/zeek/files/local.zeek
+    - name: /opt/zeek/share/zeek/site/local.zeek
     - source: salt://codered/zeek/files/local.zeek.jinja
     - template: jinja
     - context:
@@ -28,7 +28,7 @@ codered_zeek_local:
 # Configure Zeek node.cfg with worker count
 codered_zeek_node_cfg:
   file.managed:
-    - name: /opt/so/saltstack/local/salt/zeek/files/node.cfg
+    - name: /opt/zeek/etc/node.cfg
     - source: salt://codered/zeek/files/node.cfg.jinja
     - template: jinja
     - context:
@@ -37,17 +37,8 @@ codered_zeek_node_cfg:
     - watch_in:
       - cmd: codered_zeek_restart
 
-# Set Zeek JSON output (required for structured forwarding)
-codered_zeek_json_pillar:
-  file.append:
-    - name: /opt/so/saltstack/local/pillar/minions/{{ grains['id'] }}.sls
-    - text: |
-        zeek:
-          config:
-            logformat: json
-
 # Restart Zeek only when configs change
 codered_zeek_restart:
   cmd.wait:
-    - name: so-zeek-restart 2>/dev/null || true
+    - name: /opt/zeek/bin/zeekctl deploy 2>/dev/null || /opt/zeek/bin/zeekctl restart 2>/dev/null || true
     - timeout: 120

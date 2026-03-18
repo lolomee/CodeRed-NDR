@@ -555,22 +555,13 @@ def show_status():
     # Services
     print()
     print('  Services:')
-    for svc in ['zeek', 'suricata', 'elastic-agent', 'filebeat', 'vector']:
-        rc, out = run_cmd(['systemctl', 'is-active', svc], sudo=True)
-        status = out.strip()
-        if status == 'active':
-            print_line(f'    {svc}:', 'RUNNING', 20)
-        elif status == 'inactive':
-            print_line(f'    {svc}:', 'stopped', 20)
-        # Skip services that don't exist
-
-    # Docker containers
-    _, docker_out = run_cmd(['docker', 'ps', '--filter', 'name=so-', '--format', '{{.Names}}: {{.Status}}'], sudo=True)
-    if docker_out.strip():
-        print()
-        print('  SO Containers:')
-        for line in docker_out.strip().splitlines()[:10]:
-            print(f'    {line}')
+    for svc_name, check in [
+        ('Zeek', lambda: run_cmd(['pgrep', '-x', 'zeek'], sudo=True)[0] == 0),
+        ('Suricata', lambda: run_cmd(['systemctl', 'is-active', 'suricata'], sudo=True)[1].strip() == 'active'),
+        ('Filebeat', lambda: run_cmd(['systemctl', 'is-active', 'filebeat'], sudo=True)[1].strip() == 'active'),
+    ]:
+        is_running = check()
+        print_line(f'    {svc_name}:', 'RUNNING' if is_running else 'stopped', 20)
 
     # Monitor interfaces
     print()
@@ -657,10 +648,10 @@ def restart_services():
     """Restart sensor services."""
     header('RESTART SERVICES')
     services = {
-        '1': ('All services', 'so-restart'),
-        '2': ('Zeek', 'so-zeek-restart'),
-        '3': ('Suricata', 'so-suricata-restart'),
-        '4': ('Elastic Agent', 'so-elastic-agent-restart'),
+        '1': ('Zeek', 'zeek'),
+        '2': ('Suricata', 'suricata'),
+        '3': ('Filebeat', 'filebeat'),
+        '4': ('All NDR services', 'all'),
     }
     for k, (name, _) in services.items():
         print(f'  {k}. {name}')
@@ -672,12 +663,19 @@ def restart_services():
         return
 
     if choice in services:
-        name, cmd = services[choice]
+        name, svc = services[choice]
         if confirm(f'Restart {name}?'):
             audit(f'restart:{name}')
             print(f'\n  Restarting {name}...')
-            rc, out = run_cmd([cmd], timeout=300, sudo=True)
-            print(f'  {"Done." if rc == 0 else f"Completed with warnings. Check logs."}')
+            if svc == 'all':
+                run_cmd(['systemctl', 'restart', 'suricata'], sudo=True)
+                run_cmd(['/opt/zeek/bin/zeekctl', 'restart'], sudo=True, timeout=60)
+                run_cmd(['systemctl', 'restart', 'filebeat'], sudo=True)
+            elif svc == 'zeek':
+                run_cmd(['/opt/zeek/bin/zeekctl', 'restart'], sudo=True, timeout=60)
+            else:
+                run_cmd(['systemctl', 'restart', svc], sudo=True)
+            print('  Done.')
             pause()
 
 
@@ -1003,7 +1001,7 @@ def run_diagnostics():
     # Services
     print()
     print('  Service Health:')
-    for svc, proc in [('Zeek', 'zeek'), ('Suricata', 'suricata'), ('Docker', 'docker')]:
+    for svc, proc in [('Zeek', 'zeek'), ('Suricata', 'suricata'), ('Filebeat', 'filebeat')]:
         rc, _ = run_cmd(['pgrep', '-x', proc], sudo=True)
         print_line(f'    {svc}:', 'running' if rc == 0 else 'NOT RUNNING')
 
@@ -1038,7 +1036,8 @@ def generate_support_bundle():
     tail -200 /var/log/codered/audit.log > $TMPDIR/audit.log 2>/dev/null || true
     tail -500 /var/log/syslog > $TMPDIR/syslog-tail.txt 2>/dev/null || true
     journalctl -u zeek -u suricata --since "1 hour ago" --no-pager > $TMPDIR/journal.txt 2>/dev/null || true
-    so-status > $TMPDIR/so-status.txt 2>/dev/null || true
+    systemctl status suricata zeek filebeat > $TMPDIR/service-status.txt 2>/dev/null || true
+    /opt/zeek/bin/zeekctl status > $TMPDIR/zeek-status.txt 2>/dev/null || true
     tar czf {bundle_path} -C $(dirname $TMPDIR) $(basename $TMPDIR)
     rm -rf $TMPDIR
     """

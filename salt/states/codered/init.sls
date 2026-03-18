@@ -1,6 +1,5 @@
-# CodeRed NDR - Meta State
+# CodeRed NDR - Meta State (Standalone Mode)
 # Includes all sub-states in the correct order.
-# Place at /opt/so/saltstack/local/salt/codered/init.sls
 
 include:
   - codered.sensor

@@ -1,6 +1,5 @@
-# CodeRed NDR - Core Pillar
+# CodeRed NDR - Core Pillar (Standalone Mode)
 # Reads values from /etc/codered/sensor.conf and exposes them to Salt states.
-# This file is placed at /opt/so/saltstack/local/pillar/codered/init.sls
 
 {% set import_text = salt['cp.get_file_str']('/etc/codered/sensor.conf') %}
 {% set config = salt['ini.get_ini']('/etc/codered/sensor.conf') %}

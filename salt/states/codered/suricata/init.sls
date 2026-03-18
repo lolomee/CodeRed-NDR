@@ -1,4 +1,4 @@
-# CodeRed NDR - Suricata Tuning & Configuration
+# CodeRed NDR - Suricata Tuning & Configuration (Standalone Mode)
 
 {% set codered = salt['pillar.get']('codered', {}) %}
 {% set suricata = codered.get('suricata', {}) %}
@@ -9,7 +9,7 @@
 # Deploy custom suricata.yaml overlay
 codered_suricata_config:
   file.managed:
-    - name: /opt/so/saltstack/local/salt/suricata/files/suricata.yaml
+    - name: /etc/suricata/suricata.yaml
     - source: salt://codered/suricata/files/suricata.yaml.jinja
     - template: jinja
     - context:
@@ -21,26 +21,7 @@ codered_suricata_config:
     - watch_in:
       - cmd: codered_suricata_restart
 
-# Set Suricata pillar for SO integration (multiple interfaces)
-codered_suricata_pillar:
-  file.append:
-    - name: /opt/so/saltstack/local/pillar/minions/{{ grains['id'] }}.sls
-    - text: |
-        suricata:
-          enabled: true
-          config:
-            af-packet:
-{% for iface in iface_list %}
-              - interface: {{ iface.strip() }}
-                threads: {{ suricata.get('threads', 'auto') }}
-                cluster-type: cluster_flow
-                defrag: yes
-                use-mmap: yes
-                ring-size: 200000
-                block-size: 262144
-{% endfor %}
-
-# Auto-update ET rules daily
+# Apply IPS mode if enabled
 include:
   - codered.suricata.rules-update
 {% if ips_mode == 'yes' %}
@@ -50,7 +31,7 @@ include:
 # Deploy custom threshold config
 codered_suricata_threshold:
   file.managed:
-    - name: /opt/so/saltstack/local/salt/suricata/files/threshold.config
+    - name: /etc/suricata/threshold.config
     - source: salt://codered/suricata/files/threshold.config.jinja
     - template: jinja
     - watch_in:
@@ -59,5 +40,5 @@ codered_suricata_threshold:
 # Restart Suricata only when configs change
 codered_suricata_restart:
   cmd.wait:
-    - name: so-suricata-restart 2>/dev/null || true
+    - name: systemctl restart suricata 2>/dev/null || true
     - timeout: 120

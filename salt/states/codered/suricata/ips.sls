@@ -1,7 +1,8 @@
-# CodeRed NDR - Suricata IPS Mode Configuration
+# CodeRed NDR - Suricata IPS Mode Configuration (Standalone)
 # Only included when pillar codered:suricata:ips_mode == 'yes'
 
-{% set monitor_iface = salt['pillar.get']('codered:network:monitor_interface', 'ens34') %}
+{% set monitor_interfaces = salt['pillar.get']('codered:network:monitor_interfaces', salt['pillar.get']('codered:network:monitor_interface', 'ens34')) %}
+{% set iface_list = monitor_interfaces.split(',') %}
 
 # Verify nfqueue kernel module is available
 codered_ips_nfqueue_module:
@@ -9,47 +10,31 @@ codered_ips_nfqueue_module:
     - name: nfnetlink_queue
 
 # Set up iptables NFQUEUE rules for inline traffic
-codered_ips_iptables_forward:
+{% for iface in iface_list %}
+{% set iface = iface.strip() %}
+codered_ips_iptables_forward_{{ iface }}:
   iptables.append:
     - table: filter
     - chain: FORWARD
     - jump: NFQUEUE
     - queue-num: 0
-    - in-interface: {{ monitor_iface }}
+    - in-interface: {{ iface }}
     - save: True
     - require:
       - kmod: codered_ips_nfqueue_module
 
-codered_ips_iptables_input:
+codered_ips_iptables_input_{{ iface }}:
   iptables.append:
     - table: filter
     - chain: INPUT
     - jump: NFQUEUE
     - queue-num: 0
-    - in-interface: {{ monitor_iface }}
+    - in-interface: {{ iface }}
     - save: True
     - require:
       - kmod: codered_ips_nfqueue_module
+{% endfor %}
 
-# Update Suricata to use nfqueue mode
-codered_ips_suricata_nfqueue:
-  file.append:
-    - name: /opt/so/saltstack/local/pillar/minions/{{ grains['id'] }}.sls
-    - text: |
-        # IPS Mode - NFQUEUE
-        suricata:
-          config:
-            nfq:
-              mode: accept
-              repeat-mark: 1
-              repeat-mask: 1
-              route-queue: 2
-              batchcount: 20
-              fail-open: yes
-
-# Log IPS activation
 codered_ips_activated:
   cmd.run:
-    - name: logger -t codered-ips "Suricata IPS mode activated on {{ monitor_iface }}"
-    - require:
-      - iptables: codered_ips_iptables_forward
+    - name: logger -t codered-ips "Suricata IPS mode activated on {{ monitor_interfaces }}"
