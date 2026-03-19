@@ -126,30 +126,39 @@ step 2 "Installing Zeek..."
 if command -v zeek &>/dev/null || [ -x /opt/zeek/bin/zeek ]; then
     log "Zeek already installed: $(/opt/zeek/bin/zeek --version 2>/dev/null || zeek --version 2>/dev/null || echo 'found')"
 else
-    # Try OBS repo
     ZEEK_INSTALLED=false
+    ZEEK_GPG="/etc/apt/trusted.gpg.d/security_zeek.gpg"
 
     # Method 1: OBS repo for current Ubuntu version
-    echo "deb http://download.opensuse.org/repositories/security:/zeek/xUbuntu_${UBUNTU_VER}/ /" \
-        > /etc/apt/sources.list.d/zeek.list 2>/dev/null
-    curl -fsSL "https://download.opensuse.org/repositories/security:/zeek/xUbuntu_${UBUNTU_VER}/Release.key" \
-        | gpg --dearmor > /etc/apt/trusted.gpg.d/zeek.gpg 2>/dev/null || true
-    apt-get update -qq 2>/dev/null
+    ZEEK_KEY_URL="https://download.opensuse.org/repositories/security:zeek/xUbuntu_${UBUNTU_VER}/Release.key"
+    ZEEK_REPO_URL="http://download.opensuse.org/repositories/security:/zeek/xUbuntu_${UBUNTU_VER}/"
 
-    if apt-get install -y -qq zeek 2>/dev/null; then
-        ZEEK_INSTALLED=true
+    if curl -fsSL "$ZEEK_KEY_URL" | gpg --dearmor -o "$ZEEK_GPG" 2>/dev/null && [ -s "$ZEEK_GPG" ]; then
+        echo "deb $ZEEK_REPO_URL /" > /etc/apt/sources.list.d/zeek.list
+        apt-get update -qq
+        if apt-get install -y -qq zeek 2>/dev/null; then
+            ZEEK_INSTALLED=true
+        fi
+    else
+        warn "GPG key import failed for xUbuntu_${UBUNTU_VER}, skipping OBS repo."
+        rm -f "$ZEEK_GPG"
     fi
 
     # Method 2: Try 22.04 repo on 24.04
     if [ "$ZEEK_INSTALLED" = false ] && [ "$UBUNTU_VER" = "24.04" ]; then
-        rm -f /etc/apt/sources.list.d/zeek.list
-        echo "deb http://download.opensuse.org/repositories/security:/zeek/xUbuntu_22.04/ /" \
-            > /etc/apt/sources.list.d/zeek.list
-        curl -fsSL "https://download.opensuse.org/repositories/security:/zeek/xUbuntu_22.04/Release.key" \
-            | gpg --dearmor > /etc/apt/trusted.gpg.d/zeek.gpg 2>/dev/null || true
-        apt-get update -qq 2>/dev/null
-        if apt-get install -y -qq zeek 2>/dev/null; then
-            ZEEK_INSTALLED=true
+        ZEEK_KEY_URL="https://download.opensuse.org/repositories/security:zeek/xUbuntu_22.04/Release.key"
+        ZEEK_REPO_URL="http://download.opensuse.org/repositories/security:/zeek/xUbuntu_22.04/"
+
+        rm -f /etc/apt/sources.list.d/zeek.list "$ZEEK_GPG"
+        if curl -fsSL "$ZEEK_KEY_URL" | gpg --dearmor -o "$ZEEK_GPG" 2>/dev/null && [ -s "$ZEEK_GPG" ]; then
+            echo "deb $ZEEK_REPO_URL /" > /etc/apt/sources.list.d/zeek.list
+            apt-get update -qq
+            if apt-get install -y -qq zeek 2>/dev/null; then
+                ZEEK_INSTALLED=true
+            fi
+        else
+            warn "GPG key import failed for xUbuntu_22.04."
+            rm -f "$ZEEK_GPG" /etc/apt/sources.list.d/zeek.list
         fi
     fi
 
