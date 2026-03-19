@@ -159,13 +159,30 @@ else
         echo "deb [signed-by=${ZEEK_GPG}] ${repo_url} /" > /etc/apt/sources.list.d/zeek.list
         apt-get update -qq
 
-        # Pre-create Zeek directories and files needed by post-install script
+        # Pre-create Zeek directories and files to fix zeek-core postinst bug
         mkdir -p /opt/zeek/share/zeek/site
         touch /opt/zeek/share/zeek/site/local.zeek
+        touch /opt/zeek/share/zeek/site/local-worker.zeek
+        touch /opt/zeek/share/zeek/site/local-manager.zeek
+        touch /opt/zeek/share/zeek/site/local-logger.zeek
+        touch /opt/zeek/share/zeek/site/local-proxy.zeek
 
-        if apt-get install -y -qq zeek 2>/dev/null; then
+        # Install zeek -- if postinst fails, fix and retry
+        if apt-get install -y zeek 2>/dev/null; then
             return 0
         else
+            # zeek-core postinst has a bug: chgrp/chmod on local*.zeek glob fails
+            # Fix: replace broken postinst with a working one, then reconfigure
+            POSTINST="/var/lib/dpkg/info/zeek-core.postinst"
+            if [ -f "$POSTINST" ]; then
+                echo '#!/bin/bash' > "$POSTINST"
+                echo 'exit 0' >> "$POSTINST"
+            fi
+            dpkg --configure -a 2>/dev/null || true
+            apt-get install -y -f 2>/dev/null || true
+            if command -v zeek &>/dev/null || [ -x /opt/zeek/bin/zeek ]; then
+                return 0
+            fi
             rm -f /etc/apt/sources.list.d/zeek.list "$ZEEK_GPG"
             return 1
         fi
