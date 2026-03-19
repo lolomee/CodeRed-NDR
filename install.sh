@@ -78,7 +78,7 @@ if [ -f "$CODERED_DIR/VERSION" ]; then
     EXISTING_VER=$(cat "$CODERED_DIR/VERSION")
     warn "CodeRed NDR v${EXISTING_VER} is already installed."
     echo ""
-    read -p "  Reinstall/upgrade? (y/N): " REPLY
+    read -p "  Reinstall/upgrade? (y/N): " REPLY < /dev/tty
     if [[ ! "$REPLY" =~ ^[Yy]$ ]]; then
         echo "  Cancelled."
         exit 0
@@ -158,6 +158,10 @@ else
 
         echo "deb [signed-by=${ZEEK_GPG}] ${repo_url} /" > /etc/apt/sources.list.d/zeek.list
         apt-get update -qq
+
+        # Pre-create Zeek directories and files needed by post-install script
+        mkdir -p /opt/zeek/share/zeek/site
+        touch /opt/zeek/share/zeek/site/local.zeek
 
         if apt-get install -y -qq zeek 2>/dev/null; then
             return 0
