@@ -23,7 +23,7 @@ CODERED_SRC="/tmp/codered-ndr-install"
 log()  { echo -e "${GREEN}[+]${NC} $*"; }
 warn() { echo -e "${YELLOW}[!]${NC} $*"; }
 err()  { echo -e "${RED}[x]${NC} $*"; exit 1; }
-step() { echo -e "\n${CYAN}${BOLD}[$1/6]${NC} ${BOLD}$2${NC}"; }
+step() { echo -e "\n${CYAN}${BOLD}[$1/5]${NC} ${BOLD}$2${NC}"; }
 
 # --- Pre-flight Checks ---
 
@@ -97,12 +97,12 @@ rm -f /etc/apt/sources.list.d/zeek.list \
       /etc/apt/trusted.gpg.d/security_zeek.gpg \
       /etc/apt/keyrings/security_zeek.gpg
 
-apt-get update -qq
-apt-get install -y -qq \
+apt-get update -qq -o Dpkg::Options::="--force-confold"
+apt-get install -y -qq --no-install-recommends \
     curl gnupg software-properties-common apt-transport-https \
     ca-certificates lsb-release python3 dialog ethtool net-tools \
     jq git ufw apparmor apparmor-utils fail2ban tcpdump \
-    open-vm-tools logrotate 2>/dev/null || true
+    logrotate 2>/dev/null || true
 
 log "Dependencies installed."
 
@@ -444,48 +444,6 @@ touch /var/log/codered/cli.log /var/log/codered/audit.log
 chmod 664 /var/log/codered/cli.log /var/log/codered/audit.log
 
 log "Command 'coderedndr' installed. Usage: sudo coderedndr"
-
-# --- Step 6: Optional Kernel Hardening ---
-
-step 6 "Kernel hardening (optional)..."
-
-echo ""
-echo "  CodeRed NDR can apply kernel-level security hardening:"
-echo ""
-echo "    - Block source-routed packets (prevent path manipulation)"
-echo "    - Enable SYN flood protection (TCP SYN cookies)"
-echo "    - Ignore ICMP redirects (prevent MITM routing attacks)"
-echo "    - Log suspicious packets (martian source addresses)"
-echo "    - Block broadcast ICMP (prevent Smurf DDoS)"
-echo "    - Enable full ASLR (memory exploit mitigation)"
-echo "    - Restrict kernel log access (information leak prevention)"
-echo "    - Hide kernel memory addresses (exploit mitigation)"
-echo ""
-echo "  These settings are written to /etc/sysctl.d/99-codered-hardening.conf"
-echo "  and will NOT modify your existing sysctl settings."
-echo ""
-read -p "  Apply kernel hardening? (y/N): " APPLY_HARDENING
-
-if [[ "$APPLY_HARDENING" =~ ^[Yy]$ ]]; then
-    cat > /etc/sysctl.d/99-codered-hardening.conf << 'SYSCTL'
-# CodeRed NDR - Kernel Hardening
-net.ipv4.conf.all.accept_source_route = 0
-net.ipv4.conf.default.accept_source_route = 0
-net.ipv4.tcp_syncookies = 1
-net.ipv4.conf.all.accept_redirects = 0
-net.ipv4.conf.default.accept_redirects = 0
-net.ipv4.conf.all.send_redirects = 0
-net.ipv4.conf.all.log_martians = 1
-net.ipv4.icmp_echo_ignore_broadcasts = 1
-kernel.randomize_va_space = 2
-kernel.dmesg_restrict = 1
-kernel.kptr_restrict = 2
-SYSCTL
-    sysctl --system >/dev/null 2>&1
-    log "Kernel hardening applied."
-else
-    log "Kernel hardening skipped (can apply later via sudo coderedndr)."
-fi
 
 # --- Cleanup ---
 
