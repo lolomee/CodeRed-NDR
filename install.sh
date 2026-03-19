@@ -18,7 +18,6 @@ NC='\033[0m'
 CODERED_VERSION="1.0.0"
 CODERED_REPO="https://github.com/lolomee/CodeRed-NDR.git"
 CODERED_DIR="/opt/codered"
-CODERED_SRC="/tmp/codered-ndr-install"
 
 log()  { echo -e "${GREEN}[+]${NC} $*"; }
 warn() { echo -e "${YELLOW}[!]${NC} $*"; }
@@ -278,22 +277,66 @@ fi
 
 step 4 "Installing CodeRed NDR management CLI..."
 
-rm -rf "$CODERED_SRC"
-if git clone --depth 1 "$CODERED_REPO" "$CODERED_SRC" 2>/dev/null; then
-    log "Downloaded CodeRed NDR from GitHub."
-else
-    err "Failed to clone CodeRed NDR repo. Check internet connection."
-fi
-
 mkdir -p "$CODERED_DIR"/{shell,bin}
 mkdir -p /etc/codered
 mkdir -p /var/log/codered
 mkdir -p /nsm/{zeek/logs/current,suricata,pcap}
 
-cp "$CODERED_SRC/shell/cli.py" "$CODERED_DIR/shell/cli.py"
-chmod 755 "$CODERED_DIR/shell/cli.py"
+# Download cli.py directly from GitHub (no git clone needed)
+GITHUB_RAW="https://raw.githubusercontent.com/lolomee/CodeRed-NDR/main"
+if curl -fsSL --connect-timeout 15 --max-time 30 -o "$CODERED_DIR/shell/cli.py" "$GITHUB_RAW/shell/cli.py"; then
+    chmod 755 "$CODERED_DIR/shell/cli.py"
+    log "Downloaded cli.py"
+else
+    err "Failed to download cli.py. Check internet connection."
+fi
 
-cp "$CODERED_SRC/conf/codered.defaults" /etc/codered/codered.defaults
+# Write default config inline (no git clone needed)
+cat > /etc/codered/codered.defaults << 'CONFEOF'
+# CodeRed NDR - Default Configuration
+[sensor]
+hostname = codered-sensor
+sensor_name = sensor-01
+registration_token =
+
+[network]
+mgmt_interface = ens32
+mgmt_mode = dhcp
+mgmt_ip =
+mgmt_netmask = 255.255.255.0
+mgmt_gateway =
+mgmt_dns = 8.8.8.8,8.8.4.4
+monitor_interface = ens34
+
+[forwarding]
+backend = elastic-agent
+siem_endpoint =
+siem_port = 9200
+
+[zeek]
+workers = auto
+protocols = dns,http,ssl,smtp,ssh,ftp,dhcp,ntp,smb,rdp,modbus,dnp3
+community_id = yes
+
+[suricata]
+ips_mode = no
+threads = auto
+rule_sources = et/open
+community_id = yes
+eve_types = alert,anomaly,dns,http,tls,files,smtp,ssh,flow,netflow
+
+[hardening]
+apparmor = yes
+readonly_usr = yes
+fail2ban = yes
+firewall = yes
+
+[autoupdate]
+enabled = yes
+repo_url = https://github.com/lolomee/CodeRed-NDR.git
+branch = main
+interval = 6h
+CONFEOF
 chmod 644 /etc/codered/codered.defaults
 
 echo "$CODERED_VERSION" > "$CODERED_DIR/VERSION"
@@ -366,7 +409,8 @@ log "Update complete."
 UPDATEEOF
 chmod 750 "$CODERED_DIR/bin/codered-update.sh"
 
-git clone --depth 1 "$CODERED_REPO" "$CODERED_DIR/repo" 2>/dev/null || true
+# Clone repo for auto-updates (optional, non-fatal)
+git clone --depth 1 "$CODERED_REPO" "$CODERED_DIR/repo" 2>/dev/null || warn "Auto-update repo clone skipped."
 
 # Systemd timers
 cat > /etc/systemd/system/codered-rule-update.service << 'EOF'
@@ -465,10 +509,6 @@ touch /var/log/codered/cli.log /var/log/codered/audit.log
 chmod 664 /var/log/codered/cli.log /var/log/codered/audit.log
 
 log "Command 'coderedndr' installed. Usage: sudo coderedndr"
-
-# --- Cleanup ---
-
-rm -rf "$CODERED_SRC"
 
 # --- Done ---
 
