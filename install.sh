@@ -91,9 +91,19 @@
   fi
 
   # ─── Step 1: Install Dependencies ────────────────
-  
+
   step 1 "Installing dependencies..."
+
+  # Prevent interactive prompts from packages like Postfix
   export DEBIAN_FRONTEND=noninteractive
+
+  # Clean up stale Zeek repo/key files from any previous install attempt
+  # (these cause GPG errors during apt-get update if left behind)
+  rm -f /etc/apt/sources.list.d/zeek.list \
+        /etc/apt/trusted.gpg.d/zeek.gpg \
+        /etc/apt/trusted.gpg.d/security_zeek.gpg \
+        /etc/apt/keyrings/security_zeek.gpg
+
   apt-get update -qq
   apt-get install -y -qq \
       curl \
