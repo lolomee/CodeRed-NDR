@@ -1,11 +1,4 @@
   #!/bin/bash
-  # ╔══════════════════════════════════════════════════════════╗
-  # ║         CodeRed NDR - One-Line Software Installer        ║
-  # ║                                                          ║
-  # ║  Usage:                                                  ║
-  # ║  curl -sSL https://raw.githubusercontent.com/            ║
-  # ║    lolomee/CodeRed-NDR/main/install.sh | sudo bash       ║
-  # ╚══════════════════════════════════════════════════════════╝
   set -euo pipefail
 
   RED='\033[0;31m'
@@ -20,25 +13,18 @@
   CODERED_DIR="/opt/codered"
   CODERED_SRC="/tmp/codered-ndr-install"
 
-  log()  { echo -e "${GREEN}[✓]${NC} $*"; }
+  log()  { echo -e "${GREEN}[+]${NC} $*"; }
   warn() { echo -e "${YELLOW}[!]${NC} $*"; }
-  err()  { echo -e "${RED}[✗]${NC} $*"; exit 1; }
+  err()  { echo -e "${RED}[x]${NC} $*"; exit 1; }
   step() { echo -e "\n${CYAN}${BOLD}[$1/6]${NC} ${BOLD}$2${NC}"; }
-
-  # ─── Pre-flight Checks ──────────────────────────
 
   echo ""
   echo -e "${BOLD}"
-  echo "  ╔══════════════════════════════════════════════════════════╗"
-  echo "  ║              CodeRed NDR - Software Installer            ║"
-  echo "  ║              Version ${CODERED_VERSION}                              ║"
-  echo "  ╚══════════════════════════════════════════════════════════╝"
+  echo "  CodeRed NDR - Software Installer v${CODERED_VERSION}"
   echo -e "${NC}"
 
-  # Must be root
   [ "$(id -u)" -eq 0 ] || err "This script must be run as root. Use: curl ... | sudo bash"
 
-  # Check OS
   if [ ! -f /etc/os-release ]; then
       err "Cannot detect OS. Only Ubuntu 22.04/24.04 is supported."
   fi
@@ -53,13 +39,11 @@
       warn "Ubuntu $UBUNTU_VER detected. Tested on 22.04 and 24.04. Continuing anyway..."
   fi
 
-  # Check architecture
   ARCH=$(dpkg --print-architecture)
   if [ "$ARCH" != "amd64" ]; then
       err "Unsupported architecture: $ARCH. Only amd64 is supported."
   fi
 
-  # Check minimum resources
   MEM_MB=$(free -m | awk '/^Mem:/{print $2}')
   CPU_COUNT=$(nproc)
   DISK_GB=$(df -BG / | awk 'NR==2{print $4}' | tr -d 'G')
@@ -78,7 +62,6 @@
       err "Insufficient disk space (${DISK_GB} GB). Minimum 20 GB required."
   fi
 
-  # Check if already installed
   if [ -f "$CODERED_DIR/VERSION" ]; then
       EXISTING_VER=$(cat "$CODERED_DIR/VERSION")
       warn "CodeRed NDR v${EXISTING_VER} is already installed."
@@ -90,15 +73,12 @@
       fi
   fi
 
-  # ─── Step 1: Install Dependencies ────────────────
+  # --- Step 1: Install Dependencies ---
 
   step 1 "Installing dependencies..."
 
-  # Prevent interactive prompts from packages like Postfix
   export DEBIAN_FRONTEND=noninteractive
 
-  # Clean up stale Zeek repo/key files from any previous install attempt
-  # (these cause GPG errors during apt-get update if left behind)
   rm -f /etc/apt/sources.list.d/zeek.list \
         /etc/apt/trusted.gpg.d/zeek.gpg \
         /etc/apt/trusted.gpg.d/security_zeek.gpg \
@@ -106,30 +86,14 @@
 
   apt-get update -qq
   apt-get install -y -qq \
-      curl \
-      gnupg \
-      software-properties-common \
-      apt-transport-https \
-      ca-certificates \
-      lsb-release \
-      python3 \
-      dialog \
-      ethtool \
-      net-tools \
-      jq \
-      git \
-      ufw \
-      apparmor \
-      apparmor-utils \
-      fail2ban \
-      tcpdump \
-      open-vm-tools \
-      logrotate \
-      2>/dev/null || true
+      curl gnupg software-properties-common apt-transport-https \
+      ca-certificates lsb-release python3 dialog ethtool net-tools \
+      jq git ufw apparmor apparmor-utils fail2ban tcpdump \
+      open-vm-tools logrotate 2>/dev/null || true
 
   log "Dependencies installed."
 
-  # ─── Step 2: Install Zeek ────────────────────────
+  # --- Step 2: Install Zeek ---
 
   step 2 "Installing Zeek..."
 
@@ -140,11 +104,9 @@
       ZEEK_GPG="/etc/apt/keyrings/security_zeek.gpg"
       mkdir -p /etc/apt/keyrings
 
-      # Clean up any stale Zeek repo/key files from previous runs
       rm -f /etc/apt/sources.list.d/zeek.list /etc/apt/trusted.gpg.d/zeek.gpg \
             /etc/apt/trusted.gpg.d/security_zeek.gpg "$ZEEK_GPG"
 
-      # Helper: import Zeek GPG key and add repo for a given Ubuntu version
       install_zeek_from_obs() {
           local ubuntu_ver="$1"
           local key_url="https://download.opensuse.org/repositories/security:zeek/xUbuntu_${ubuntu_ver}/Release.key"
@@ -154,21 +116,18 @@
           tmp_key=$(mktemp)
           rm -f "$ZEEK_GPG" /etc/apt/sources.list.d/zeek.list
 
-          # Download key to temp file first, then dearmor
           if ! curl -fsSL --connect-timeout 15 --max-time 30 -o "$tmp_key" "$key_url"; then
               warn "Failed to download Zeek GPG key for xUbuntu_${ubuntu_ver}."
               rm -f "$tmp_key"
               return 1
           fi
 
-          # Verify we got an actual PGP key (not an error page)
           if ! grep -q "BEGIN PGP PUBLIC KEY BLOCK" "$tmp_key"; then
               warn "Downloaded file is not a valid GPG key for xUbuntu_${ubuntu_ver}."
               rm -f "$tmp_key"
               return 1
           fi
 
-          # Dearmor the key
           if ! gpg --yes --dearmor -o "$ZEEK_GPG" "$tmp_key" 2>/dev/null; then
               warn "GPG dearmor failed for xUbuntu_${ubuntu_ver}."
               rm -f "$tmp_key" "$ZEEK_GPG"
@@ -176,7 +135,6 @@
           fi
           rm -f "$tmp_key"
 
-          # Verify dearmored key is non-empty
           if [ ! -s "$ZEEK_GPG" ]; then
               warn "GPG keyring is empty for xUbuntu_${ubuntu_ver}."
               rm -f "$ZEEK_GPG"
@@ -185,7 +143,6 @@
 
           chmod 644 "$ZEEK_GPG"
 
-          # Add repo with signed-by pointing to our specific key
           echo "deb [signed-by=${ZEEK_GPG}] ${repo_url} /" > /etc/apt/sources.list.d/zeek.list
           apt-get update -qq
 
@@ -197,19 +154,16 @@
           fi
       }
 
-      # Method 1: OBS repo for current Ubuntu version
       if install_zeek_from_obs "$UBUNTU_VER"; then
           ZEEK_INSTALLED=true
       fi
 
-      # Method 2: Try 22.04 repo on 24.04
       if [ "$ZEEK_INSTALLED" = false ] && [ "$UBUNTU_VER" = "24.04" ]; then
           if install_zeek_from_obs "22.04"; then
               ZEEK_INSTALLED=true
           fi
       fi
 
-      # Method 3: Build from source
       if [ "$ZEEK_INSTALLED" = false ]; then
           warn "Package install failed. Building Zeek from source (10-20 min)..."
           apt-get install -y -qq cmake make gcc g++ flex bison libpcap-dev libssl-dev \
@@ -239,11 +193,9 @@
       fi
   fi
 
-  # Zeek PATH
   echo 'export PATH=/opt/zeek/bin:$PATH' > /etc/profile.d/zeek-path.sh
   export PATH=/opt/zeek/bin:$PATH
 
-  # Don't autostart
   systemctl disable zeek 2>/dev/null || true
   systemctl stop zeek 2>/dev/null || true
 
@@ -251,11 +203,10 @@
       log "Zeek installed: $(/opt/zeek/bin/zeek --version 2>/dev/null)"
   fi
 
-  # ─── Step 3: Install Suricata + Filebeat ─────────
+  # --- Step 3: Install Suricata + Filebeat ---
 
   step 3 "Installing Suricata and Filebeat..."
 
-  # Suricata
   if ! command -v suricata &>/dev/null; then
       add-apt-repository -y ppa:oisf/suricata-stable 2>/dev/null || true
       apt-get update -qq
@@ -267,14 +218,12 @@
   systemctl stop suricata 2>/dev/null || true
 
   if command -v suricata &>/dev/null; then
-      # Enable community-id
       sed -i 's/community-id: false/community-id: true/' /etc/suricata/suricata.yaml 2>/dev/null || true
       log "Suricata installed: $(suricata -V 2>&1 | head -1)"
   else
       warn "Suricata installation failed. Install manually."
   fi
 
-  # Filebeat
   if ! command -v filebeat &>/dev/null; then
       curl -fsSL https://artifacts.elastic.co/GPG-KEY-elasticsearch | gpg --dearmor -o /etc/apt/trusted.gpg.d/elastic.gpg 2>/dev/null || true
       echo "deb https://artifacts.elastic.co/packages/8.x/apt stable main" > /etc/apt/sources.list.d/elastic-8.x.list
@@ -291,11 +240,10 @@
       warn "Filebeat installation failed. Install manually."
   fi
 
-  # ─── Step 4: Install CodeRed NDR ─────────────────
+  # --- Step 4: Install CodeRed NDR ---
 
   step 4 "Installing CodeRed NDR management CLI..."
 
-  # Clone repo
   rm -rf "$CODERED_SRC"
   if git clone --depth 1 "$CODERED_REPO" "$CODERED_SRC" 2>/dev/null; then
       log "Downloaded CodeRed NDR from GitHub."
@@ -303,13 +251,11 @@
       err "Failed to clone CodeRed NDR repo. Check internet connection."
   fi
 
-  # Create directories
   mkdir -p "$CODERED_DIR"/{shell,bin}
   mkdir -p /etc/codered
   mkdir -p /var/log/codered
   mkdir -p /nsm/{zeek/logs/current,suricata,pcap}
 
-  # Install files
   cp "$CODERED_SRC/shell/cli.py" "$CODERED_DIR/shell/cli.py"
   chmod 755 "$CODERED_DIR/shell/cli.py"
 
@@ -319,7 +265,7 @@
   echo "$CODERED_VERSION" > "$CODERED_DIR/VERSION"
 
   # Rule update script
-  cat > "$CODERED_DIR/bin/update-rules.sh" << 'RULESCRIPT'
+  cat > "$CODERED_DIR/bin/update-rules.sh" << 'RULEEOF'
   #!/bin/bash
   set -euo pipefail
   LOG="/var/log/codered/rule-update.log"
@@ -350,16 +296,16 @@
       suricatasc -c reload-rules 2>/dev/null && log "Rules reloaded (live)" || \
       systemctl restart suricata 2>/dev/null && log "Suricata restarted" || true
   else
-      log "Suricata not running — rules will load on next start"
+      log "Suricata not running -- rules will load on next start"
   fi
   echo "${TIMESTAMP} rules=${RULE_COUNT}" > /var/log/codered/last-rule-update.log
   rm -rf "${TMP_DIR}"
   log "Rule update complete: ${RULE_COUNT} rules"
-  RULESCRIPT
+  RULEEOF
   chmod 750 "$CODERED_DIR/bin/update-rules.sh"
 
   # Auto-update script
-  cat > "$CODERED_DIR/bin/codered-update.sh" << 'UPDATESCRIPT'
+  cat > "$CODERED_DIR/bin/codered-update.sh" << 'UPDATEEOF'
   #!/bin/bash
   set -euo pipefail
   LOG="/var/log/codered/update.log"
@@ -383,13 +329,11 @@
   [ -f "$REPO_DIR/conf/codered.defaults" ] && cp "$REPO_DIR/conf/codered.defaults" /etc/codered/codered.defaults
   echo "$TIMESTAMP" > /var/log/codered/last-update.log
   log "Update complete."
-  UPDATESCRIPT
+  UPDATEEOF
   chmod 750 "$CODERED_DIR/bin/codered-update.sh"
 
-  # Clone repo for auto-updates
   git clone --depth 1 "$CODERED_REPO" "$CODERED_DIR/repo" 2>/dev/null || true
 
-  # Systemd timers
   cat > /etc/systemd/system/codered-rule-update.service << 'EOF'
   [Unit]
   Description=CodeRed NDR - Suricata Rule Update
@@ -437,7 +381,6 @@
 
   systemctl daemon-reload
 
-  # Permissions
   chown -R root:root "$CODERED_DIR"
   chown -R root:adm /var/log/codered
   chmod 775 /var/log/codered
@@ -445,14 +388,13 @@
 
   log "CodeRed NDR CLI installed."
 
-  # ─── Step 4b: Download initial Suricata rules ────
+  # --- Step 4b: Download initial Suricata rules ---
 
   log "Downloading initial Suricata rules..."
   if command -v suricata-update &>/dev/null; then
       suricata-update enable-source et/open 2>/dev/null || true
       suricata-update enable-source oisf/trafficid 2>/dev/null || true
       suricata-update 2>/dev/null && log "Suricata rules downloaded via suricata-update." || {
-          # Fallback: download ET rules directly
           RULES_TMP=$(mktemp -d)
           curl -sSL --max-time 120 -o "${RULES_TMP}/emerging.rules.tar.gz" \
               "https://rules.emergingthreats.net/open/suricata-6.0/emerging.rules.tar.gz" 2>/dev/null && {
@@ -468,33 +410,28 @@
       warn "suricata-update not found. Rules will download on first timer run."
   fi
 
-  # Download GeoIP database (free, no license key needed)
   log "Downloading GeoIP database..."
   mkdir -p /usr/share/GeoIP
   curl -sSL --max-time 60 -o /usr/share/GeoIP/GeoLite2-City.mmdb \
       "https://github.com/P3TERX/GeoLite.mmdb/raw/download/GeoLite2-City.mmdb" 2>/dev/null && \
       log "GeoIP database installed." || warn "GeoIP download failed (non-critical)."
 
-  # ─── Step 5: Install coderedndr Command ──────────
+  # --- Step 5: Install coderedndr Command ---
 
   step 5 "Installing coderedndr command..."
 
-  # Create the coderedndr command
   cat > /usr/local/bin/coderedndr << 'CMD'
   #!/bin/bash
-  # CodeRed NDR Management CLI
-  # Usage: sudo coderedndr
   exec /usr/bin/python3 /opt/codered/shell/cli.py "$@"
   CMD
   chmod 755 /usr/local/bin/coderedndr
 
-  # Log file permissions
   touch /var/log/codered/cli.log /var/log/codered/audit.log
   chmod 664 /var/log/codered/cli.log /var/log/codered/audit.log
 
   log "Command 'coderedndr' installed. Usage: sudo coderedndr"
 
-  # ─── Step 6: Optional Kernel Hardening ───────────
+  # --- Step 6: Optional Kernel Hardening ---
 
   step 6 "Kernel hardening (optional)..."
 
@@ -518,9 +455,6 @@
   if [[ "$APPLY_HARDENING" =~ ^[Yy]$ ]]; then
       cat > /etc/sysctl.d/99-codered-hardening.conf << 'SYSCTL'
   # CodeRed NDR - Kernel Hardening
-  # Applied during install. Remove this file to revert:
-  #   rm /etc/sysctl.d/99-codered-hardening.conf && sysctl --system
-
   net.ipv4.conf.all.accept_source_route = 0
   net.ipv4.conf.default.accept_source_route = 0
   net.ipv4.tcp_syncookies = 1
@@ -536,32 +470,24 @@
       sysctl --system >/dev/null 2>&1
       log "Kernel hardening applied."
   else
-      log "Kernel hardening skipped (can be applied later via: sudo coderedndr → Diagnostics)."
+      log "Kernel hardening skipped (can apply later via sudo coderedndr)."
   fi
 
-  # ─── Cleanup ─────────────────────────────────────
+  # --- Cleanup ---
 
   rm -rf "$CODERED_SRC"
 
-  # ─── Done ────────────────────────────────────────
+  # --- Done ---
 
   echo ""
   echo -e "${GREEN}${BOLD}"
-  echo "  ╔══════════════════════════════════════════════════════════╗"
-  echo "  ║         CodeRed NDR v${CODERED_VERSION} installed successfully!        ║"
-  echo "  ╚══════════════════════════════════════════════════════════╝"
+  echo "  CodeRed NDR v${CODERED_VERSION} installed successfully!"
   echo -e "${NC}"
-  echo "  ┌──────────────────────────────────────────────────────────┐"
-  echo "  │                                                          │"
-  echo "  │  Run:  sudo coderedndr                                   │"
-  echo "  │                                                          │"
-  echo "  │  Next steps:                                             │"
-  echo "  │    1. sudo coderedndr                                    │"
-  echo "  │    2. Select monitor interfaces  (option 7)              │"
-  echo "  │    3. Set CodeRed AI destination (option 8)              │"
-  echo "  │    4. Start NDR services         (option 9)              │"
-  echo "  │                                                          │"
-  echo "  └──────────────────────────────────────────────────────────┘"
+  echo "  Next steps:"
+  echo "    1. sudo coderedndr"
+  echo "    2. Select monitor interfaces  (option 7)"
+  echo "    3. Set CodeRed AI destination (option 8)"
+  echo "    4. Start NDR services         (option 9)"
   echo ""
   echo "  Installed: Zeek + Suricata + Filebeat + coderedndr CLI"
   echo "  Services:  All stopped (start via coderedndr menu option 9)"
