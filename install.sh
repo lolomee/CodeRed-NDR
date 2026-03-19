@@ -91,9 +91,9 @@
   fi
 
   # ─── Step 1: Install Dependencies ────────────────
-
+  
   step 1 "Installing dependencies..."
-
+  export DEBIAN_FRONTEND=noninteractive
   apt-get update -qq
   apt-get install -y -qq \
       curl \
