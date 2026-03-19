@@ -20,14 +20,10 @@ echo "  This will completely remove CodeRed NDR and all components"
 echo "  including Zeek, Suricata, Filebeat, and all data."
 echo ""
 
-if [ -t 0 ]; then
-    read -p "  Are you sure? (y/N): " REPLY
-    if [[ ! "$REPLY" =~ ^[Yy]$ ]]; then
-        echo "  Cancelled."
-        exit 0
-    fi
-else
-    echo "  Running in non-interactive mode. Proceeding..."
+read -p "  Are you sure? (y/N): " REPLY < /dev/tty
+if [[ ! "$REPLY" =~ ^[Yy]$ ]]; then
+    echo "  Cancelled."
+    exit 0
 fi
 
 echo ""
