@@ -3,409 +3,1835 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>CodeRed NDR - Admin Guide</title>
+<title>CodeRed NDR Sensor v2.0.0 &mdash; Vendor Admin Guide</title>
 <style>
-  @page { size: A4; margin: 20mm 18mm; }
-  * { margin: 0; padding: 0; box-sizing: border-box; }
-  body { font-family: 'Segoe UI', 'Helvetica Neue', Arial, sans-serif; font-size: 10.5pt; line-height: 1.6; color: #1a1a2e; background: #fff; }
-  .cover { page-break-after: always; display: flex; flex-direction: column; justify-content: center; align-items: center; min-height: 100vh; text-align: center; background: linear-gradient(135deg, #0f0f23 0%, #1a1a3e 40%, #8e44ad 100%); color: white; padding: 60px 40px; }
-  .cover-logo { font-family: 'Courier New', monospace; font-size: 14pt; white-space: pre; margin-bottom: 40px; color: #bb86fc; }
-  .cover h1 { font-size: 36pt; font-weight: 700; margin-bottom: 8px; }
-  .cover h2 { font-size: 18pt; font-weight: 300; color: #e0e0e0; margin-bottom: 60px; }
-  .cover-meta { font-size: 11pt; color: #aaa; margin-top: auto; }
-  .cover-meta .version { font-size: 13pt; color: #bb86fc; font-weight: 600; margin-bottom: 10px; }
-  .toc { page-break-after: always; padding: 50px 40px; }
-  .toc h2 { font-size: 20pt; color: #8e44ad; margin-bottom: 30px; padding-bottom: 10px; border-bottom: 3px solid #8e44ad; }
-  .toc ul { list-style: none; padding: 0; }
-  .toc li { padding: 10px 0; border-bottom: 1px solid #eee; font-size: 12pt; }
-  .toc li a { color: #1a1a2e; text-decoration: none; }
-  .toc .section-num { color: #8e44ad; font-weight: 700; margin-right: 12px; }
-  .content { padding: 0 40px 40px 40px; }
-  h1 { font-size: 22pt; color: #8e44ad; margin: 50px 0 20px 0; padding-bottom: 8px; border-bottom: 3px solid #8e44ad; page-break-after: avoid; }
-  h2 { font-size: 15pt; color: #1a1a2e; margin: 35px 0 12px 0; padding-bottom: 5px; border-bottom: 1px solid #ddd; page-break-after: avoid; }
-  p { margin: 8px 0; }
-  table { width: 100%; border-collapse: collapse; margin: 15px 0; font-size: 10pt; page-break-inside: avoid; }
-  th { background: #1a1a2e; color: white; padding: 10px 14px; text-align: left; font-weight: 600; font-size: 9.5pt; text-transform: uppercase; }
-  td { padding: 9px 14px; border-bottom: 1px solid #e8e8e8; }
-  tr:nth-child(even) { background: #f8f9fa; }
-  pre { background: #0f0f23; color: #e0e0e0; padding: 16px 20px; border-radius: 6px; font-family: 'Cascadia Code', 'Fira Code', 'Courier New', monospace; font-size: 9.5pt; line-height: 1.5; overflow-x: auto; margin: 12px 0; border-left: 4px solid #8e44ad; page-break-inside: avoid; }
-  code { background: #f0f0f5; padding: 2px 6px; border-radius: 3px; font-family: 'Cascadia Code', 'Fira Code', 'Courier New', monospace; font-size: 9.5pt; color: #8e44ad; }
-  pre code { background: none; padding: 0; color: inherit; }
-  .callout { border-radius: 6px; padding: 14px 18px; margin: 15px 0; page-break-inside: avoid; }
-  .callout-danger { background: #fff0f0; border-left: 4px solid #e74c3c; }
-  .callout-warning { background: #fff8e1; border-left: 4px solid #f39c12; }
-  .callout-info { background: #f0f4ff; border-left: 4px solid #2980b9; }
-  .callout-title { font-weight: 700; font-size: 10pt; margin-bottom: 4px; }
-  .callout-danger .callout-title { color: #e74c3c; }
-  .callout-warning .callout-title { color: #f39c12; }
-  .callout-info .callout-title { color: #2980b9; }
-  ul, ol { margin: 8px 0 8px 24px; }
-  li { margin: 4px 0; }
-  .page-footer { text-align: center; font-size: 8pt; color: #999; padding-top: 20px; margin-top: 40px; border-top: 1px solid #eee; }
-  @media print { body { padding: 0; } .cover { min-height: 100vh; } .content { padding: 0; } pre { font-size: 8.5pt; } }
+/* ── Reset & Base ────────────────────────────────── */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --red:       #DC2626;
+  --red-dark:  #991B1B;
+  --red-light: #FEE2E2;
+  --gray-50:   #F9FAFB;
+  --gray-100:  #F3F4F6;
+  --gray-200:  #E5E7EB;
+  --gray-300:  #D1D5DB;
+  --gray-500:  #6B7280;
+  --gray-600:  #4B5563;
+  --gray-700:  #374151;
+  --gray-800:  #1F2937;
+  --gray-900:  #111827;
+  --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --font-mono: "SF Mono", "Fira Code", "Fira Mono", Menlo, Consolas, "DejaVu Sans Mono", monospace;
+  --max-width: 960px;
+}
+
+html { font-size: 16px; scroll-behavior: smooth; }
+
+body {
+  font-family: var(--font-sans);
+  color: var(--gray-800);
+  background: #fff;
+  line-height: 1.7;
+}
+
+/* ── Layout ──────────────────────────────────────── */
+.page-header {
+  background: var(--gray-900);
+  color: #fff;
+  padding: 2rem 1.5rem;
+  border-bottom: 4px solid var(--red);
+}
+.page-header .inner { max-width: var(--max-width); margin: 0 auto; }
+.page-header h1 { font-size: 1.75rem; font-weight: 700; letter-spacing: -0.02em; }
+.page-header h1 span { color: var(--red); }
+.page-header .subtitle { color: var(--gray-300); margin-top: 0.25rem; font-size: 0.95rem; }
+.page-header .version-badge {
+  display: inline-block;
+  background: var(--red);
+  color: #fff;
+  font-size: 0.75rem;
+  font-weight: 600;
+  padding: 0.15em 0.6em;
+  border-radius: 3px;
+  vertical-align: middle;
+  margin-left: 0.5rem;
+}
+.page-header .doc-type-badge {
+  display: inline-block;
+  background: #F59E0B;
+  color: #1F2937;
+  font-size: 0.7rem;
+  font-weight: 700;
+  padding: 0.15em 0.6em;
+  border-radius: 3px;
+  vertical-align: middle;
+  margin-left: 0.5rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.wrapper {
+  display: flex;
+  max-width: 1200px;
+  margin: 0 auto;
+  gap: 0;
+}
+
+/* ── Sidebar / TOC ───────────────────────────────── */
+.sidebar {
+  width: 280px;
+  min-width: 280px;
+  padding: 2rem 1.25rem 2rem 1.5rem;
+  border-right: 1px solid var(--gray-200);
+  position: sticky;
+  top: 0;
+  height: 100vh;
+  overflow-y: auto;
+  font-size: 0.82rem;
+}
+.sidebar h3 {
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--gray-500);
+  margin-bottom: 0.75rem;
+}
+.sidebar ol {
+  list-style: none;
+  padding: 0;
+}
+.sidebar ol li { margin-bottom: 0.15rem; }
+.sidebar ol li a {
+  display: block;
+  padding: 0.3rem 0.5rem;
+  color: var(--gray-700);
+  text-decoration: none;
+  border-radius: 4px;
+  transition: background 0.15s, color 0.15s;
+}
+.sidebar ol li a:hover { background: var(--red-light); color: var(--red-dark); }
+.sidebar ol li.toc-h3 { padding-left: 1rem; }
+.sidebar ol li.toc-h3 a { font-size: 0.78rem; color: var(--gray-500); }
+
+/* ── Main Content ────────────────────────────────── */
+.content {
+  flex: 1;
+  min-width: 0;
+  padding: 2.5rem 2.5rem 4rem 2.5rem;
+  max-width: var(--max-width);
+}
+
+h2 {
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: var(--gray-900);
+  margin: 3rem 0 1rem;
+  padding-bottom: 0.5rem;
+  border-bottom: 2px solid var(--red);
+}
+h2:first-of-type { margin-top: 0; }
+
+h3 {
+  font-size: 1.15rem;
+  font-weight: 600;
+  color: var(--gray-800);
+  margin: 2rem 0 0.75rem;
+}
+
+h4 {
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--gray-700);
+  margin: 1.5rem 0 0.5rem;
+}
+
+p { margin-bottom: 1rem; }
+
+ul, ol { margin: 0 0 1rem 1.5rem; }
+li { margin-bottom: 0.35rem; }
+
+/* ── Tables ──────────────────────────────────────── */
+table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 1rem 0 1.5rem;
+  font-size: 0.9rem;
+}
+th, td {
+  text-align: left;
+  padding: 0.6rem 0.75rem;
+  border: 1px solid var(--gray-200);
+}
+th {
+  background: var(--gray-900);
+  color: #fff;
+  font-weight: 600;
+  font-size: 0.8rem;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+tr:nth-child(even) td { background: var(--gray-50); }
+
+/* ── Code blocks ─────────────────────────────────── */
+code {
+  font-family: var(--font-mono);
+  font-size: 0.85em;
+  background: var(--gray-100);
+  padding: 0.15em 0.4em;
+  border-radius: 3px;
+  color: var(--red-dark);
+}
+
+pre {
+  background: var(--gray-900);
+  color: #E5E7EB;
+  padding: 1rem 1.25rem;
+  border-radius: 6px;
+  overflow-x: auto;
+  margin: 1rem 0 1.5rem;
+  font-size: 0.85rem;
+  line-height: 1.6;
+  border-left: 4px solid var(--red);
+}
+pre code {
+  background: transparent;
+  padding: 0;
+  color: inherit;
+  font-size: inherit;
+}
+
+/* ── Callouts ────────────────────────────────────── */
+.callout {
+  padding: 1rem 1.25rem;
+  border-radius: 6px;
+  margin: 1rem 0 1.5rem;
+  font-size: 0.9rem;
+}
+.callout-title {
+  font-weight: 700;
+  margin-bottom: 0.25rem;
+  font-size: 0.85rem;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+.callout-info    { background: #EFF6FF; border-left: 4px solid #3B82F6; }
+.callout-warning { background: #FFFBEB; border-left: 4px solid #F59E0B; }
+.callout-danger  { background: var(--red-light); border-left: 4px solid var(--red); }
+.callout-success { background: #ECFDF5; border-left: 4px solid #10B981; }
+
+/* ── Collapsible sections ────────────────────────── */
+details {
+  margin: 0.5rem 0;
+  border: 1px solid var(--gray-200);
+  border-radius: 6px;
+  overflow: hidden;
+}
+details summary {
+  padding: 0.75rem 1rem;
+  background: var(--gray-50);
+  cursor: pointer;
+  font-weight: 600;
+  font-size: 0.9rem;
+  color: var(--gray-700);
+  user-select: none;
+  list-style: none;
+}
+details summary::-webkit-details-marker { display: none; }
+details summary::before {
+  content: "\25B6";
+  display: inline-block;
+  margin-right: 0.5rem;
+  font-size: 0.7rem;
+  transition: transform 0.2s;
+  color: var(--red);
+}
+details[open] summary::before { transform: rotate(90deg); }
+details[open] summary { border-bottom: 1px solid var(--gray-200); }
+details .details-body { padding: 1rem 1.25rem; }
+
+/* ── Badges ──────────────────────────────────────── */
+.badge {
+  display: inline-block;
+  font-size: 0.7rem;
+  font-weight: 600;
+  padding: 0.15em 0.5em;
+  border-radius: 3px;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  vertical-align: middle;
+}
+.badge-red    { background: var(--red-light); color: var(--red-dark); }
+.badge-green  { background: #ECFDF5; color: #065F46; }
+.badge-blue   { background: #EFF6FF; color: #1E40AF; }
+.badge-yellow { background: #FFFBEB; color: #92400E; }
+
+/* ── Footer ──────────────────────────────────────── */
+.page-footer {
+  background: var(--gray-900);
+  color: var(--gray-500);
+  text-align: center;
+  padding: 1.5rem;
+  font-size: 0.8rem;
+  border-top: 4px solid var(--red);
+}
+
+/* ── Print ───────────────────────────────────────── */
+@media print {
+  .sidebar { display: none; }
+  .wrapper { display: block; }
+  .content { padding: 0; max-width: 100%; }
+  .page-header { padding: 1rem; }
+  pre { border: 1px solid #ccc; background: #f5f5f5; color: #333; }
+  pre code { color: #333; }
+  th { background: #333; color: #fff; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  h2 { page-break-after: avoid; }
+  details { border: 1px solid #ccc; }
+  details[open] summary { border-bottom: 1px solid #ccc; }
+  .callout { border: 1px solid #ccc; }
+}
+
+/* ── Responsive ──────────────────────────────────── */
+@media (max-width: 768px) {
+  .sidebar { display: none; }
+  .wrapper { display: block; }
+  .content { padding: 1.5rem 1rem 3rem; }
+  .page-header { padding: 1.5rem 1rem; }
+  table { font-size: 0.8rem; }
+  th, td { padding: 0.4rem 0.5rem; }
+}
 </style>
 </head>
 <body>
 
-<div class="cover">
-  <div class="cover-logo">
-   ____          _      ____          _      _    ___
-  / ___|___   __| | ___|  _ \ ___  __| |   / \  |_ _|
- | |   / _ \ / _` |/ _ \ |_) / _ \/ _` |  / _ \  | |
- | |__| (_) | (_| |  __/  _ &lt;  __/ (_| | / ___ \ | |
-  \____\___/ \__,_|\___|_| \_\___|\__,_|/_/   \_\___|
+<!-- ════════════════════════════════════════════════════════ -->
+<!--  HEADER                                                 -->
+<!-- ════════════════════════════════════════════════════════ -->
+<header class="page-header">
+  <div class="inner">
+    <h1><span>CodeRed</span> NDR Sensor <span class="version-badge">v2.0.0</span> <span class="doc-type-badge">Vendor / Internal Only</span></h1>
+    <p class="subtitle">Administration &amp; Build Guide &mdash; For CodeRed Team Use Only</p>
   </div>
-  <h1>CodeRed NDR</h1>
-  <h2>Administrator Guide</h2>
-  <h2 style="font-size:16pt; font-weight:400; color:#bb86fc;">Internal &mdash; Not For Customer Distribution</h2>
-  <div class="cover-meta">
-    <div class="version">Version 1.0</div>
-    <div>CONFIDENTIAL &mdash; CodeRed AI Internal Only</div>
-    <div style="margin-top:8px;">CodeRed AI &copy; 2026. All Rights Reserved.</div>
-  </div>
-</div>
+</header>
 
-<div class="toc">
-  <h2>Table of Contents</h2>
-  <ul>
-    <li><a href="#architecture"><span class="section-num">1</span> Architecture</a></li>
-    <li><a href="#access"><span class="section-num">2</span> Access Model &amp; Credentials</a></li>
-    <li><a href="#filesystem"><span class="section-num">3</span> File System Layout</a></li>
-    <li><a href="#services"><span class="section-num">4</span> Services &amp; Commands</a></li>
-    <li><a href="#updates"><span class="section-num">5</span> Updates &amp; Maintenance</a></li>
-    <li><a href="#rules"><span class="section-num">6</span> Suricata Rules Management</a></li>
-    <li><a href="#forwarding"><span class="section-num">7</span> Log Forwarding</a></li>
-    <li><a href="#hardening"><span class="section-num">8</span> Security Hardening</a></li>
-    <li><a href="#monitoring"><span class="section-num">9</span> Health Monitoring</a></li>
-    <li><a href="#troubleshooting"><span class="section-num">10</span> Troubleshooting</a></li>
-    <li><a href="#backup"><span class="section-num">11</span> Backup &amp; Recovery</a></li>
-    <li><a href="#fleet"><span class="section-num">12</span> Multi-Sensor Fleet Management</a></li>
-    <li><a href="#reference"><span class="section-num">13</span> Quick Reference</a></li>
-  </ul>
-</div>
+<div class="wrapper">
 
-<div class="content">
+<!-- ════════════════════════════════════════════════════════ -->
+<!--  SIDEBAR / TOC                                          -->
+<!-- ════════════════════════════════════════════════════════ -->
+<nav class="sidebar">
+  <h3>Table of Contents</h3>
+  <ol>
+    <li><a href="#overview">1. Overview</a></li>
+    <li><a href="#build-environment">2. Build Environment Setup</a></li>
+    <li><a href="#installation-pipeline">3. Installation Pipeline</a></li>
+    <li><a href="#ova-build">4. OVA Build Process</a></li>
+    <li><a href="#user-accounts">5. User Account Model</a></li>
+    <li><a href="#cli-architecture">6. CLI Architecture</a></li>
+    <li><a href="#detection-engine">7. Detection Engine</a></li>
+    <li><a href="#service-management">8. Service Management</a></li>
+    <li><a href="#log-pipeline">9. Log Pipeline</a></li>
+    <li><a href="#auto-update">10. Auto-Update Mechanism</a></li>
+    <li><a href="#troubleshooting">11. Troubleshooting Guide</a></li>
+    <li><a href="#config-reference">12. Configuration Reference</a></li>
+    <li><a href="#security-hardening">13. Security Hardening</a></li>
+    <li><a href="#maintenance">14. Maintenance Procedures</a></li>
+    <li><a href="#appendix">15. Appendix</a></li>
+  </ol>
+</nav>
 
-<!-- ─── 1 ─── -->
-<h1 id="architecture">1. Architecture</h1>
+<!-- ════════════════════════════════════════════════════════ -->
+<!--  MAIN CONTENT                                           -->
+<!-- ════════════════════════════════════════════════════════ -->
+<main class="content">
 
-<pre><code>  Ubuntu 22.04 / 24.04 Server
-  ┌────────────────────────────────────────────────────────┐
-  │                   CodeRed NDR                          │
-  │                                                        │
-  │  ┌──────────┐  ┌────────────┐  ┌──────────────────┐   │
-  │  │ Mgmt NIC │  │Monitor NICs│  │                  │   │
-  │  │ (eth0)   │  │(eth1,eth2) │─▶│ Zeek + Suricata  │   │
-  │  └────┬─────┘  └────────────┘  │ (native install) │   │
-  │       │                         └────────┬─────────┘   │
-  │       │                                  │             │
-  │       │    ┌─────────────────────────────┘             │
-  │       │    ▼                                           │
-  │       │  ┌────────────┐  ┌──────────────────────────┐  │
-  │       │  │ Filebeat   │  │ Auto-Update Timers       │  │
-  │       │  │ → CodeRed  │  │ • Rule update (daily)    │  │
-  │       │  │   AI       │  │ • Config update (6h)     │  │
-  │       │  └────────────┘  └──────────────────────────┘  │
-  │       │                                                │
-  │  Management: sudo coderedndr                            │
-  │  SSH: customer's own user with sudo                     │
-  └────────────────────────────────────────────────────────┘</code></pre>
-
-<table>
-  <tr><th>Component</th><th>Technology</th><th>Purpose</th></tr>
-  <tr><td>Base OS</td><td>Ubuntu 22.04 / 24.04 LTS</td><td>Customer's own server</td></tr>
-  <tr><td>Network metadata</td><td>Zeek (native, /opt/zeek/)</td><td>Protocol parsing, UEBA data, JSON logs</td></tr>
-  <tr><td>IDS/IPS engine</td><td>Suricata (native, systemd)</td><td>Signature detection, 50K+ ET rules</td></tr>
-  <tr><td>Log forwarding</td><td>Filebeat (systemd)</td><td>Ships logs to CodeRed AI</td></tr>
-  <tr><td>Customer CLI</td><td>Python 3 (cli.py)</td><td>Restricted SSH menu</td></tr>
-  <tr><td>Firewall</td><td>UFW</td><td>Strict inbound/outbound rules</td></tr>
-  <tr><td>MAC</td><td>AppArmor</td><td>Mandatory access control</td></tr>
-</table>
-
-<!-- ─── 2 ─── -->
-<h1 id="access">2. Access Model &amp; Credentials</h1>
-
-<table>
-  <tr><th>User</th><th>Auth</th><th>Shell</th><th>Purpose</th></tr>
-  <tr><td><code>your admin user</code></td><td>SSH key</td><td>Full bash + sudo</td><td>Your maintenance access</td></tr>
-  <tr><td>Customer's user</td><td>Their own SSH key/password</td><td>Full bash + sudo</td><td>Runs <code>sudo coderedndr</code> for management</td></tr>
-  <tr><td><code>root</code></td><td>Disabled</td><td>No SSH login</td><td>Use admin + sudo</td></tr>
-</table>
-
-<h2>SSH Config Enforced</h2>
-<pre><code># /etc/ssh/sshd_config.d/99-codered-hardening.conf
-
-PermitRootLogin no
-
-# Customer uses their own user + sudo coderedndr
-# No special SSH config needed — customer's server, their SSH</code></pre>
+<!-- ────────────────────────────────────────────────────── -->
+<h2 id="overview">1. Overview</h2>
+<!-- ────────────────────────────────────────────────────── -->
 
 <div class="callout callout-danger">
-  <div class="callout-title">NEVER share your admin SSH key with customers</div>
-  Customer uses their own SSH user and runs <code>sudo coderedndr</code> for management.
+  <div class="callout-title">Internal Document</div>
+  This guide is for the CodeRed vendor team (developers, admins, support engineers) who build, maintain, and support the NDR sensor appliance. It is NOT for customers. A separate <strong>User Guide</strong> exists for customer-facing documentation.
 </div>
 
-<!-- ─── 3 ─── -->
-<h1 id="filesystem">3. File System Layout</h1>
+<h3>What is CodeRed NDR?</h3>
+<p>CodeRed NDR is a network detection and response sensor distributed as a VMware OVA appliance. It passively monitors network traffic via SPAN/mirror ports and forwards security telemetry to the customer's SIEM.</p>
 
+<h3>Architecture</h3>
+<pre><code>Network Traffic (SPAN/TAP)
+        |
+        v
+  +--------------+     +---------------+
+  |    Zeek      |     |  Suricata     |
+  | (protocol    |     | (signature    |
+  |  analysis,   |     |  detection,   |
+  |  behavioral  |     |  EVE JSON)    |
+  |  detections) |     |               |
+  +------+-------+     +------+--------+
+         |                    |
+         v                    v
+       /nsm/zeek/          /nsm/suricata/
+         |                    |
+         +--------+-----------+
+                  v
+           +-----------+
+           | Filebeat  |
+           | (ECS fmt, |
+           | forwarding|
+           +-----+-----+
+                 v
+           Customer SIEM
+       (Elasticsearch / Logstash)</code></pre>
+
+<h3>Repository</h3>
+<p>GitHub: <code>github.com/lolomee/CodeRed-NDR</code></p>
+
+<h3>Version</h3>
+<p>This guide covers version <strong>2.0.0</strong>, as defined in <code>/home/coderedai/codered-sensor/VERSION</code>.</p>
+
+<h3>Repository Structure</h3>
+<pre><code>codered-sensor/
++-- VERSION                 # Version string (2.0.0)
++-- install.sh              # Master installer
++-- uninstall.sh            # Complete uninstaller
++-- shell/
+|   +-- cli.py              # Unified management CLI
++-- bin/
+|   +-- prepare-ova.sh      # OVA prep (user lockdown, cleanup)
+|   +-- health-check.sh     # Comprehensive health checker
+|   +-- codered-update.sh   # Auto-update from GitHub
+|   +-- update-rules.sh     # Suricata rule updater
+|   +-- update-intel.sh     # Zeek threat intel feed updater
+|   +-- backup-config.sh    # Configuration backup
+|   +-- factory-reset.sh    # Factory reset
+|   +-- disk-cleanup.sh     # Disk space management
+|   +-- start-pcap.sh       # Rolling PCAP capture
+|   +-- tune-interface.sh   # NIC offload tuning
++-- firstboot/
+|   +-- firstboot.sh        # First-boot setup wizard
++-- conf/
+|   +-- codered.defaults    # Default configuration
++-- zeek/
+|   +-- codered-detections/ # Custom Zeek detection scripts
+|       +-- __load__.zeek
+|       +-- beaconing.zeek
+|       +-- dns-anomaly.zeek
+|       +-- long-connections.zeek
+|       +-- cert-anomaly.zeek
+|       +-- scan-detect.zeek
++-- filebeat/
+|   +-- zeek.yml            # Filebeat Zeek module config
+|   +-- suricata.yml        # Filebeat Suricata module config
++-- docs/
+    +-- user-guide.html     # Customer-facing guide
+    +-- admin-guide.html    # This document</code></pre>
+
+
+<!-- ────────────────────────────────────────────────────── -->
+<h2 id="build-environment">2. Build Environment Setup</h2>
+<!-- ────────────────────────────────────────────────────── -->
+
+<h3>Requirements</h3>
+<ul>
+  <li><strong>OS:</strong> Ubuntu 24.04 LTS (also tested on 22.04)</li>
+  <li><strong>Architecture:</strong> amd64 only</li>
+  <li><strong>Minimum hardware:</strong> 2 CPU cores, 4 GB RAM, 20 GB disk</li>
+  <li><strong>Recommended:</strong> 4+ CPU, 8+ GB RAM, 100+ GB disk</li>
+  <li><strong>Internet access</strong> for package downloads and repo cloning</li>
+</ul>
+
+<h3>Clone the Repository</h3>
+<pre><code>git clone https://github.com/lolomee/CodeRed-NDR.git ~/codered-sensor
+cd ~/codered-sensor</code></pre>
+
+<h3>Development Workflow</h3>
+<p>The recommended development workflow uses two environments:</p>
+<ol>
+  <li><strong>EC2 (AWS) for development and testing</strong> &mdash; Rapid iteration, SSH access, easy teardown. Run <code>install.sh</code> and test CLI/services here.</li>
+  <li><strong>VMware Workstation / ESXi for OVA export</strong> &mdash; Once tested, replicate the install on a clean VMware VM. Run <code>prepare-ova.sh</code>, shut down, and export the OVA.</li>
+</ol>
+
+<div class="callout callout-info">
+  <div class="callout-title">Note</div>
+  The <code>prepare-ova.sh</code> script removes AWS-specific artifacts (cloud-init, amazon-ssm-agent, EC2 metadata) so the OVA is clean. You can develop on EC2 but always do the final OVA export from VMware.
+</div>
+
+
+<!-- ────────────────────────────────────────────────────── -->
+<h2 id="installation-pipeline">3. Installation Pipeline</h2>
+<!-- ────────────────────────────────────────────────────── -->
+
+<h3>Running the Installer</h3>
+<pre><code># From a local checkout:
+sudo bash install.sh
+
+# Or remote (curl-pipe):
+curl -sSL https://raw.githubusercontent.com/lolomee/CodeRed-NDR/main/install.sh | sudo bash</code></pre>
+
+<p>The script is idempotent and safe to run multiple times. It detects existing installations and prompts before reinstalling.</p>
+
+<h3>Step-by-Step Breakdown</h3>
+
+<h4>Pre-flight Checks</h4>
+<ul>
+  <li>Must run as root</li>
+  <li>Validates Ubuntu 22.04 or 24.04, amd64 architecture</li>
+  <li>Checks minimum resources: 4 GB RAM, 2 CPU, 20 GB disk</li>
+  <li>If existing install found, prompts for reinstall/upgrade</li>
+</ul>
+
+<h4>Step 1: System Dependencies</h4>
+<p>Installs base packages via <code>apt-get</code>:</p>
+<pre><code>curl gnupg software-properties-common apt-transport-https
+ca-certificates lsb-release python3 python3-configparser
+dialog ethtool net-tools jq git tcpdump open-vm-tools logrotate</code></pre>
+
+<h4>Step 2: Install Zeek</h4>
+<ul>
+  <li>Adds OpenSUSE OBS APT repository for Zeek (<code>security:/zeek/xUbuntu_&lt;version&gt;</code>)</li>
+  <li>Installs the <code>zeek</code> package (installs to <code>/opt/zeek/</code>)</li>
+  <li>Falls back to 22.04 repo on 24.04 if primary fails</li>
+  <li>Adds <code>/opt/zeek/bin</code> to PATH via <code>/etc/profile.d/zeek-path.sh</code></li>
+  <li>Disables the stock <code>zeek</code> systemd service (CodeRed manages its own)</li>
+</ul>
+
+<h4>Step 3: Install Suricata and Filebeat</h4>
+<ul>
+  <li><strong>Suricata:</strong> Adds <code>ppa:oisf/suricata-stable</code>, installs <code>suricata</code> + <code>suricata-update</code>. Enables <code>community-id</code> in <code>suricata.yaml</code>. Disables stock service.</li>
+  <li><strong>Filebeat:</strong> Adds Elastic 8.x APT repo (<code>artifacts.elastic.co/packages/8.x/apt</code>), installs <code>filebeat</code>. Disables stock service.</li>
+</ul>
+
+<h4>Step 4: Deploy CodeRed NDR Files</h4>
+<p>Creates the directory structure and copies files from the repo:</p>
 <table>
-  <tr><th>Path</th><th>Purpose</th></tr>
-  <tr><td><code>/opt/codered/shell/cli.py</code></td><td>Customer restricted CLI</td></tr>
-  <tr><td><code>/opt/codered/bin/update-rules.sh</code></td><td>Suricata ET rule updater</td></tr>
-  <tr><td><code>/opt/codered/bin/codered-update.sh</code></td><td>Auto-update script (git pull)</td></tr>
-  <tr><td><code>/opt/codered/VERSION</code></td><td>Sensor version</td></tr>
+  <tr><th>Destination</th><th>Contents</th></tr>
+  <tr><td><code>/opt/codered/shell/cli.py</code></td><td>Management CLI</td></tr>
+  <tr><td><code>/opt/codered/bin/</code></td><td>All management scripts (health-check, update-rules, etc.)</td></tr>
+  <tr><td><code>/opt/codered/firstboot/firstboot.sh</code></td><td>First-boot setup wizard</td></tr>
+  <tr><td><code>/opt/codered/VERSION</code></td><td>Version string</td></tr>
   <tr><td><code>/opt/codered/repo/</code></td><td>Git clone for auto-updates</td></tr>
-  <tr><td><code>/etc/codered/sensor.conf</code></td><td>Customer config (IP, hostname, interfaces, CodeRed AI)</td></tr>
-  <tr><td><code>/etc/codered/codered.defaults</code></td><td>Default config values</td></tr>
-  <tr><td><code>/opt/zeek/</code></td><td>Zeek installation</td></tr>
-  <tr><td><code>/opt/zeek/logs/current/</code></td><td>Live Zeek logs</td></tr>
-  <tr><td><code>/etc/suricata/suricata.yaml</code></td><td>Suricata config</td></tr>
-  <tr><td><code>/etc/suricata/rules/</code></td><td>Suricata detection rules</td></tr>
-  <tr><td><code>/var/log/suricata/eve.json</code></td><td>Suricata alerts + metadata</td></tr>
-  <tr><td><code>/opt/zeek/logs/</code></td><td>Zeek log storage</td></tr>
-  <tr><td><code>/var/log/codered/audit.log</code></td><td>Customer action audit trail</td></tr>
-  <tr><td><code>/var/log/codered/rule-update.log</code></td><td>Rule update history</td></tr>
-  <tr><td><code>/var/log/codered/cli.log</code></td><td>CLI application log</td></tr>
+  <tr><td><code>/etc/codered/codered.defaults</code></td><td>Default configuration</td></tr>
+  <tr><td><code>/usr/local/bin/coderedndr</code></td><td>CLI entry point wrapper</td></tr>
+  <tr><td><code>/nsm/zeek/logs/current/</code></td><td>Zeek log output</td></tr>
+  <tr><td><code>/nsm/suricata/log/</code></td><td>Suricata EVE JSON output</td></tr>
+  <tr><td><code>/nsm/pcap/</code></td><td>Rolling PCAP storage</td></tr>
+  <tr><td><code>/var/log/codered/</code></td><td>Audit, CLI, update, disk-cleanup logs</td></tr>
 </table>
 
-<!-- ─── 4 ─── -->
-<h1 id="services">4. Services &amp; Commands</h1>
+<p>Also creates an inline <code>update-rules.sh</code> script (uses <code>suricata-update</code>) and an inline <code>codered-update.sh</code> if not present in the repo.</p>
+
+<h4>Step 5: Download Suricata Rules and GeoIP</h4>
+<ul>
+  <li>Enables <code>et/open</code> and <code>oisf/trafficid</code> rule sources via <code>suricata-update</code></li>
+  <li>Downloads GeoLite2-City.mmdb to <code>/usr/share/GeoIP/</code></li>
+</ul>
+
+<h4>Step 6: Create Systemd Units and Set Permissions</h4>
+<p>Creates the following units:</p>
+<ul>
+  <li><code>codered-zeek.service</code> &mdash; Zeek via <code>zeekctl deploy/stop</code></li>
+  <li><code>codered-suricata.service</code> &mdash; Suricata with config test pre-check</li>
+  <li><code>codered-firstboot.service</code> &mdash; Runs wizard if <code>/etc/codered/.setup-complete</code> is missing</li>
+  <li><code>codered-rule-update.timer</code> &mdash; Daily at 03:00 with 30 min jitter</li>
+  <li><code>codered-update.timer</code> &mdash; Every 6 hours (15 min after boot, then every 6h)</li>
+</ul>
+<p>Enables timers and firstboot service. Main services (zeek, suricata, filebeat) are NOT started by the installer &mdash; they start after the customer runs the setup wizard.</p>
+
+<p>Permissions are set:</p>
+<ul>
+  <li><code>/opt/codered/</code> &mdash; root:root, 755</li>
+  <li><code>/opt/codered/bin/*.sh</code> &mdash; 750</li>
+  <li><code>/etc/codered/</code> &mdash; root:root, 755; <code>codered.defaults</code> is 644</li>
+  <li><code>/var/log/codered/</code> &mdash; root:adm, 775</li>
+  <li><code>/nsm/</code> &mdash; root:root, 755</li>
+</ul>
+
+
+<!-- ────────────────────────────────────────────────────── -->
+<h2 id="ova-build">4. OVA Build Process</h2>
+<!-- ────────────────────────────────────────────────────── -->
+
+<h3>End-to-End Build Procedure</h3>
+<ol>
+  <li>Create a VMware VM: Ubuntu 24.04 LTS, 2+ NICs (NIC 1 = management, NIC 2 = monitor), 4+ CPU, 8+ GB RAM, 100+ GB disk (thin provision)</li>
+  <li>Install Ubuntu Server (minimal), create <code>coderedai</code> user</li>
+  <li>Clone the repo: <code>git clone https://github.com/lolomee/CodeRed-NDR.git ~/codered-sensor</code></li>
+  <li>Run the installer: <code>sudo bash ~/codered-sensor/install.sh</code></li>
+  <li>Verify services install correctly (do not start them)</li>
+  <li>Run OVA prep: <code>sudo bash ~/codered-sensor/bin/prepare-ova.sh</code></li>
+  <li>Shut down the VM: <code>sudo shutdown -h now</code></li>
+  <li>Export as OVA from VMware Workstation (<em>File &gt; Export to OVF</em>) or ESXi (<em>Export OVF Template</em>)</li>
+</ol>
+
+<h3>What prepare-ova.sh Does</h3>
+<p>This is a destructive, one-time script. It transforms a development VM into a distributable appliance.</p>
+
+<h4>Step 1: Create coderedndr User (Customer Account)</h4>
+<ul>
+  <li>Creates <code>coderedndr</code> user with bash shell</li>
+  <li>Sets default password: <code>CodeRed@NDR!</code></li>
+  <li>Forces password change on first login via <code>chage -d 0</code></li>
+  <li>Configures CLI auto-launch in <code>.bash_profile</code> &mdash; when the customer SSHs in, the CLI starts automatically via <code>sudo /usr/local/bin/coderedndr</code></li>
+  <li>Sets up restricted sudoers (see <a href="#user-accounts">User Account Model</a>)</li>
+</ul>
+
+<h4>Step 1b: Create cradmin User (Vendor Admin)</h4>
+<ul>
+  <li>Creates <code>cradmin</code> user with full bash shell</li>
+  <li>No password set &mdash; account is locked, SSH key-only</li>
+  <li>Full sudo access (<code>cradmin ALL=(ALL:ALL) ALL</code>)</li>
+  <li>Prepares <code>/home/cradmin/.ssh/authorized_keys</code></li>
+  <li>Custom <code>.bashrc</code> with aliases: <code>ndr</code>, <code>health</code>, <code>logs-suri</code>, <code>logs-zeek</code>, <code>status</code></li>
+  <li>Red-colored prompt: <code>[admin] codered-ndr:~$</code></li>
+</ul>
+
+<h4>Step 2: Lock Down Root</h4>
+<ul>
+  <li>Locks root password (<code>passwd -l root</code>)</li>
+  <li>Sets <code>PermitRootLogin no</code> in SSH config</li>
+  <li>Restricts <code>su</code> to sudo group via <code>pam_wheel.so</code></li>
+  <li>SSH AllowUsers: <code>coderedndr cradmin</code></li>
+  <li>cradmin: key-only auth (<code>PasswordAuthentication no</code>, <code>AuthenticationMethods publickey</code>)</li>
+</ul>
+
+<h4>Step 3: Remove Unnecessary Packages</h4>
+<p>Purges: snapd, landscape, plymouth, unattended-upgrades, packagekit, fwupd, modemmanager, bluez, cups, avahi-daemon, whoopsie, apport, needrestart, and more. Reinstalls <code>open-vm-tools</code> afterward.</p>
+
+<h4>Step 4: Remove Cloud-Init and AWS Artifacts</h4>
+<p>Purges cloud-init, amazon-ssm-agent, aws-cli, ec2-instance-connect. Removes <code>/etc/cloud</code>, <code>/var/lib/cloud</code>, AWS log directories, and metadata caches.</p>
+
+<h4>Step 5: Remove Builder Account</h4>
+<p>Cannot delete <code>coderedai</code> while running as that user. Creates a systemd oneshot service (<code>codered-remove-builder.service</code>) that runs on next boot to delete the user and its home directory.</p>
+
+<h4>Step 6: Clean Filesystem</h4>
+<ul>
+  <li>Removes SSH host keys (regenerated on first boot via <code>regenerate-ssh-keys.service</code>)</li>
+  <li>Clears bash history, Python history, vim info, caches for all users</li>
+  <li>Removes Claude Code session data</li>
+  <li>Truncates all logs, removes rotated/compressed logs, clears journal</li>
+  <li>Clears NDR data (<code>/nsm/</code> logs, spool, extracted files)</li>
+  <li>Cleans APT cache, temp files, DHCP leases</li>
+  <li>Writes minimal default netplan (DHCP on all <code>en*</code>/<code>eth*</code>)</li>
+  <li>Clears <code>/etc/machine-id</code> (regenerates on boot for unique VM identity)</li>
+  <li>Removes persistent net rules, root SSH keys, git repos</li>
+</ul>
+
+<h4>Step 7a: Auto-Resize Disk Service</h4>
+<p>Creates <code>/opt/codered/bin/auto-resize-disk.sh</code> and <code>codered-disk-resize.service</code>. On every boot, the script uses <code>growpart</code> + <code>resize2fs</code>/<code>xfs_growfs</code> to automatically expand the partition and filesystem if the VMware admin increased the virtual disk size.</p>
+
+<h4>Step 7: Login Banner (MOTD)</h4>
+<p>Disables default Ubuntu MOTD. Creates <code>/etc/update-motd.d/00-codered-banner</code> that shows version, hostname, uptime, and service status on SSH login. Sets <code>/etc/issue.net</code> as SSH pre-authentication banner.</p>
+
+<h4>Step 8: Reset First-Boot State</h4>
+<p>Removes <code>sensor.conf</code>, <code>.setup-complete</code>, and <code>.firstboot-complete</code> markers. Resets Zeek <code>node.cfg</code> and Filebeat config to placeholder values. Stops and disables all NDR services so the customer starts fresh.</p>
+
+<h4>Step 9: Remove Builder Account</h4>
+<p>Removes <code>coderedai</code> from sudoers, revokes sudo group membership, schedules <code>userdel -r</code> on next boot.</p>
+
+<h4>Step 10: Final Disk Cleanup</h4>
+<p>Runs <code>apt-get autoremove</code>, cleans APT, zeroes free space with <code>dd if=/dev/zero</code> for better OVA compression.</p>
+
+<h3>VMware VM Specifications for OVA</h3>
+<table>
+  <tr><th>Setting</th><th>Recommended</th></tr>
+  <tr><td>Guest OS</td><td>Ubuntu 64-bit</td></tr>
+  <tr><td>CPUs</td><td>4+ (customer can increase)</td></tr>
+  <tr><td>RAM</td><td>8+ GB</td></tr>
+  <tr><td>Disk</td><td>100 GB, thin provisioned</td></tr>
+  <tr><td>NIC 1</td><td>VMXNET3, management network</td></tr>
+  <tr><td>NIC 2</td><td>VMXNET3, SPAN/mirror port group</td></tr>
+  <tr><td>Firmware</td><td>UEFI or BIOS</td></tr>
+</table>
+
+
+<!-- ────────────────────────────────────────────────────── -->
+<h2 id="user-accounts">5. User Account Model</h2>
+<!-- ────────────────────────────────────────────────────── -->
 
 <table>
-  <tr><th>Service</th><th>Check Status</th><th>Restart</th></tr>
-  <tr><td>Zeek</td><td><code>/opt/zeek/bin/zeekctl status</code></td><td><code>/opt/zeek/bin/zeekctl restart</code></td></tr>
-  <tr><td>Suricata</td><td><code>systemctl status suricata</code></td><td><code>systemctl restart suricata</code></td></tr>
-  <tr><td>Filebeat</td><td><code>systemctl status filebeat</code></td><td><code>systemctl restart filebeat</code></td></tr>
-  <tr><td>UFW</td><td><code>ufw status</code></td><td><code>ufw reload</code></td></tr>
-  <tr><td>Fail2ban</td><td><code>systemctl status fail2ban</code></td><td><code>systemctl restart fail2ban</code></td></tr>
-  <tr><td>AppArmor</td><td><code>aa-status</code></td><td><code>systemctl restart apparmor</code></td></tr>
+  <tr><th>User</th><th>Purpose</th><th>Shell</th><th>Auth</th><th>Sudo</th></tr>
+  <tr>
+    <td><code>coderedndr</code></td>
+    <td>Customer account</td>
+    <td>CLI auto-launch via <code>.bash_profile</code></td>
+    <td>Password (forced change on first login)</td>
+    <td>Restricted NOPASSWD (see below)</td>
+  </tr>
+  <tr>
+    <td><code>cradmin</code></td>
+    <td>Vendor support</td>
+    <td>Full bash</td>
+    <td>SSH key only (no password)</td>
+    <td>Full (<code>ALL=(ALL:ALL) ALL</code>)</td>
+  </tr>
+  <tr>
+    <td><code>root</code></td>
+    <td>System (locked)</td>
+    <td>N/A</td>
+    <td>Locked, no SSH</td>
+    <td>N/A</td>
+  </tr>
+  <tr>
+    <td><code>coderedai</code></td>
+    <td>Builder (deleted in OVA prep)</td>
+    <td>bash</td>
+    <td>Removed during <code>prepare-ova.sh</code></td>
+    <td>Removed</td>
+  </tr>
 </table>
 
-<h2>Systemd Timers</h2>
+<h3>Customer Account (coderedndr) Sudoers Breakdown</h3>
+<p>Defined in <code>/etc/sudoers.d/codered-ndr</code>. All entries are <code>NOPASSWD</code>:</p>
+
 <table>
-  <tr><th>Timer</th><th>Interval</th><th>Purpose</th></tr>
-  <tr><td><code>codered-rule-update.timer</code></td><td>Daily 3 AM</td><td>ET rule auto-update</td></tr>
-  <tr><td><code>codered-update.timer</code></td><td>Every 6 hours</td><td>Git pull + config update</td></tr>
+  <tr><th>Category</th><th>Allowed Commands</th></tr>
+  <tr>
+    <td>Service management</td>
+    <td><code>systemctl start|stop|restart|status codered-zeek</code>,<br><code>codered-suricata</code>, <code>filebeat</code></td>
+  </tr>
+  <tr>
+    <td>NDR scripts</td>
+    <td><code>start-suricata.sh</code>, <code>start-zeek.sh</code>, <code>stop-zeek.sh</code>,<br><code>tune-interface.sh</code>, <code>update-rules.sh</code>, <code>codered-update.sh</code>, <code>health-check.sh</code></td>
+  </tr>
+  <tr>
+    <td>First-boot / CLI</td>
+    <td><code>firstboot.sh</code>, <code>python3 cli.py</code>, <code>coderedndr</code></td>
+  </tr>
+  <tr>
+    <td>Network config</td>
+    <td><code>netplan apply</code>, <code>hostnamectl set-hostname</code>,<br><code>ip link set</code>, <code>ip addr flush</code>, <code>ip -br addr/link show</code>,<br><code>ip route get</code>, <code>ethtool -K</code></td>
+  </tr>
+  <tr>
+    <td>ZeekControl</td>
+    <td><code>zeekctl deploy|start|stop|restart|status</code></td>
+  </tr>
+  <tr>
+    <td>Suricata rules</td>
+    <td><code>suricata-update</code>, <code>suricata -T</code></td>
+  </tr>
+  <tr>
+    <td>Log access</td>
+    <td><code>tail -f</code> on EVE and Zeek logs,<br><code>journalctl -u codered-* --no-pager</code></td>
+  </tr>
 </table>
 
-<pre><code># Check all timers
-systemctl list-timers | grep codered
+<div class="callout callout-danger">
+  <div class="callout-title">Security Note</div>
+  The sudoers configuration uses explicit command paths with no wildcards on sensitive commands. The <code>--no-pager</code> flag on <code>journalctl</code> prevents shell escape via pager programs. However, some entries use <code>*</code> wildcards on arguments (e.g., <code>hostnamectl set-hostname *</code>, <code>ip link set * up</code>). Review these for potential abuse vectors in high-security environments.
+</div>
 
-# Force rule update now
-sudo /opt/codered/bin/update-rules.sh
+<h3>Adding Your SSH Key to cradmin</h3>
+<p>During OVA prep, the <code>/home/cradmin/.ssh/authorized_keys</code> file is created empty. To enable vendor support access:</p>
+<pre><code># On the sensor (as cradmin or root):
+echo "ssh-rsa AAAA... your-key" &gt;&gt; /home/cradmin/.ssh/authorized_keys
 
-# Force config update now
+# Or remotely via the coderedndr account:
+ssh coderedndr@sensor-ip
+# Then from the CLI shell:
+# (Exit CLI to get a shell, then)
+sudo bash -c 'echo "ssh-rsa AAAA... your-key" &gt;&gt; /home/cradmin/.ssh/authorized_keys'</code></pre>
+
+<div class="callout callout-info">
+  <div class="callout-title">Tip</div>
+  For production OVAs, add your team's SSH public keys to the <code>prepare-ova.sh</code> script before running it, so every shipped OVA has vendor access pre-configured.
+</div>
+
+
+<!-- ────────────────────────────────────────────────────── -->
+<h2 id="cli-architecture">6. CLI Architecture</h2>
+<!-- ────────────────────────────────────────────────────── -->
+
+<h3>Design</h3>
+<ul>
+  <li><strong>Language:</strong> Python 3 (no external pip dependencies)</li>
+  <li><strong>Config:</strong> <code>configparser</code> for INI-style config files</li>
+  <li><strong>System commands:</strong> <code>subprocess.run()</code> via the <code>run_cmd()</code> helper</li>
+  <li><strong>Signals:</strong> SIGTSTP (Ctrl+Z) and SIGQUIT (Ctrl+\) are ignored to prevent shell escape</li>
+</ul>
+
+<h3>Entry Point</h3>
+<pre><code>/usr/local/bin/coderedndr
+  -&gt; exec /usr/bin/python3 /opt/codered/shell/cli.py "$@"</code></pre>
+
+<h3>Execution Flow</h3>
+<ol>
+  <li><code>main()</code> sets up logging, records audit login event</li>
+  <li>Checks <code>is_configured()</code> &mdash; looks for <code>/etc/codered/.setup-complete</code></li>
+  <li>If not configured: runs <code>run_setup()</code> (setup wizard)</li>
+  <li>If configured: runs <code>main_menu()</code> (management menu loop)</li>
+</ol>
+
+<h3>Setup Wizard Flow</h3>
+<p>The wizard runs on first login when <code>/etc/codered/.setup-complete</code> does not exist:</p>
+<ol>
+  <li>Hostname configuration</li>
+  <li>Management network (interface, static/DHCP, IP/mask/GW/DNS)</li>
+  <li>Monitor interfaces (multi-select, can skip)</li>
+  <li>Sensor identity (name, registration token)</li>
+  <li>SIEM log forwarding (address, port)</li>
+  <li>Optional features (IPS mode)</li>
+  <li>Confirmation and apply</li>
+</ol>
+<p>Apply steps: save config, set hostname, configure management network, configure monitor interfaces, generate Zeek/Suricata/Filebeat configs, start services, update Suricata rules.</p>
+
+<h3>Main Menu (15 Options)</h3>
+<table>
+  <tr><th>#</th><th>Option</th><th>Function</th></tr>
+  <tr><td>1</td><td>Sensor status overview</td><td><code>show_status()</code></td></tr>
+  <tr><td>2</td><td>Network interfaces</td><td><code>show_interfaces()</code></td></tr>
+  <tr><td>3</td><td>View logs</td><td><code>show_logs()</code></td></tr>
+  <tr><td>4</td><td>Diagnostics</td><td><code>run_diagnostics()</code></td></tr>
+  <tr><td>5</td><td>Network (IP/gateway/DNS)</td><td><code>reconfigure_network()</code></td></tr>
+  <tr><td>6</td><td>Hostname</td><td><code>reconfigure_hostname()</code></td></tr>
+  <tr><td>7</td><td>Monitor interfaces</td><td><code>reconfigure_monitor()</code></td></tr>
+  <tr><td>8</td><td>SIEM destination</td><td><code>reconfigure_forwarding()</code></td></tr>
+  <tr><td>9</td><td>Restart services</td><td><code>restart_services()</code></td></tr>
+  <tr><td>10</td><td>Support bundle</td><td><code>generate_support_bundle()</code></td></tr>
+  <tr><td>11</td><td>Change password</td><td><code>change_password()</code></td></tr>
+  <tr><td>12</td><td>Reboot</td><td><code>do_reboot()</code></td></tr>
+  <tr><td>13</td><td>Shutdown</td><td><code>do_shutdown()</code></td></tr>
+  <tr><td>14</td><td>User guide</td><td><code>show_user_guide()</code></td></tr>
+  <tr><td>15</td><td>Re-run setup wizard</td><td><code>run_setup()</code></td></tr>
+  <tr><td>0</td><td>Logout</td><td><code>sys.exit(0)</code></td></tr>
+</table>
+
+<h3>Config File Model</h3>
+<p>Two-layer configuration using Python <code>configparser</code>:</p>
+<ol>
+  <li><code>/etc/codered/codered.defaults</code> &mdash; shipped defaults, overwritten by updates</li>
+  <li><code>/etc/codered/sensor.conf</code> &mdash; customer-specific overrides, persists across updates</li>
+</ol>
+<p>The <code>load_config()</code> function reads defaults first, then overlays <code>sensor.conf</code>. The <code>save_config()</code> function writes only to <code>sensor.conf</code>.</p>
+
+<h3>Config Application Functions</h3>
+<table>
+  <tr><th>Function</th><th>What it generates</th></tr>
+  <tr><td><code>apply_zeek_config()</code></td><td>Writes <code>/opt/zeek/etc/node.cfg</code> with monitor interface, runs <code>tune-interface.sh</code></td></tr>
+  <tr><td><code>apply_suricata_config()</code></td><td>Writes <code>/etc/suricata/codered-override.yaml</code> with AF_PACKET, community-id, EVE output config</td></tr>
+  <tr><td><code>apply_filebeat_config()</code></td><td>Writes <code>/etc/filebeat/filebeat.yml</code> with Zeek + Suricata inputs, ECS processor, output (Elasticsearch or Logstash)</td></tr>
+</table>
+
+<h3>Audit Logging</h3>
+<p>Every CLI action is logged to <code>/var/log/codered/audit.log</code> via the <code>audit()</code> function:</p>
+<pre><code>2025-01-15T14:30:22Z user=coderedndr src=192.168.1.50 action=login
+2025-01-15T14:30:25Z user=coderedndr src=192.168.1.50 action=view:status
+2025-01-15T14:31:10Z user=coderedndr src=192.168.1.50 action=reconfigure:forwarding</code></pre>
+
+
+<!-- ────────────────────────────────────────────────────── -->
+<h2 id="detection-engine">7. Detection Engine</h2>
+<!-- ────────────────────────────────────────────────────── -->
+
+<h3>Overview</h3>
+<p>CodeRed NDR includes custom Zeek detection scripts that provide behavioral detection beyond signature matching. These use Zeek's <code>Notice</code> and <code>SumStats</code> frameworks.</p>
+<p>Scripts are installed to <code>/opt/zeek/share/zeek/site/codered-detections/</code> and loaded via <code>__load__.zeek</code>.</p>
+
+<h3>Detection Scripts</h3>
+
+<h4>beaconing.zeek &mdash; C2 Beaconing Detection</h4>
+<p><strong>MITRE ATT&amp;CK:</strong> T1071 (Application Layer Protocol), T1573 (Encrypted Channel)</p>
+<p>Detects command-and-control beaconing by tracking connection intervals between source-destination pairs and flagging regular timing patterns.</p>
+<p><strong>How it works:</strong></p>
+<ul>
+  <li>Tracks timestamps of all outbound connections per (src, dst) pair in a sliding window</li>
+  <li>Computes mean interval and standard deviation between consecutive connections</li>
+  <li>Calculates jitter ratio (coefficient of variation = stddev/mean)</li>
+  <li>Fires <code>Beaconing_Detected</code> notice if jitter is below threshold</li>
+</ul>
+<p><strong>Tunable thresholds:</strong></p>
+<table>
+  <tr><th>Constant</th><th>Default</th><th>Description</th></tr>
+  <tr><td><code>beaconing_min_connections</code></td><td>10</td><td>Minimum connections in window to evaluate</td></tr>
+  <tr><td><code>beaconing_max_jitter</code></td><td>0.15 (15%)</td><td>Maximum jitter ratio to flag as beaconing</td></tr>
+  <tr><td><code>beaconing_window</code></td><td>1 hr</td><td>Sliding window duration</td></tr>
+  <tr><td><code>beaconing_epoch</code></td><td>1 hr</td><td>SumStats epoch length</td></tr>
+</table>
+
+<h4>dns-anomaly.zeek &mdash; DGA &amp; DNS Tunneling Detection</h4>
+<p><strong>MITRE ATT&amp;CK:</strong> T1568.002 (Domain Generation Algorithms), T1071.004 (DNS)</p>
+<p>Three detection methods:</p>
+<ol>
+  <li><strong>DGA Detection:</strong> Computes Shannon entropy of the longest non-TLD label. High-entropy labels suggest algorithmically generated domains.</li>
+  <li><strong>DNS Tunneling (long labels):</strong> Flags DNS queries with subdomain labels exceeding a length threshold.</li>
+  <li><strong>DNS Tunneling (high rate):</strong> Uses SumStats to track query rate per (src, base_domain). Alerts when queries exceed threshold per minute.</li>
+</ol>
+<p><strong>Tunable thresholds:</strong></p>
+<table>
+  <tr><th>Constant</th><th>Default</th><th>Description</th></tr>
+  <tr><td><code>dga_entropy_threshold</code></td><td>3.5</td><td>Shannon entropy threshold for DGA</td></tr>
+  <tr><td><code>dga_min_label_length</code></td><td>8</td><td>Minimum label length to evaluate</td></tr>
+  <tr><td><code>tunnel_max_label_length</code></td><td>50</td><td>Max label length before tunneling alert</td></tr>
+  <tr><td><code>tunnel_query_rate_threshold</code></td><td>100.0</td><td>Queries/min to single base domain</td></tr>
+  <tr><td><code>dns_rate_epoch</code></td><td>1 min</td><td>Rate tracking epoch</td></tr>
+</table>
+
+<h4>long-connections.zeek &mdash; Long Connection &amp; Exfiltration Detection</h4>
+<p><strong>MITRE ATT&amp;CK:</strong> T1041 (Exfiltration Over C2 Channel)</p>
+<p>Two detection methods:</p>
+<ol>
+  <li><strong>Long Connection:</strong> Flags TCP connections lasting longer than the threshold. Excludes DNS, NTP, BGP by port and service name.</li>
+  <li><strong>Potential Exfiltration:</strong> Detects highly asymmetric data transfers (one side sent 10x+ more than the other) with minimum total bytes and minimum duration.</li>
+</ol>
+<table>
+  <tr><th>Constant</th><th>Default</th><th>Description</th></tr>
+  <tr><td><code>long_conn_threshold</code></td><td>24 hr</td><td>Max TCP duration before alert</td></tr>
+  <tr><td><code>exfil_min_bytes</code></td><td>104857600 (100 MB)</td><td>Minimum bytes to evaluate</td></tr>
+  <tr><td><code>exfil_asymmetry_ratio</code></td><td>10.0</td><td>Ratio threshold for asymmetric transfer</td></tr>
+  <tr><td><code>exfil_min_duration</code></td><td>5 min</td><td>Minimum connection duration</td></tr>
+</table>
+
+<h4>cert-anomaly.zeek &mdash; Certificate Anomaly Detection</h4>
+<p><strong>MITRE ATT&amp;CK:</strong> T1587.003 (Digital Certificates)</p>
+<p>Detects on <code>ssl_established</code> event:</p>
+<ul>
+  <li><strong>Self-signed certificates</strong> to external destinations (issuer == subject, dest is non-local)</li>
+  <li><strong>Short-lived certificates</strong> (validity &lt; threshold days)</li>
+  <li><strong>Expired certificates</strong> (not_valid_after &lt; network_time)</li>
+  <li><strong>IP address as CN</strong> (regex match on Common Name field)</li>
+  <li><strong>Empty subject</strong></li>
+</ul>
+<table>
+  <tr><th>Constant</th><th>Default</th><th>Description</th></tr>
+  <tr><td><code>cert_min_validity_days</code></td><td>7</td><td>Certs valid less than this are flagged</td></tr>
+  <tr><td><code>cert_alert_self_signed_external</code></td><td>T</td><td>Alert on self-signed to external</td></tr>
+  <tr><td><code>cert_alert_expired</code></td><td>T</td><td>Alert on expired certs</td></tr>
+  <tr><td><code>cert_alert_ip_as_cn</code></td><td>T</td><td>Alert on IP address as CN</td></tr>
+  <tr><td><code>cert_suppress_interval</code></td><td>1 hr</td><td>Suppress interval per cert</td></tr>
+</table>
+
+<h4>scan-detect.zeek &mdash; Port Scan &amp; Network Sweep Detection</h4>
+<p><strong>MITRE ATT&amp;CK:</strong> T1046 (Network Service Discovery)</p>
+<p>Uses SumStats UNIQUE reducers:</p>
+<ul>
+  <li><strong>Port Scan:</strong> Tracks unique destination ports per (src, dst) pair. Alerts when unique ports exceed threshold.</li>
+  <li><strong>Network Sweep:</strong> Tracks unique destinations per (src, port). Alerts when unique hosts exceed threshold.</li>
+</ul>
+<p>Observes both <code>connection_attempt</code> (SYN-only) and <code>connection_established</code> events.</p>
+<table>
+  <tr><th>Constant</th><th>Default</th><th>Description</th></tr>
+  <tr><td><code>scan_port_threshold</code></td><td>20.0</td><td>Unique ports to trigger port scan</td></tr>
+  <tr><td><code>sweep_host_threshold</code></td><td>15.0</td><td>Unique hosts to trigger sweep</td></tr>
+  <tr><td><code>scan_window</code></td><td>5 min</td><td>Detection window</td></tr>
+</table>
+
+<h3>How to Add New Detections</h3>
+<ol>
+  <li>Create a new <code>.zeek</code> file in <code>zeek/codered-detections/</code></li>
+  <li>Add <code>@load ./your-detection</code> to <code>__load__.zeek</code></li>
+  <li>Use the <code>CodeRed</code> module namespace</li>
+  <li>Add your Notice types to <code>Notice::Type</code> enum</li>
+  <li>Use <code>&amp;redef</code> on thresholds so customers can tune via <code>local.zeek</code></li>
+  <li>Include MITRE ATT&amp;CK reference in the notice message</li>
+  <li>Test with <code>zeek -r sample.pcap codered-detections</code></li>
+</ol>
+
+<h3>Tuning Thresholds</h3>
+<p>Customers can override any threshold in <code>/opt/zeek/share/zeek/site/local.zeek</code>:</p>
+<pre><code>@load codered-detections
+
+# Tune beaconing sensitivity
+redef CodeRed::beaconing_min_connections = 20;
+redef CodeRed::beaconing_max_jitter = 0.10;
+
+# Tune scan detection
+redef CodeRed::scan_port_threshold = 50.0;
+redef CodeRed::sweep_host_threshold = 25.0;</code></pre>
+
+<h3>MITRE ATT&amp;CK Mapping</h3>
+<table>
+  <tr><th>Detection</th><th>Notice Type</th><th>MITRE Technique</th><th>Tactic</th></tr>
+  <tr><td>Beaconing</td><td><code>Beaconing_Detected</code></td><td>T1071, T1573</td><td>Command &amp; Control</td></tr>
+  <tr><td>DGA Domains</td><td><code>DGA_Domain</code></td><td>T1568.002</td><td>Command &amp; Control</td></tr>
+  <tr><td>DNS Tunneling</td><td><code>DNS_Tunneling</code></td><td>T1071.004</td><td>Command &amp; Control, Exfiltration</td></tr>
+  <tr><td>Long Connection</td><td><code>Long_Connection</code></td><td>T1041</td><td>Exfiltration</td></tr>
+  <tr><td>Data Exfiltration</td><td><code>Potential_Exfil</code></td><td>T1041</td><td>Exfiltration</td></tr>
+  <tr><td>Self-signed Cert</td><td><code>Suspicious_Certificate</code></td><td>T1587.003</td><td>Resource Development</td></tr>
+  <tr><td>Short-lived Cert</td><td><code>Suspicious_Certificate</code></td><td>T1587.003</td><td>Resource Development</td></tr>
+  <tr><td>Expired Cert</td><td><code>Suspicious_Certificate</code></td><td>T1587.003</td><td>Resource Development</td></tr>
+  <tr><td>Port Scan</td><td><code>Port_Scan</code></td><td>T1046</td><td>Discovery</td></tr>
+  <tr><td>Network Sweep</td><td><code>Network_Sweep</code></td><td>T1046</td><td>Discovery</td></tr>
+</table>
+
+<h3>Zeek Intel Framework</h3>
+<p>The <code>update-intel.sh</code> script downloads threat intelligence feeds from abuse.ch and converts them to Zeek Intel format:</p>
+<table>
+  <tr><th>Feed</th><th>Indicator Type</th><th>File</th></tr>
+  <tr><td>URLhaus (malware URLs)</td><td><code>Intel::URL</code></td><td><code>abuse-ch-urlhaus.intel</code></td></tr>
+  <tr><td>Feodo Tracker (C2 IPs)</td><td><code>Intel::ADDR</code></td><td><code>abuse-ch-feodo.intel</code></td></tr>
+  <tr><td>SSL Blacklist (malicious SSL IPs)</td><td><code>Intel::ADDR</code></td><td><code>abuse-ch-sslbl.intel</code></td></tr>
+</table>
+<p>Feed files are stored in <code>/opt/zeek/share/zeek/site/intel/</code>. After updating, the script signals Zeek to reload via <code>zeekctl deploy</code>.</p>
+
+
+<!-- ────────────────────────────────────────────────────── -->
+<h2 id="service-management">8. Service Management</h2>
+<!-- ────────────────────────────────────────────────────── -->
+
+<h3>Systemd Services</h3>
+
+<table>
+  <tr><th>Unit</th><th>Type</th><th>Description</th><th>Restart</th></tr>
+  <tr>
+    <td><code>codered-zeek.service</code></td>
+    <td>forking</td>
+    <td>Zeek via <code>zeekctl deploy</code>/<code>stop</code></td>
+    <td>on-failure (30s)</td>
+  </tr>
+  <tr>
+    <td><code>codered-suricata.service</code></td>
+    <td>simple</td>
+    <td>Suricata with config test pre-check (<code>suricata -T</code>)</td>
+    <td>on-failure (10s)</td>
+  </tr>
+  <tr>
+    <td><code>codered-pcap.service</code></td>
+    <td>simple</td>
+    <td>Rolling PCAP via <code>tcpdump</code></td>
+    <td>on-failure</td>
+  </tr>
+  <tr>
+    <td><code>filebeat.service</code></td>
+    <td>(stock)</td>
+    <td>Log forwarding (with CodeRed drop-in <code>codered.conf</code>)</td>
+    <td>on-failure</td>
+  </tr>
+  <tr>
+    <td><code>codered-firstboot.service</code></td>
+    <td>oneshot</td>
+    <td>First-boot wizard. <code>ConditionPathExists=!/etc/codered/.setup-complete</code></td>
+    <td>N/A</td>
+  </tr>
+  <tr>
+    <td><code>codered-disk-resize.service</code></td>
+    <td>oneshot</td>
+    <td>Auto-resize disk on boot (growpart + resize2fs)</td>
+    <td>N/A</td>
+  </tr>
+  <tr>
+    <td><code>codered-remove-builder.service</code></td>
+    <td>oneshot</td>
+    <td>Removes <code>coderedai</code> user on first boot after OVA prep</td>
+    <td>N/A</td>
+  </tr>
+  <tr>
+    <td><code>regenerate-ssh-keys.service</code></td>
+    <td>oneshot</td>
+    <td>Regenerates SSH host keys. <code>ConditionPathExists=!/etc/ssh/ssh_host_rsa_key</code></td>
+    <td>N/A</td>
+  </tr>
+</table>
+
+<h3>Systemd Timers</h3>
+
+<table>
+  <tr><th>Timer</th><th>Schedule</th><th>Service</th><th>Description</th></tr>
+  <tr>
+    <td><code>codered-rule-update.timer</code></td>
+    <td>Daily at 03:00 UTC (+ 30 min jitter)</td>
+    <td><code>codered-rule-update.service</code></td>
+    <td>Suricata rule update via <code>suricata-update</code></td>
+  </tr>
+  <tr>
+    <td><code>codered-update.timer</code></td>
+    <td>15 min after boot, then every 6 hours (+ 30 min jitter)</td>
+    <td><code>codered-update.service</code></td>
+    <td>Auto-update from GitHub repo</td>
+  </tr>
+  <tr>
+    <td><code>codered-intel-update.timer</code></td>
+    <td>Periodic</td>
+    <td><code>codered-intel-update.service</code></td>
+    <td>Zeek threat intel feed update (abuse.ch)</td>
+  </tr>
+  <tr>
+    <td><code>codered-disk-cleanup.timer</code></td>
+    <td>Periodic</td>
+    <td><code>codered-disk-cleanup.service</code></td>
+    <td>Disk space management (85% threshold)</td>
+  </tr>
+</table>
+
+<h3>Service Dependencies</h3>
+<ul>
+  <li>All main services depend on <code>network-online.target</code></li>
+  <li><code>codered-firstboot.service</code> has <code>ConditionPathExists=!/etc/codered/.setup-complete</code> &mdash; only runs if setup is incomplete</li>
+  <li><code>regenerate-ssh-keys.service</code> has <code>ConditionPathExists=!/etc/ssh/ssh_host_rsa_key</code> &mdash; only runs if keys are missing</li>
+  <li><code>codered-disk-resize.service</code> runs before <code>codered-firstboot.service</code></li>
+  <li><code>codered-remove-builder.service</code> runs after <code>multi-user.target</code> but before firstboot</li>
+</ul>
+
+<h3>Troubleshooting Service Failures</h3>
+<pre><code># Check service status
+sudo systemctl status codered-zeek
+sudo systemctl status codered-suricata
+sudo systemctl status filebeat
+
+# View recent logs
+sudo journalctl -u codered-zeek --no-pager -n 50
+sudo journalctl -u codered-suricata --no-pager -n 50
+
+# Check if config exists (services won't start without it)
+ls -la /etc/codered/sensor.conf
+
+# Validate Suricata config
+sudo suricata -T -c /etc/suricata/suricata.yaml
+
+# Check Zeek status
+sudo /opt/zeek/bin/zeekctl status</code></pre>
+
+
+<!-- ────────────────────────────────────────────────────── -->
+<h2 id="log-pipeline">9. Log Pipeline</h2>
+<!-- ────────────────────────────────────────────────────── -->
+
+<h3>Data Flow</h3>
+<pre><code>Network Traffic
+    |
+    +--&gt; Zeek --&gt; /nsm/zeek/logs/current/*.log --&gt; Filebeat --&gt; SIEM
+    |                                                (zeek module, ECS)
+    |
+    +--&gt; Suricata --&gt; /nsm/suricata/log/eve.json --&gt; Filebeat --&gt; SIEM
+    |                                                  (suricata module, ECS)
+    |
+    +--&gt; tcpdump --&gt; /nsm/pcap/*.pcap (rolling, optional)</code></pre>
+
+<h3>Zeek Log Types and Paths</h3>
+<p>All Zeek logs are written to <code>/nsm/zeek/logs/current/</code>:</p>
+<table>
+  <tr><th>Log File</th><th>Content</th></tr>
+  <tr><td><code>conn.log</code></td><td>TCP/UDP/ICMP connections</td></tr>
+  <tr><td><code>dns.log</code></td><td>DNS queries and responses</td></tr>
+  <tr><td><code>http.log</code></td><td>HTTP requests/responses</td></tr>
+  <tr><td><code>ssl.log</code></td><td>TLS/SSL handshakes</td></tr>
+  <tr><td><code>files.log</code></td><td>File transfers</td></tr>
+  <tr><td><code>notice.log</code></td><td>CodeRed detections and Zeek notices</td></tr>
+  <tr><td><code>smtp.log</code></td><td>SMTP sessions</td></tr>
+  <tr><td><code>ssh.log</code></td><td>SSH connections</td></tr>
+  <tr><td><code>dhcp.log</code></td><td>DHCP transactions</td></tr>
+  <tr><td><code>ntp.log</code></td><td>NTP traffic</td></tr>
+  <tr><td><code>rdp.log</code></td><td>RDP connections</td></tr>
+  <tr><td><code>smb_files.log</code></td><td>SMB file activity</td></tr>
+  <tr><td><code>smb_mapping.log</code></td><td>SMB share mappings</td></tr>
+  <tr><td><code>x509.log</code></td><td>X.509 certificates</td></tr>
+  <tr><td><code>pe.log</code></td><td>Portable Executable analysis</td></tr>
+  <tr><td><code>capture_loss.log</code></td><td>Packet loss statistics</td></tr>
+  <tr><td><code>reporter.log</code></td><td>Zeek internal errors</td></tr>
+</table>
+
+<h3>Suricata EVE JSON Output</h3>
+<p>Suricata writes to <code>/nsm/suricata/log/eve.json</code> with these event types (configured in <code>codered-override.yaml</code>):</p>
+<ul>
+  <li><code>alert</code> &mdash; IDS alerts with metadata and tagged packets</li>
+  <li><code>anomaly</code> &mdash; Protocol anomalies</li>
+  <li><code>http</code> &mdash; HTTP with extended fields</li>
+  <li><code>dns</code> &mdash; DNS queries/responses</li>
+  <li><code>tls</code> &mdash; TLS with JA3/JA4 fingerprints</li>
+  <li><code>files</code> &mdash; File metadata with MD5/SHA256</li>
+  <li><code>smtp</code> &mdash; SMTP with extended fields</li>
+  <li><code>ssh</code> &mdash; SSH connections</li>
+  <li><code>flow</code> &mdash; Flow records</li>
+  <li><code>netflow</code> &mdash; NetFlow-style records</li>
+</ul>
+
+<h3>Filebeat Configuration</h3>
+<p>Filebeat is configured by <code>apply_filebeat_config()</code> in the CLI. It creates two inputs:</p>
+<ol>
+  <li><strong>Zeek logs:</strong> <code>/nsm/zeek/logs/current/*.log</code> (excludes .gz, stderr, stdout, capture_loss, reporter, stats)</li>
+  <li><strong>Suricata EVE:</strong> <code>/nsm/suricata/log/eve.json</code> (JSON parsed, keys under root)</li>
+</ol>
+
+<p><strong>ECS Processors:</strong></p>
+<pre><code>processors:
+  - add_host_metadata
+  - add_fields:
+      target: observer
+      fields:
+        name: "&lt;sensor_name&gt;"
+        type: ndr
+        vendor: CodeRed
+        product: CodeRed NDR</code></pre>
+
+<p><strong>Output options:</strong></p>
+<ul>
+  <li><strong>Elasticsearch:</strong> <code>output.elasticsearch</code> with <code>http://</code> or <code>https://</code> scheme</li>
+  <li><strong>Logstash:</strong> <code>output.logstash</code> with optional TLS</li>
+</ul>
+
+<p>Additionally, Filebeat module configs exist in the repo:</p>
+<ul>
+  <li><code>filebeat/zeek.yml</code> &mdash; Zeek module with specific log paths for each log type (conn, dns, http, files, ssl, notice, smtp, ssh, ntp, dhcp, rdp, pe, x509, smb_files, smb_mapping)</li>
+  <li><code>filebeat/suricata.yml</code> &mdash; Suricata module reading <code>/nsm/suricata/log/eve.json</code></li>
+</ul>
+
+<h3>Disk Cleanup Behavior</h3>
+<p>The <code>disk-cleanup.sh</code> script runs periodically via <code>codered-disk-cleanup.timer</code>. It triggers when <code>/nsm/</code> usage reaches <strong>85%</strong>.</p>
+<p>Cleanup phases (in priority order):</p>
+<ol>
+  <li><strong>Phase 1:</strong> Delete oldest 50 PCAP files (<code>/nsm/pcap/*.pcap*</code>)</li>
+  <li><strong>Phase 2:</strong> Delete oldest 100 archived Zeek logs (<code>/nsm/zeek/logs/*.log.gz</code>)</li>
+  <li><strong>Phase 3:</strong> Delete oldest 20 rotated Suricata logs (<code>/nsm/suricata/log/eve.json.*</code>)</li>
+  <li><strong>Phase 4:</strong> Delete oldest 200 extracted files (<code>/nsm/zeek/extracted/</code>)</li>
+</ol>
+<p>Each phase re-checks disk usage before proceeding. All deletions are logged to <code>/var/log/codered/disk-cleanup.log</code>.</p>
+
+<h3>Rolling PCAP Capture</h3>
+<p>The <code>start-pcap.sh</code> script launches <code>tcpdump</code> with:</p>
+<ul>
+  <li>Rotates files hourly (<code>-G 3600</code>)</li>
+  <li>Splits at 100 MB per file (<code>-C 100</code>)</li>
+  <li>Compresses completed files (<code>-z gzip</code>)</li>
+  <li>Full packets (<code>--snapshot-length=0</code>)</li>
+  <li>Output: <code>/nsm/pcap/&lt;sensor_name&gt;_YYYYMMDD_HHMMSS.pcap</code></li>
+</ul>
+
+
+<!-- ────────────────────────────────────────────────────── -->
+<h2 id="auto-update">10. Auto-Update Mechanism</h2>
+<!-- ────────────────────────────────────────────────────── -->
+
+<h3>How It Works</h3>
+<p>The <code>codered-update.sh</code> script runs every 6 hours via <code>codered-update.timer</code>. It:</p>
+<ol>
+  <li>Changes to <code>/opt/codered/repo/</code> (a git clone of the GitHub repo)</li>
+  <li>Runs <code>git pull --ff-only</code> on the current branch</li>
+  <li>Compares before/after commit hashes</li>
+  <li>If changed, copies updated files to their installed locations:</li>
+</ol>
+<table>
+  <tr><th>Source (repo)</th><th>Destination</th><th>Notes</th></tr>
+  <tr><td><code>shell/cli.py</code></td><td><code>/opt/codered/shell/cli.py</code></td><td>Removes <code>chattr +i</code> first, restores after</td></tr>
+  <tr><td><code>VERSION</code></td><td><code>/opt/codered/VERSION</code></td><td></td></tr>
+  <tr><td><code>conf/codered.defaults</code></td><td><code>/etc/codered/codered.defaults</code></td><td></td></tr>
+  <tr><td><code>bin/*</code></td><td><code>/opt/codered/bin/</code></td><td>All scripts</td></tr>
+  <tr><td><code>firstboot/firstboot.sh</code></td><td><code>/opt/codered/firstboot/</code></td><td></td></tr>
+</table>
+
+<div class="callout callout-danger">
+  <div class="callout-title">Known Limitation</div>
+  <strong>No signature verification.</strong> The auto-update mechanism pulls from the GitHub repo over HTTPS and copies files directly to <code>/opt/codered/</code> without verifying GPG signatures, checksums, or code signing. A compromised GitHub account or MITM attack could push malicious code. Consider implementing signed releases for production deployments.
+</div>
+
+<div class="callout callout-warning">
+  <div class="callout-title">Known Limitation</div>
+  <strong>What does NOT get updated:</strong> Zeek detection scripts (<code>codered-detections/</code>), Zeek intel feeds, Suricata rules, Filebeat module configs, systemd unit files, and <code>sensor.conf</code> are not updated by the auto-update mechanism. These must be updated manually or through their own update paths (rule timers, intel timers).
+</div>
+
+<h3>Update Interval</h3>
+<p>Default: every 6 hours with 30-minute randomized delay. Configured in <code>codered-update.timer</code>:</p>
+<pre><code>[Timer]
+OnBootSec=15min
+OnUnitActiveSec=6h
+RandomizedDelaySec=30min
+Persistent=true</code></pre>
+
+<h3>How to Disable Auto-Update</h3>
+<pre><code># Disable the timer
+sudo systemctl stop codered-update.timer
+sudo systemctl disable codered-update.timer
+
+# Or set in codered.defaults / sensor.conf:
+[autoupdate]
+enabled = no</code></pre>
+
+<h3>Manual Update Procedure</h3>
+<pre><code># SSH in as cradmin
+cd /opt/codered/repo
+sudo git pull
 sudo /opt/codered/bin/codered-update.sh</code></pre>
 
-<!-- ─── 5 ─── -->
-<h1 id="updates">5. Updates &amp; Maintenance</h1>
+<h3>Logging</h3>
+<p>Update logs are written to <code>/var/log/codered/update.log</code>. The last successful update timestamp is stored in <code>/var/log/codered/last-update.log</code>.</p>
 
+
+<!-- ────────────────────────────────────────────────────── -->
+<h2 id="troubleshooting">11. Troubleshooting Guide</h2>
+<!-- ────────────────────────────────────────────────────── -->
+
+<h3>Common Issues and Fixes</h3>
+
+<details>
+  <summary>Services won't start</summary>
+  <div class="details-body">
+    <p><strong>Cause:</strong> Missing <code>/etc/codered/sensor.conf</code> or <code>.setup-complete</code> marker.</p>
+    <p><strong>Fix:</strong> Run the setup wizard: <code>sudo coderedndr</code> (it auto-detects unconfigured state).</p>
+    <p><strong>Cause:</strong> Monitor interface not found.</p>
+    <p><strong>Fix:</strong> Check <code>ip link show</code> for available interfaces. Update via CLI menu option 7.</p>
+  </div>
+</details>
+
+<details>
+  <summary>No logs being generated</summary>
+  <div class="details-body">
+    <p><strong>Cause:</strong> Monitor interface not in promiscuous mode, or no SPAN traffic.</p>
+    <p><strong>Fix:</strong></p>
+    <pre><code># Check promisc mode
+ip -d link show &lt;interface&gt; | grep PROMISC
+
+# Manually set promisc
+sudo ip link set &lt;interface&gt; up promisc on
+
+# Verify SPAN is configured on the switch
+# Check tcpdump can see traffic:
+sudo tcpdump -i &lt;interface&gt; -c 10</code></pre>
+  </div>
+</details>
+
+<details>
+  <summary>Filebeat not forwarding to SIEM</summary>
+  <div class="details-body">
+    <p><strong>Causes and fixes:</strong></p>
+    <ul>
+      <li><strong>Wrong SIEM address:</strong> Reconfigure via CLI menu option 8.</li>
+      <li><strong>TLS issues:</strong> If SIEM requires TLS, ensure <code>siem_tls = true</code> in config. Check <code>/var/log/filebeat/filebeat</code> for TLS errors.</li>
+      <li><strong>Firewall blocking:</strong> Ensure sensor can reach SIEM on configured port (default 9200).</li>
+      <li><strong>Filebeat errors:</strong> <code>sudo tail -50 /var/log/filebeat/filebeat</code></li>
+    </ul>
+  </div>
+</details>
+
+<details>
+  <summary>Disk full (/nsm fills up)</summary>
+  <div class="details-body">
+    <p><strong>Immediate fix:</strong></p>
+    <pre><code>sudo /opt/codered/bin/disk-cleanup.sh</code></pre>
+    <p><strong>Long-term:</strong></p>
+    <ul>
+      <li>Increase VM disk size in VMware (auto-resize on reboot handles the rest)</li>
+      <li>Reduce PCAP retention by adjusting <code>start-pcap.sh</code></li>
+      <li>Check if <code>codered-disk-cleanup.timer</code> is enabled</li>
+    </ul>
+  </div>
+</details>
+
+<details>
+  <summary>High CPU usage</summary>
+  <div class="details-body">
+    <p><strong>Cause:</strong> Traffic volume exceeds VM sizing.</p>
+    <p><strong>Fix:</strong></p>
+    <ul>
+      <li>Check CPU per process: <code>ps aux | grep -E 'zeek|suricata|filebeat'</code></li>
+      <li>Increase VM CPU cores</li>
+      <li>For Zeek: increase worker count in <code>node.cfg</code> (cluster mode for multi-core)</li>
+      <li>For Suricata: adjust <code>threads</code> setting</li>
+    </ul>
+  </div>
+</details>
+
+<details>
+  <summary>Zeek crashes or restarts frequently</summary>
+  <div class="details-body">
+    <p><strong>Check:</strong></p>
+    <pre><code># Check capture loss
+cat /nsm/zeek/logs/current/capture_loss.log
+
+# Check reporter for errors
+cat /nsm/zeek/logs/current/reporter.log
+
+# Check memory
+ps aux | grep zeek
+
+# Check journal
+sudo journalctl -u codered-zeek --no-pager -n 100</code></pre>
+    <p>Common causes: OOM (increase RAM), interface down, corrupt state (run <code>zeekctl cleanup</code>).</p>
+  </div>
+</details>
+
+<details>
+  <summary>Suricata dropping packets</summary>
+  <div class="details-body">
+    <pre><code># Check AF_PACKET stats
+sudo suricatasc -c "iface-stat &lt;monitor-interface&gt;"
+
+# Check suricata stats
+sudo tail -100 /nsm/suricata/log/eve.json | jq 'select(.event_type=="stats")' | tail -1</code></pre>
+    <p>Fix: increase VM resources, or tune Suricata AF_PACKET settings (ring-size, cluster-type).</p>
+  </div>
+</details>
+
+<h3>Log Locations for Debugging</h3>
 <table>
-  <tr><th>Update Type</th><th>How</th><th>Frequency</th><th>Downtime</th></tr>
-  <tr><td>Detection rules</td><td>Automatic (daily timer)</td><td>Daily</td><td>None (live reload)</td></tr>
-  <tr><td>CodeRed config/CLI</td><td>Automatic (6h git timer)</td><td>When you push</td><td>None</td></tr>
-  <tr><td>OS security patches</td><td><code>sudo apt-get upgrade -y</code></td><td>Monthly</td><td>Reboot for kernel</td></tr>
+  <tr><th>Log</th><th>Path</th><th>Purpose</th></tr>
+  <tr><td>CLI log</td><td><code>/var/log/codered/cli.log</code></td><td>CLI Python logging</td></tr>
+  <tr><td>Audit log</td><td><code>/var/log/codered/audit.log</code></td><td>All user actions with timestamps and source IPs</td></tr>
+  <tr><td>Update log</td><td><code>/var/log/codered/update.log</code></td><td>Auto-update activity</td></tr>
+  <tr><td>Rule update log</td><td><code>/var/log/codered/rule-update.log</code></td><td>Suricata rule update history</td></tr>
+  <tr><td>Disk cleanup log</td><td><code>/var/log/codered/disk-cleanup.log</code></td><td>Disk cleanup actions</td></tr>
+  <tr><td>Disk resize log</td><td><code>/var/log/codered/disk-resize.log</code></td><td>Boot-time disk expansion</td></tr>
+  <tr><td>Filebeat log</td><td><code>/var/log/filebeat/filebeat</code></td><td>Filebeat operational log</td></tr>
+  <tr><td>Suricata EVE</td><td><code>/nsm/suricata/log/eve.json</code></td><td>Suricata events (alerts, flows, etc.)</td></tr>
+  <tr><td>Zeek logs</td><td><code>/nsm/zeek/logs/current/</code></td><td>Current Zeek log directory</td></tr>
+  <tr><td>System journal</td><td><code>journalctl</code></td><td>Systemd service logs</td></tr>
 </table>
 
-<h2>Push Updates to All Sensors</h2>
-<pre><code># You push changes to GitHub:
-git push origin main
+<h3>Health Check Output</h3>
+<p>The <code>health-check.sh</code> script (<code>sudo /opt/codered/bin/health-check.sh</code>) checks:</p>
+<ul>
+  <li><strong>Configuration:</strong> sensor.conf exists, firstboot complete</li>
+  <li><strong>Services:</strong> codered-zeek, codered-suricata, filebeat, codered-pcap status and uptime</li>
+  <li><strong>Performance:</strong> Per-process CPU/memory, system load, memory usage</li>
+  <li><strong>Disk space:</strong> <code>/</code> and <code>/nsm</code> usage with thresholds (75%/85%/95%)</li>
+  <li><strong>Packet capture:</strong> Monitor interface promisc mode, Suricata AF_PACKET drops, Zeek capture_loss</li>
+  <li><strong>Log freshness:</strong> Suricata EVE, Zeek conn.log and dns.log (stale if &gt;10 min)</li>
+  <li><strong>SIEM connectivity:</strong> TCP connection test to configured SIEM endpoint</li>
+  <li><strong>Threat intel:</strong> Suricata rule freshness, Zeek intel feed freshness</li>
+  <li><strong>Other:</strong> GeoIP database, NTP sync</li>
+</ul>
+<p>Exit codes: <code>0</code> = healthy, <code>1</code> = degraded (warnings), <code>2</code> = critical.</p>
 
-# Sensors auto-pull within 6 hours.
-# Or force immediate update:
-ssh admin@sensor-ip "sudo /opt/codered/bin/codered-update.sh"</code></pre>
+<h3>Support Bundle</h3>
+<p>Generate via CLI menu option 10 or programmatically:</p>
+<pre><code>sudo coderedndr
+# Select option 10</code></pre>
+<p>The bundle (<code>/tmp/codered-diag-YYYYMMDD-HHMMSS.tar.gz</code>) contains:</p>
+<ul>
+  <li>hostname, uptime, IP addresses, routes</li>
+  <li>Disk usage, memory, running processes, service list</li>
+  <li><code>sensor.conf</code> (with tokens redacted)</li>
+  <li>Last 200 lines of <code>cli.log</code> and <code>audit.log</code></li>
+  <li>Last 500 lines of syslog</li>
+  <li>Last 1 hour of journalctl for codered-zeek, codered-suricata, filebeat</li>
+</ul>
 
-<!-- ─── 6 ─── -->
-<h1 id="rules">6. Suricata Rules Management</h1>
 
-<pre><code># Force rule update
-sudo /opt/codered/bin/update-rules.sh
+<!-- ────────────────────────────────────────────────────── -->
+<h2 id="config-reference">12. Configuration Reference</h2>
+<!-- ────────────────────────────────────────────────────── -->
 
-# Check last update
-cat /var/log/codered/last-rule-update.log
+<h3>codered.defaults (Annotated)</h3>
+<p>Path: <code>/etc/codered/codered.defaults</code>. These are the shipped defaults, overridden by <code>sensor.conf</code>.</p>
+<pre><code>[sensor]
+hostname = codered-sensor          # System hostname
+sensor_name = sensor-01            # Identifier sent to SIEM in ECS fields
+registration_token =               # Optional token for cloud registration
 
-# View rule count
-grep -c "^alert\|^drop" /etc/suricata/rules/*.rules
+[network]
+mgmt_interface = ens32             # Management NIC name
+mgmt_mode = dhcp                   # dhcp or static
+mgmt_ip =                          # Static IP (if static mode)
+mgmt_netmask = 255.255.255.0      # Subnet mask
+mgmt_gateway =                     # Default gateway
+mgmt_dns = 8.8.8.8,8.8.4.4       # DNS servers (comma-separated)
+monitor_interface = ens34          # Primary monitor NIC (SPAN port)
 
-# Add custom rules
-sudo vi /etc/suricata/rules/local.rules
+[forwarding]
+backend = elastic-agent            # Forwarding backend type
+siem_endpoint =                    # SIEM address (IP or FQDN)
+siem_port = 9200                   # SIEM port
 
-# Example:
-alert http any any -> any any (msg:"CUSTOM Suspicious UA"; http.user_agent; content:"evil-bot"; sid:9000001; rev:1;)
+[zeek]
+workers = auto                     # Number of Zeek workers (auto = CPU count)
+protocols = dns,http,ssl,smtp,ssh,ftp,dhcp,ntp,smb,rdp,modbus,dnp3
+community_id = yes                 # Enable community ID for correlation
 
-# Reload
-sudo systemctl restart suricata</code></pre>
+[suricata]
+ips_mode = no                      # IDS mode (no) or IPS mode (yes)
+threads = auto                     # Suricata threads (auto = CPU count)
+rule_sources = et/open             # Enabled rule sources
+community_id = yes                 # Enable community ID
+eve_types = alert,anomaly,dns,http,tls,files,smtp,ssh,flow,netflow
 
-<!-- ─── 7 ─── -->
-<h1 id="forwarding">7. Log Forwarding</h1>
+[hardening]
+apparmor = yes                     # Enable AppArmor profiles
+readonly_usr = yes                 # Mount /usr read-only
+fail2ban = yes                     # Enable fail2ban
+firewall = yes                     # Enable firewall rules
 
+[autoupdate]
+enabled = yes                      # Enable auto-update from GitHub
+repo_url = https://github.com/lolomee/CodeRed-NDR.git
+branch = main                      # Git branch to track
+interval = 6h                      # Update check interval</code></pre>
+
+<h3>sensor.conf Field Reference</h3>
+<p>Path: <code>/etc/codered/sensor.conf</code>. Generated by the setup wizard or CLI. Same INI format as defaults with these sections:</p>
 <table>
-  <tr><th>Log Source</th><th>Path</th><th>Format</th></tr>
-  <tr><td>Zeek</td><td><code>/opt/zeek/logs/current/*.log</code> or <code>/opt/zeek/logs/current/*.log</code></td><td>NDJSON</td></tr>
-  <tr><td>Suricata</td><td><code>/var/log/suricata/eve.json</code></td><td>NDJSON</td></tr>
+  <tr><th>Section</th><th>Key</th><th>Description</th></tr>
+  <tr><td rowspan="3"><code>[sensor]</code></td><td><code>hostname</code></td><td>System hostname</td></tr>
+  <tr><td><code>sensor_name</code></td><td>SIEM identifier (appears in observer.name)</td></tr>
+  <tr><td><code>registration_token</code></td><td>Optional cloud registration token</td></tr>
+  <tr><td rowspan="8"><code>[network]</code></td><td><code>mgmt_interface</code></td><td>Management NIC</td></tr>
+  <tr><td><code>mgmt_mode</code></td><td><code>dhcp</code> or <code>static</code></td></tr>
+  <tr><td><code>mgmt_ip</code></td><td>Static IP address</td></tr>
+  <tr><td><code>mgmt_netmask</code></td><td>Subnet mask (dotted or CIDR)</td></tr>
+  <tr><td><code>mgmt_gateway</code></td><td>Default gateway</td></tr>
+  <tr><td><code>mgmt_dns</code></td><td>DNS servers (comma-separated)</td></tr>
+  <tr><td><code>monitor_interface</code></td><td>Primary monitor interface</td></tr>
+  <tr><td><code>monitor_interfaces</code></td><td>All monitor interfaces (comma-separated)</td></tr>
+  <tr><td rowspan="4"><code>[forwarding]</code></td><td><code>siem_output</code></td><td><code>elasticsearch</code> or <code>logstash</code></td></tr>
+  <tr><td><code>siem_host</code></td><td>SIEM address (IP or FQDN)</td></tr>
+  <tr><td><code>siem_port</code></td><td>SIEM port</td></tr>
+  <tr><td><code>siem_tls</code></td><td><code>true</code> or <code>false</code></td></tr>
 </table>
 
-<pre><code># Check Filebeat status
-systemctl status filebeat
-journalctl -u filebeat -f
+<h3>Zeek node.cfg</h3>
+<p>Path: <code>/opt/zeek/etc/node.cfg</code>. Auto-generated by <code>apply_zeek_config()</code>:</p>
+<pre><code>[zeek]
+type=standalone
+host=localhost
+interface=af_packet::ens34</code></pre>
 
-# Test Filebeat output
-filebeat test output</code></pre>
+<h3>Suricata Override Config</h3>
+<p>Path: <code>/etc/suricata/codered-override.yaml</code>. Auto-generated by <code>apply_suricata_config()</code>:</p>
+<pre><code>%YAML 1.1
+---
+af-packet:
+  - interface: ens34
+    cluster-id: 99
+    cluster-type: cluster_flow
+    defrag: yes
+    use-mmap: yes
+    tpacket-v3: yes
 
-<!-- ─── 8 ─── -->
-<h1 id="hardening">8. Security Hardening</h1>
+community-id:
+  enabled: true
 
+outputs:
+  - eve-log:
+      enabled: yes
+      filetype: regular
+      filename: /nsm/suricata/log/eve.json
+      community-id: true
+      types:
+        - alert:
+            tagged-packets: yes
+            metadata: yes
+        - anomaly:
+            enabled: yes
+        - http:
+            extended: yes
+        - dns
+        - tls:
+            extended: yes
+            ja3: yes
+            ja4: yes
+        - files:
+            force-magic: yes
+            force-hash: [md5, sha256]
+        - smtp:
+            extended: yes
+        - ssh
+        - flow
+        - netflow</code></pre>
+
+
+<!-- ────────────────────────────────────────────────────── -->
+<h2 id="security-hardening">13. Security Hardening</h2>
+<!-- ────────────────────────────────────────────────────── -->
+
+<h3>What prepare-ova.sh Hardens</h3>
+<ul>
+  <li>Root account locked, SSH access disabled</li>
+  <li><code>su</code> restricted to sudo group via <code>pam_wheel.so</code></li>
+  <li>SSH: <code>AllowUsers coderedndr cradmin</code>, <code>PermitRootLogin no</code></li>
+  <li>SSH key-only auth for cradmin (<code>PasswordAuthentication no</code>)</li>
+  <li>Login banner on SSH (<code>/etc/issue.net</code>)</li>
+  <li>Removed unnecessary services (snapd, avahi, cups, bluetooth, modemmanager, etc.)</li>
+  <li>Cloud-init and AWS artifacts removed</li>
+  <li>SSH host keys regenerated on first boot (unique per deployment)</li>
+  <li>Machine ID regenerated on boot (unique per VM)</li>
+  <li>Builder account deleted on first boot</li>
+</ul>
+
+<h3>Sudoers Design</h3>
 <table>
-  <tr><th>Control</th><th>Status</th><th>Verify</th></tr>
-  <tr><td>Root SSH disabled</td><td>Enforced</td><td><code>grep PermitRootLogin /etc/ssh/sshd_config.d/*</code></td></tr>
-  <tr><td>Strong SSH ciphers</td><td>Enforced</td><td><code>sshd -T | grep ciphers</code></td></tr>
-  <tr><td>CLI requires root</td><td>Enforced</td><td><code>coderedndr</code> checks euid==0</td></tr>
-  <tr><td>UFW firewall</td><td>Enforced</td><td><code>ufw status verbose</code></td></tr>
-  <tr><td>Fail2ban</td><td>Enforced</td><td><code>fail2ban-client status sshd</code></td></tr>
-  <tr><td>AppArmor</td><td>Enforced</td><td><code>aa-status | grep codered</code></td></tr>
-  <tr><td>ASLR</td><td>Enforced</td><td><code>cat /proc/sys/kernel/randomize_va_space</code> (= 2)</td></tr>
-  <tr><td>Core dumps disabled</td><td>Enforced</td><td><code>ulimit -c</code> (= 0)</td></tr>
-  <tr><td>Immutable files</td><td>Enforced</td><td><code>lsattr /opt/codered/shell/cli.py</code></td></tr>
-  <tr><td>Audit log</td><td>Enforced</td><td><code>cat /var/log/codered/audit.log</code></td></tr>
+  <tr><th>File</th><th>User</th><th>Access Level</th></tr>
+  <tr>
+    <td><code>/etc/sudoers.d/codered-ndr</code></td>
+    <td>coderedndr</td>
+    <td>Restricted NOPASSWD: specific systemctl commands, NDR scripts, network tools, ZeekControl, suricata-update. No shell escape vectors.</td>
+  </tr>
+  <tr>
+    <td><code>/etc/sudoers.d/codered-admin</code></td>
+    <td>cradmin</td>
+    <td>Full: <code>ALL=(ALL:ALL) ALL</code></td>
+  </tr>
 </table>
 
-<!-- ─── 9 ─── -->
-<h1 id="monitoring">9. Health Monitoring</h1>
-
-<table>
-  <tr><th>Metric</th><th>Warning</th><th>Critical</th><th>Check</th></tr>
-  <tr><td>CPU</td><td>&gt;70%</td><td>&gt;90%</td><td><code>top -bn1 | head -5</code></td></tr>
-  <tr><td>Memory</td><td>&gt;80%</td><td>&gt;95%</td><td><code>free -h</code></td></tr>
-  <tr><td>Disk /</td><td>&gt;80%</td><td>&gt;95%</td><td><code>df -h /</code></td></tr>
-  <tr><td>Zeek</td><td>—</td><td>Not running</td><td><code>pgrep -c zeek</code></td></tr>
-  <tr><td>Suricata</td><td>—</td><td>Not running</td><td><code>pgrep -c suricata</code></td></tr>
-  <tr><td>Rule update age</td><td>&gt;48h</td><td>&gt;7 days</td><td><code>cat /var/log/codered/last-rule-update.log</code></td></tr>
-</table>
-
-<!-- ─── 10 ─── -->
-<h1 id="troubleshooting">10. Troubleshooting</h1>
-
-<h2>No Traffic Being Captured</h2>
-<pre><code># Check monitor interfaces are promisc
-ip -d link show eth1 | grep -i promisc
-
-# Test packet capture
-sudo tcpdump -i eth1 -c 10
-
-# If no packets: SPAN/mirror is misconfigured on the switch</code></pre>
-
-<h2>Zeek Not Running</h2>
-<pre><code>sudo /opt/zeek/bin/zeekctl status
-sudo /opt/zeek/bin/zeekctl diag    # show crash info
-sudo /opt/zeek/bin/zeekctl deploy  # redeploy</code></pre>
-
-<h2>Logs Not Reaching CodeRed AI</h2>
-<pre><code># Check Filebeat
-sudo systemctl status filebeat
-sudo journalctl -u filebeat -n 50
-
-# Test connectivity
-curl -sk https://&lt;codered-ai-ip&gt;:9200</code></pre>
-
-<h2>Customer Locked Out</h2>
-<pre><code># SSH as your admin user, reset password:
-# Customer manages their own user password via standard 'passwd' command</code></pre>
-
-<h2>Rule Update Failing</h2>
-<pre><code>cat /var/log/codered/rule-update.log
-# Common causes: no internet, DNS failure, disk full
-curl -sI https://rules.emergingthreats.net</code></pre>
-
-<!-- ─── 11 ─── -->
-<h1 id="backup">11. Backup &amp; Recovery</h1>
-
-<h2>What to Backup</h2>
-<table>
-  <tr><th>Item</th><th>Path</th></tr>
-  <tr><td>Sensor config</td><td><code>/etc/codered/sensor.conf</code></td></tr>
-  <tr><td>Custom Suricata rules</td><td><code>/etc/suricata/rules/local.rules</code></td></tr>
-  <tr><td>Threshold config</td><td><code>/etc/suricata/threshold.config</code></td></tr>
-</table>
-
-<h2>Restore on New Server</h2>
-<pre><code># 1. Install CodeRed NDR on new Ubuntu server
-curl -sSL https://raw.githubusercontent.com/lolomee/CodeRed-NDR/main/install.sh | sudo bash
-
-# 2. Copy config from backup
-sudo cp sensor.conf /etc/codered/sensor.conf
-sudo cp local.rules /etc/suricata/rules/ 2>/dev/null
-
-# 3. Run: sudo coderedndr → option 9 (Start NDR)</code></pre>
-
-<!-- ─── 12 ─── -->
-<h1 id="fleet">12. Multi-Sensor Fleet Management</h1>
-
-<pre><code># Create sensor list
-cat > ~/sensors.txt &lt;&lt;EOF
-10.50.1.100
-10.50.2.100
-192.168.1.100
-EOF
-
-# Check all sensors
-for ip in $(cat ~/sensors.txt); do
-    echo "=== $ip ==="
-    ssh admin@$ip "hostname; uptime -p; cat /opt/codered/VERSION; pgrep -c zeek; pgrep -c suricata"
-    echo ""
-done
-
-# Push rule update to all
-for ip in $(cat ~/sensors.txt); do
-    ssh admin@$ip "sudo /opt/codered/bin/update-rules.sh" &amp;
-done
-wait
-
-# Push config update to all
-for ip in $(cat ~/sensors.txt); do
-    ssh admin@$ip "sudo /opt/codered/bin/codered-update.sh" &amp;
-done
-wait</code></pre>
-
-<!-- ─── 13 ─── -->
-<h1 id="reference">13. Quick Reference</h1>
-
-<table>
-  <tr><th>Task</th><th>Command</th></tr>
-  <tr><td>Install on new server</td><td><code>curl -sSL https://raw.githubusercontent.com/lolomee/CodeRed-NDR/main/install.sh | sudo bash</code></td></tr>
-  <tr><td>Check Zeek</td><td><code>/opt/zeek/bin/zeekctl status</code></td></tr>
-  <tr><td>Check Suricata</td><td><code>systemctl status suricata</code></td></tr>
-  <tr><td>Check Filebeat</td><td><code>systemctl status filebeat</code></td></tr>
-  <tr><td>Restart Zeek</td><td><code>/opt/zeek/bin/zeekctl restart</code></td></tr>
-  <tr><td>Restart Suricata</td><td><code>systemctl restart suricata</code></td></tr>
-  <tr><td>Force rule update</td><td><code>/opt/codered/bin/update-rules.sh</code></td></tr>
-  <tr><td>Force config update</td><td><code>/opt/codered/bin/codered-update.sh</code></td></tr>
-  <tr><td>View customer config</td><td><code>cat /etc/codered/sensor.conf</code></td></tr>
-  <tr><td>View audit log</td><td><code>cat /var/log/codered/audit.log</code></td></tr>
-  <tr><td>Run management CLI</td><td><code>sudo coderedndr</code></td></tr>
-  <tr><td>View Zeek logs</td><td><code>tail -f /opt/zeek/logs/current/conn.log</code></td></tr>
-  <tr><td>View Suricata alerts</td><td><code>tail -f /var/log/suricata/eve.json | jq 'select(.event_type=="alert")'</code></td></tr>
-  <tr><td>Check firewall</td><td><code>ufw status verbose</code></td></tr>
-  <tr><td>Check AppArmor</td><td><code>aa-status</code></td></tr>
-  <tr><td>Check timers</td><td><code>systemctl list-timers | grep codered</code></td></tr>
-</table>
-
-<h2>Important Paths</h2>
-<table>
-  <tr><th>Path</th><th>What</th></tr>
-  <tr><td><code>/opt/codered/shell/cli.py</code></td><td>Customer CLI (immutable)</td></tr>
-  <tr><td><code>/etc/codered/sensor.conf</code></td><td>Customer config</td></tr>
-  <tr><td><code>/opt/zeek/</code></td><td>Zeek installation</td></tr>
-  <tr><td><code>/etc/suricata/</code></td><td>Suricata config + rules</td></tr>
-  <tr><td><code>/var/log/codered/audit.log</code></td><td>Customer action audit</td></tr>
-  <tr><td><code>/etc/ssh/sshd_config.d/99-codered-hardening.conf</code></td><td>SSH hardening (immutable)</td></tr>
-  <tr><td><code>/etc/profile.d/codered-cli.sh</code></td><td>Restricted shell launcher (immutable)</td></tr>
-  <tr><td><code>/etc/sudoers.d/codered</code></td><td>Customer sudo whitelist</td></tr>
-</table>
-
-<div class="page-footer">
-  CodeRed NDR Admin Guide v1.0 &nbsp;&bull;&nbsp; CONFIDENTIAL &mdash; Internal Only &nbsp;&bull;&nbsp; &copy; 2026 CodeRed AI. All Rights Reserved.
+<div class="callout callout-danger">
+  <div class="callout-title">Security Note</div>
+  <p>The <code>coderedndr</code> sudoers uses <code>--no-pager</code> on <code>journalctl</code> to prevent pager shell escapes. However, the <code>*</code> wildcards on some commands (e.g., <code>ip link set * up promisc on</code>) could potentially be abused. In a high-security environment, consider restricting these further to specific interface names.</p>
 </div>
 
+<h3>SSH Hardening</h3>
+<p>Configuration in <code>/etc/ssh/sshd_config.d/90-codered-hardening.conf</code>:</p>
+<ul>
+  <li><code>PermitRootLogin no</code></li>
+  <li><code>AllowUsers coderedndr cradmin</code></li>
+  <li><code>Banner /etc/issue.net</code></li>
+  <li>Match block for cradmin: <code>PasswordAuthentication no</code>, <code>AuthenticationMethods publickey</code></li>
+</ul>
+
+<h3>CLI Immutability</h3>
+<p>The <code>cli.py</code> file has <code>chattr +i</code> set during auto-update, making it immutable (cannot be modified even by root without removing the attribute). This prevents accidental or malicious modification. The update script removes the flag before writing, then restores it.</p>
+
+<h3>Audit Trail</h3>
+<p>All CLI actions are logged to <code>/var/log/codered/audit.log</code> with:</p>
+<ul>
+  <li>UTC timestamp</li>
+  <li>Username</li>
+  <li>Source IP (from <code>SSH_CLIENT</code> environment variable)</li>
+  <li>Action performed</li>
+</ul>
+
+<div class="callout callout-danger">
+  <div class="callout-title">Known Limitation</div>
+  <p><strong>Auto-update has no code signing.</strong> The update mechanism trusts the GitHub repository over HTTPS without additional verification. Consider implementing GPG-signed commits or release checksums.</p>
 </div>
+
+<div class="callout callout-danger">
+  <div class="callout-title">Known Limitation</div>
+  <p><strong>Default password is published.</strong> The OVA ships with the password <code>CodeRed@NDR!</code> for the <code>coderedndr</code> user. While <code>chage -d 0</code> forces a change on first login, the default password is visible in the <code>prepare-ova.sh</code> script. Ensure customers change it immediately.</p>
+</div>
+
+<div class="callout callout-warning">
+  <div class="callout-title">Known Limitation</div>
+  <p><strong>TLS verification in Filebeat.</strong> When <code>siem_tls = false</code>, Filebeat communicates with the SIEM over plain HTTP. When TLS is enabled, the generated config uses <code>verification_mode: certificate</code> but no custom CA certificate path is configured. Customers using self-signed SIEM certificates will need to manually add the CA cert.</p>
+</div>
+
+
+<!-- ────────────────────────────────────────────────────── -->
+<h2 id="maintenance">14. Maintenance Procedures</h2>
+<!-- ────────────────────────────────────────────────────── -->
+
+<h3>Routine Maintenance Checklist</h3>
+<table>
+  <tr><th>Task</th><th>Frequency</th><th>Method</th></tr>
+  <tr><td>Health check</td><td>Daily / ad-hoc</td><td><code>sudo /opt/codered/bin/health-check.sh</code></td></tr>
+  <tr><td>Suricata rule update</td><td>Daily (automatic)</td><td><code>codered-rule-update.timer</code></td></tr>
+  <tr><td>Threat intel update</td><td>Periodic (automatic)</td><td><code>codered-intel-update.timer</code></td></tr>
+  <tr><td>Software update</td><td>Every 6h (automatic)</td><td><code>codered-update.timer</code></td></tr>
+  <tr><td>Disk usage check</td><td>Weekly</td><td><code>df -h /nsm</code> or health check</td></tr>
+  <tr><td>Review audit log</td><td>Monthly</td><td><code>cat /var/log/codered/audit.log</code></td></tr>
+  <tr><td>Config backup</td><td>Before changes</td><td><code>sudo /opt/codered/bin/backup-config.sh</code></td></tr>
+</table>
+
+<h3>Backup / Restore Procedures</h3>
+<h4>Backup</h4>
+<pre><code>sudo /opt/codered/bin/backup-config.sh</code></pre>
+<p>Creates a tarball at <code>/var/lib/codered/backups/codered-config-YYYYMMDD_HHMMSS.tar.gz</code> containing:</p>
+<ul>
+  <li><code>/etc/codered/sensor.conf</code></li>
+  <li><code>/etc/codered/codered.defaults</code></li>
+  <li><code>/opt/zeek/etc/node.cfg</code></li>
+  <li><code>/opt/zeek/share/zeek/site/local.zeek</code></li>
+  <li><code>/etc/filebeat/filebeat.yml</code></li>
+  <li><code>/etc/filebeat/modules.d/</code></li>
+  <li><code>/opt/zeek/share/zeek/site/intel/</code></li>
+</ul>
+<p>Retains the last 10 backups. All backups are logged to <code>audit.log</code>.</p>
+
+<h4>Restore</h4>
+<pre><code># List available backups
+ls -la /var/lib/codered/backups/
+
+# Restore a specific backup
+cd /
+sudo tar xzf /var/lib/codered/backups/codered-config-20250115_143022.tar.gz
+
+# Restart services to pick up restored config
+sudo systemctl restart codered-zeek codered-suricata filebeat</code></pre>
+
+<h3>Factory Reset</h3>
+<pre><code>sudo /opt/codered/bin/factory-reset.sh</code></pre>
+<p>Requires typing <code>RESET</code> to confirm. This will:</p>
+<ul>
+  <li>Stop and disable all NDR services</li>
+  <li>Delete <code>sensor.conf</code>, <code>.setup-complete</code>, <code>.firstboot-complete</code></li>
+  <li>Reset Zeek <code>node.cfg</code> to placeholder</li>
+  <li>Clear all data in <code>/nsm/</code> (logs, spool, extracted, pcap)</li>
+  <li>Truncate all CodeRed log files</li>
+  <li>Remove Filebeat config</li>
+</ul>
+<p>After factory reset, the setup wizard runs on next login.</p>
+
+<h3>Version Upgrade Path</h3>
+<ol>
+  <li>Backup current config: <code>sudo /opt/codered/bin/backup-config.sh</code></li>
+  <li>Pull latest code: <code>cd /opt/codered/repo &amp;&amp; sudo git pull</code></li>
+  <li>Run the update script: <code>sudo /opt/codered/bin/codered-update.sh</code></li>
+  <li>For major upgrades, re-run the installer: <code>sudo bash /opt/codered/repo/install.sh</code></li>
+  <li>Verify services: <code>sudo /opt/codered/bin/health-check.sh</code></li>
+</ol>
+
+<h3>Adding New Suricata Rule Sources</h3>
+<pre><code># List available sources
+sudo suricata-update list-sources
+
+# Enable a source
+sudo suricata-update enable-source &lt;source-name&gt;
+
+# Run update
+sudo suricata-update
+
+# Reload rules (live)
+sudo suricatasc -c reload-rules</code></pre>
+
+<h3>Adding New Zeek Packages</h3>
+<pre><code># Install via zeek package manager (zkg)
+sudo /opt/zeek/bin/zkg install &lt;package-name&gt;
+
+# Deploy changes
+sudo /opt/zeek/bin/zeekctl deploy</code></pre>
+
+<h3>Adding New Threat Intel Feeds</h3>
+<p>Edit <code>/opt/codered/bin/update-intel.sh</code> and add a new download section. The feed must be converted to Zeek Intel format with tab-separated fields:</p>
+<pre><code>#fields	indicator	indicator_type	meta.source	meta.desc	meta.url</code></pre>
+<p>Supported indicator types: <code>Intel::ADDR</code>, <code>Intel::URL</code>, <code>Intel::DOMAIN</code>, <code>Intel::FILE_HASH</code>, <code>Intel::EMAIL</code>.</p>
+
+<h3>Disk Expansion</h3>
+<p>The sensor auto-resizes on every boot via <code>codered-disk-resize.service</code>:</p>
+<ol>
+  <li>Shut down the VM</li>
+  <li>Increase the virtual disk size in VMware settings</li>
+  <li>Power on the VM</li>
+  <li>The <code>auto-resize-disk.sh</code> script automatically runs <code>growpart</code> + <code>resize2fs</code></li>
+  <li>Verify: <code>df -h /</code></li>
+</ol>
+
+
+<!-- ────────────────────────────────────────────────────── -->
+<h2 id="appendix">15. Appendix</h2>
+<!-- ────────────────────────────────────────────────────── -->
+
+<h3>A. Complete File/Directory Layout</h3>
+<table>
+  <tr><th>Path</th><th>Description</th></tr>
+  <tr><td><code>/opt/codered/</code></td><td>Application root</td></tr>
+  <tr><td><code>/opt/codered/shell/cli.py</code></td><td>Management CLI (Python 3)</td></tr>
+  <tr><td><code>/opt/codered/bin/</code></td><td>Management scripts</td></tr>
+  <tr><td><code>/opt/codered/firstboot/firstboot.sh</code></td><td>First-boot setup wizard</td></tr>
+  <tr><td><code>/opt/codered/VERSION</code></td><td>Version file (2.0.0)</td></tr>
+  <tr><td><code>/opt/codered/repo/</code></td><td>Git clone for auto-updates</td></tr>
+  <tr><td><code>/etc/codered/</code></td><td>Configuration directory</td></tr>
+  <tr><td><code>/etc/codered/codered.defaults</code></td><td>Default configuration</td></tr>
+  <tr><td><code>/etc/codered/sensor.conf</code></td><td>Customer-specific config (generated by wizard)</td></tr>
+  <tr><td><code>/etc/codered/.setup-complete</code></td><td>Setup sentinel file</td></tr>
+  <tr><td><code>/nsm/</code></td><td>Network security monitoring data root</td></tr>
+  <tr><td><code>/nsm/zeek/logs/current/</code></td><td>Active Zeek logs</td></tr>
+  <tr><td><code>/nsm/zeek/logs/&lt;date&gt;/</code></td><td>Rotated Zeek logs (archived)</td></tr>
+  <tr><td><code>/nsm/zeek/spool/</code></td><td>Zeek spool directory</td></tr>
+  <tr><td><code>/nsm/zeek/extracted/</code></td><td>Zeek extracted files</td></tr>
+  <tr><td><code>/nsm/suricata/log/</code></td><td>Suricata EVE JSON logs</td></tr>
+  <tr><td><code>/nsm/suricata/rules/</code></td><td>Suricata rules (symlink to <code>/var/lib/suricata/rules</code>)</td></tr>
+  <tr><td><code>/nsm/pcap/</code></td><td>Rolling PCAP capture files</td></tr>
+  <tr><td><code>/var/log/codered/</code></td><td>CodeRed operational logs</td></tr>
+  <tr><td><code>/var/log/codered/audit.log</code></td><td>CLI audit trail</td></tr>
+  <tr><td><code>/var/log/codered/cli.log</code></td><td>CLI debug log</td></tr>
+  <tr><td><code>/var/log/codered/update.log</code></td><td>Auto-update log</td></tr>
+  <tr><td><code>/var/log/codered/rule-update.log</code></td><td>Suricata rule update log</td></tr>
+  <tr><td><code>/var/log/codered/disk-cleanup.log</code></td><td>Disk cleanup log</td></tr>
+  <tr><td><code>/var/log/codered/disk-resize.log</code></td><td>Disk auto-resize log</td></tr>
+  <tr><td><code>/var/lib/codered/</code></td><td>State directory</td></tr>
+  <tr><td><code>/var/lib/codered/.firstboot-complete</code></td><td>Firstboot marker</td></tr>
+  <tr><td><code>/var/lib/codered/backups/</code></td><td>Configuration backups</td></tr>
+  <tr><td><code>/var/lib/suricata/rules/</code></td><td>Suricata rule files</td></tr>
+  <tr><td><code>/opt/zeek/share/zeek/site/codered-detections/</code></td><td>Custom Zeek detection scripts</td></tr>
+  <tr><td><code>/opt/zeek/share/zeek/site/intel/</code></td><td>Zeek threat intel feed files</td></tr>
+  <tr><td><code>/opt/zeek/etc/node.cfg</code></td><td>Zeek node configuration</td></tr>
+  <tr><td><code>/opt/zeek/share/zeek/site/local.zeek</code></td><td>Zeek local policy (tuning overrides)</td></tr>
+  <tr><td><code>/etc/suricata/codered-override.yaml</code></td><td>Suricata override config</td></tr>
+  <tr><td><code>/etc/filebeat/filebeat.yml</code></td><td>Filebeat main configuration</td></tr>
+  <tr><td><code>/etc/filebeat/modules.d/zeek.yml</code></td><td>Filebeat Zeek module</td></tr>
+  <tr><td><code>/etc/filebeat/modules.d/suricata.yml</code></td><td>Filebeat Suricata module</td></tr>
+  <tr><td><code>/usr/local/bin/coderedndr</code></td><td>CLI entry point wrapper</td></tr>
+  <tr><td><code>/usr/share/GeoIP/GeoLite2-City.mmdb</code></td><td>GeoIP database</td></tr>
+</table>
+
+<h3>B. All Systemd Units</h3>
+<table>
+  <tr><th>Unit</th><th>Type</th><th>Description</th></tr>
+  <tr><td><code>codered-zeek.service</code></td><td>Service</td><td>Zeek network monitor (forking, zeekctl)</td></tr>
+  <tr><td><code>codered-suricata.service</code></td><td>Service</td><td>Suricata IDS/IPS (simple)</td></tr>
+  <tr><td><code>codered-pcap.service</code></td><td>Service</td><td>Rolling PCAP capture (tcpdump)</td></tr>
+  <tr><td><code>filebeat.service</code></td><td>Service</td><td>Log forwarding (stock + drop-in)</td></tr>
+  <tr><td><code>codered-firstboot.service</code></td><td>Oneshot</td><td>First-boot setup wizard</td></tr>
+  <tr><td><code>codered-disk-resize.service</code></td><td>Oneshot</td><td>Auto-resize disk on boot</td></tr>
+  <tr><td><code>codered-remove-builder.service</code></td><td>Oneshot</td><td>Remove coderedai user (first boot after OVA prep)</td></tr>
+  <tr><td><code>regenerate-ssh-keys.service</code></td><td>Oneshot</td><td>Regenerate SSH host keys (first boot)</td></tr>
+  <tr><td><code>codered-rule-update.service</code></td><td>Oneshot</td><td>Suricata rule update</td></tr>
+  <tr><td><code>codered-rule-update.timer</code></td><td>Timer</td><td>Daily at 03:00 UTC</td></tr>
+  <tr><td><code>codered-update.service</code></td><td>Oneshot</td><td>Auto-update from GitHub</td></tr>
+  <tr><td><code>codered-update.timer</code></td><td>Timer</td><td>Every 6 hours</td></tr>
+  <tr><td><code>codered-intel-update.service</code></td><td>Oneshot</td><td>Zeek threat intel feed update</td></tr>
+  <tr><td><code>codered-intel-update.timer</code></td><td>Timer</td><td>Periodic</td></tr>
+  <tr><td><code>codered-disk-cleanup.service</code></td><td>Oneshot</td><td>Disk space cleanup</td></tr>
+  <tr><td><code>codered-disk-cleanup.timer</code></td><td>Timer</td><td>Periodic</td></tr>
+</table>
+
+<h3>C. All Scripts in /opt/codered/bin/</h3>
+<table>
+  <tr><th>Script</th><th>Description</th></tr>
+  <tr><td><code>health-check.sh</code></td><td>Comprehensive health check (exits 0/1/2)</td></tr>
+  <tr><td><code>codered-update.sh</code></td><td>Auto-update from GitHub repo</td></tr>
+  <tr><td><code>update-rules.sh</code></td><td>Suricata rule update via suricata-update</td></tr>
+  <tr><td><code>update-intel.sh</code></td><td>Zeek threat intel feed updater (abuse.ch)</td></tr>
+  <tr><td><code>backup-config.sh</code></td><td>Configuration backup (keeps last 10)</td></tr>
+  <tr><td><code>factory-reset.sh</code></td><td>Factory reset (erases config and data)</td></tr>
+  <tr><td><code>disk-cleanup.sh</code></td><td>Disk space cleanup (85% threshold)</td></tr>
+  <tr><td><code>start-pcap.sh</code></td><td>Rolling PCAP capture via tcpdump</td></tr>
+  <tr><td><code>tune-interface.sh</code></td><td>Disables NIC offloading (rx, tx, sg, tso, gso, gro, lro)</td></tr>
+  <tr><td><code>auto-resize-disk.sh</code></td><td>Boot-time disk expansion (growpart + resize)</td></tr>
+  <tr><td><code>prepare-ova.sh</code></td><td>OVA preparation (user lockdown, cleanup)</td></tr>
+</table>
+
+<h3>D. Default Ports</h3>
+<table>
+  <tr><th>Port</th><th>Direction</th><th>Protocol</th><th>Purpose</th></tr>
+  <tr><td>22</td><td>Inbound</td><td>TCP</td><td>SSH management access</td></tr>
+  <tr><td>9200</td><td>Outbound</td><td>TCP</td><td>Elasticsearch SIEM forwarding (default)</td></tr>
+  <tr><td>5044</td><td>Outbound</td><td>TCP</td><td>Logstash SIEM forwarding (alternate)</td></tr>
+  <tr><td>53</td><td>Outbound</td><td>TCP/UDP</td><td>DNS resolution</td></tr>
+  <tr><td>123</td><td>Outbound</td><td>UDP</td><td>NTP time synchronization</td></tr>
+  <tr><td>443</td><td>Outbound</td><td>TCP</td><td>GitHub (auto-update), abuse.ch (threat intel), Suricata rules</td></tr>
+  <tr><td>80</td><td>Outbound</td><td>TCP</td><td>APT repositories, rule downloads</td></tr>
+</table>
+
+<h3>E. MITRE ATT&amp;CK Complete Coverage Matrix</h3>
+<table>
+  <tr><th>Tactic</th><th>Technique</th><th>ID</th><th>Detection Method</th></tr>
+  <tr><td>Discovery</td><td>Network Service Discovery</td><td>T1046</td><td>scan-detect.zeek (Port_Scan, Network_Sweep)</td></tr>
+  <tr><td>Command &amp; Control</td><td>Application Layer Protocol</td><td>T1071</td><td>beaconing.zeek (Beaconing_Detected)</td></tr>
+  <tr><td>Command &amp; Control</td><td>Application Layer Protocol: DNS</td><td>T1071.004</td><td>dns-anomaly.zeek (DNS_Tunneling)</td></tr>
+  <tr><td>Command &amp; Control</td><td>Encrypted Channel</td><td>T1573</td><td>beaconing.zeek (Beaconing_Detected)</td></tr>
+  <tr><td>Command &amp; Control</td><td>Dynamic Resolution: DGA</td><td>T1568.002</td><td>dns-anomaly.zeek (DGA_Domain)</td></tr>
+  <tr><td>Exfiltration</td><td>Exfiltration Over C2 Channel</td><td>T1041</td><td>long-connections.zeek (Long_Connection, Potential_Exfil)</td></tr>
+  <tr><td>Resource Development</td><td>Obtain Capabilities: Digital Certificates</td><td>T1587.003</td><td>cert-anomaly.zeek (Suspicious_Certificate)</td></tr>
+  <tr><td>Various</td><td>Threat Intel Matches</td><td>Various</td><td>Zeek Intel framework (URLhaus, Feodo, SSLBL)</td></tr>
+  <tr><td>Various</td><td>Signature-based Detection</td><td>Various</td><td>Suricata ET/Open rules (30,000+ signatures)</td></tr>
+</table>
+
+<h3>F. Changelog (v1.0.0 to v2.0.0)</h3>
+<table>
+  <tr><th>Feature</th><th>v1.0.0</th><th>v2.0.0</th></tr>
+  <tr><td>CLI</td><td>Shell-based wizard + separate menu</td><td>Unified Python CLI (setup + management)</td></tr>
+  <tr><td>Monitor interfaces</td><td>Single interface</td><td>Multi-interface support</td></tr>
+  <tr><td>Detections</td><td>Suricata only</td><td>Suricata + custom Zeek behavioral detections (5 scripts)</td></tr>
+  <tr><td>Threat intel</td><td>None</td><td>abuse.ch feeds (URLhaus, Feodo, SSLBL)</td></tr>
+  <tr><td>Auto-update</td><td>Manual</td><td>Automatic from GitHub (6h interval)</td></tr>
+  <tr><td>Disk management</td><td>Manual</td><td>Auto-resize on boot + periodic cleanup</td></tr>
+  <tr><td>Health check</td><td>Basic</td><td>Comprehensive (config, services, perf, capture, SIEM, intel, NTP)</td></tr>
+  <tr><td>Support bundle</td><td>None</td><td>One-click diagnostic bundle generation</td></tr>
+  <tr><td>User model</td><td>Single user</td><td>Customer (coderedndr) + Vendor admin (cradmin)</td></tr>
+  <tr><td>Config model</td><td>Flat files</td><td>Two-layer INI (defaults + overrides)</td></tr>
+  <tr><td>SIEM output</td><td>Elasticsearch only</td><td>Elasticsearch + Logstash with TLS support</td></tr>
+  <tr><td>PCAP capture</td><td>None</td><td>Rolling PCAP with rotation and compression</td></tr>
+  <tr><td>Backup/restore</td><td>None</td><td>Automated config backup (keeps last 10)</td></tr>
+  <tr><td>Factory reset</td><td>None</td><td>One-command factory reset</td></tr>
+  <tr><td>Audit logging</td><td>None</td><td>Full audit trail with user, source IP, action</td></tr>
+  <tr><td>Uninstaller</td><td>None</td><td>Complete uninstaller with optional data/package/user removal</td></tr>
+</table>
+
+
+</main>
+</div>
+
+<!-- ════════════════════════════════════════════════════════ -->
+<!--  FOOTER                                                 -->
+<!-- ════════════════════════════════════════════════════════ -->
+<footer class="page-footer">
+  CodeRed NDR Sensor v2.0.0 &mdash; Vendor Administration Guide &mdash; Internal Use Only<br>
+  &copy; 2025 CodeRed AI. This document is confidential and intended for CodeRed team members only.
+</footer>
+
 </body>
 </html>

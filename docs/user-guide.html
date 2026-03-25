@@ -317,15 +317,16 @@ details .details-body { padding: 1rem 1.25rem; }
   <ol>
     <li><a href="#introduction">1. Introduction</a></li>
     <li><a href="#deployment">2. Deployment Guide</a></li>
-    <li><a href="#initial-setup">3. Initial Setup</a></li>
-    <li><a href="#span-mirror">4. SPAN / Mirror Port Config</a></li>
-    <li><a href="#cli-management">5. CLI Management Guide</a></li>
-    <li><a href="#detection">6. Detection Capabilities</a></li>
-    <li><a href="#siem-integration">7. SIEM Integration</a></li>
-    <li><a href="#troubleshooting">8. Troubleshooting</a></li>
-    <li><a href="#maintenance">9. Maintenance</a></li>
-    <li><a href="#security">10. Security &amp; Hardening</a></li>
-    <li><a href="#appendix">11. Appendix</a></li>
+    <li><a href="#cloud-deployment">3. Cloud Deployment</a></li>
+    <li><a href="#initial-setup">4. Initial Setup</a></li>
+    <li><a href="#span-mirror">5. SPAN / Mirror Port Config</a></li>
+    <li><a href="#cli-management">6. CLI Management Guide</a></li>
+    <li><a href="#detection">7. Detection Capabilities</a></li>
+    <li><a href="#siem-integration">8. SIEM Integration</a></li>
+    <li><a href="#troubleshooting">9. Troubleshooting</a></li>
+    <li><a href="#maintenance">10. Maintenance</a></li>
+    <li><a href="#security">11. Security &amp; Hardening</a></li>
+    <li><a href="#appendix">12. Appendix</a></li>
   </ol>
 </nav>
 
@@ -447,8 +448,274 @@ details .details-body { padding: 1rem 1.25rem; }
 </table>
 
 
-<!-- ─────────────── 3. INITIAL SETUP ─────────────── -->
-<h2 id="initial-setup">3. Initial Setup (First Boot Wizard)</h2>
+<!-- ─────────────── 3. CLOUD DEPLOYMENT ─────────────── -->
+<h2 id="cloud-deployment">3. Cloud Deployment</h2>
+
+<p>CodeRed NDR can be deployed on major cloud platforms by installing the sensor on a Linux VM and configuring the cloud provider's traffic mirroring service to feed network traffic to the sensor. This section covers AWS, Azure, Google Cloud, and Alibaba Cloud.</p>
+
+<div class="callout callout-info">
+  <div class="callout-title">Installation Command</div>
+  The install command is the same across all cloud platforms:
+  <pre><code><span class="prompt">$</span> curl -sL https://raw.githubusercontent.com/lolomee/CodeRed-NDR/main/install.sh | sudo bash</code></pre>
+</div>
+
+<!-- AWS -->
+<h3>AWS (Amazon Web Services)</h3>
+
+<h4>Launch an EC2 Instance</h4>
+<table>
+  <tr><th>Setting</th><th>Minimum</th><th>Production</th></tr>
+  <tr><td>AMI</td><td colspan="2">Ubuntu 24.04 LTS (amd64)</td></tr>
+  <tr><td>Instance type</td><td>t3a.large (2 vCPU, 8 GB RAM)</td><td>c6i.xlarge (4 vCPU, 8 GB RAM)</td></tr>
+  <tr><td>Storage</td><td>100 GB gp3</td><td>500 GB gp3</td></tr>
+  <tr><td>NICs</td><td colspan="2">2 ENIs &mdash; one for management, one for VPC Traffic Mirroring target</td></tr>
+</table>
+
+<h4>Security Group Rules</h4>
+<table>
+  <tr><th>Direction</th><th>Port</th><th>Protocol</th><th>Purpose</th></tr>
+  <tr><td>Inbound</td><td>22</td><td>TCP</td><td>SSH management access</td></tr>
+  <tr><td>Inbound</td><td>4789</td><td>UDP</td><td>VXLAN &mdash; VPC Traffic Mirroring delivery</td></tr>
+  <tr><td>Outbound</td><td>9200 / 5044</td><td>TCP</td><td>SIEM log forwarding</td></tr>
+  <tr><td>Outbound</td><td>53</td><td>TCP/UDP</td><td>DNS resolution</td></tr>
+  <tr><td>Outbound</td><td>123</td><td>UDP</td><td>NTP time synchronization</td></tr>
+  <tr><td>Outbound</td><td>443</td><td>TCP</td><td>Rule updates, threat intel feeds</td></tr>
+</table>
+
+<h4>Install CodeRed NDR</h4>
+<pre><code><span class="prompt">$</span> curl -sL https://raw.githubusercontent.com/lolomee/CodeRed-NDR/main/install.sh | sudo bash</code></pre>
+
+<h4>Set Up VPC Traffic Mirroring</h4>
+<ol>
+  <li><strong>Create a Traffic Mirror Target</strong> &mdash; select the NDR sensor&rsquo;s second ENI as the target.</li>
+  <li><strong>Create a Traffic Mirror Filter</strong> &mdash; define which traffic to capture (typically all inbound and outbound).</li>
+  <li><strong>Create a Traffic Mirror Session</strong> &mdash; associate source ENIs (the instances you want to monitor) with the target and filter.</li>
+  <li>Configure the second ENI as the monitor interface in the NDR CLI (menu option 2).</li>
+</ol>
+
+<h4>AWS CLI Example</h4>
+<pre><code><span class="comment"># 1. Create mirror target (NDR sensor's second ENI)</span>
+<span class="prompt">$</span> aws ec2 create-traffic-mirror-target \
+    --network-interface-id eni-0abc123def456789a \
+    --description "CodeRed NDR sensor"
+
+<span class="comment"># 2. Create mirror filter (capture all traffic)</span>
+<span class="prompt">$</span> aws ec2 create-traffic-mirror-filter \
+    --description "All traffic"
+
+<span class="prompt">$</span> aws ec2 create-traffic-mirror-filter-rule \
+    --traffic-mirror-filter-id tmf-0abc123def456789a \
+    --traffic-direction ingress \
+    --rule-number 100 \
+    --rule-action accept \
+    --destination-cidr-block 0.0.0.0/0 \
+    --source-cidr-block 0.0.0.0/0
+
+<span class="prompt">$</span> aws ec2 create-traffic-mirror-filter-rule \
+    --traffic-mirror-filter-id tmf-0abc123def456789a \
+    --traffic-direction egress \
+    --rule-number 200 \
+    --rule-action accept \
+    --destination-cidr-block 0.0.0.0/0 \
+    --source-cidr-block 0.0.0.0/0
+
+<span class="comment"># 3. Create mirror session (source ENI → target)</span>
+<span class="prompt">$</span> aws ec2 create-traffic-mirror-session \
+    --network-interface-id eni-0source123456789b \
+    --traffic-mirror-target-id tmt-0abc123def456789a \
+    --traffic-mirror-filter-id tmf-0abc123def456789a \
+    --session-number 1</code></pre>
+
+<pre><code>  AWS VPC Traffic Mirroring Flow
+  ┌──────────────────────────────────────────────────────────┐
+  │                        VPC                                │
+  │  ┌──────────────┐   VXLAN (UDP 4789)   ┌──────────────┐ │
+  │  │  Monitored   │ ───────────────────▶  │  CodeRed NDR │ │
+  │  │  EC2 (ENI)   │   Mirror Session      │  EC2 Sensor  │ │
+  │  │  Source       │                       │  ENI 2       │ │
+  │  └──────────────┘                       │  (monitor)   │ │
+  │                                         │  ENI 1       │ │
+  │                                         │  (mgmt/SIEM) │ │
+  │                                         └──────┬───────┘ │
+  └────────────────────────────────────────────────┼─────────┘
+                                                   │
+                                              Logs to SIEM
+</code></pre>
+
+<!-- Azure -->
+<h3>Azure (Microsoft Azure)</h3>
+
+<h4>Create a Virtual Machine</h4>
+<table>
+  <tr><th>Setting</th><th>Minimum</th><th>Production</th></tr>
+  <tr><td>Image</td><td colspan="2">Ubuntu 24.04 LTS</td></tr>
+  <tr><td>Size</td><td>Standard_D2s_v5 (2 vCPU, 8 GB)</td><td>Standard_D4s_v5 (4 vCPU, 16 GB)</td></tr>
+  <tr><td>OS disk</td><td>100 GB Premium SSD</td><td>500 GB Premium SSD</td></tr>
+  <tr><td>NICs</td><td colspan="2">2 NICs &mdash; management + monitor</td></tr>
+  <tr><td>NSG</td><td colspan="2">Same ports as AWS security group above</td></tr>
+</table>
+
+<h4>Install CodeRed NDR</h4>
+<pre><code><span class="prompt">$</span> curl -sL https://raw.githubusercontent.com/lolomee/CodeRed-NDR/main/install.sh | sudo bash</code></pre>
+
+<h4>Set Up Traffic Capture</h4>
+<div class="callout callout-warning">
+  <div class="callout-title">Azure vTAP Deprecation</div>
+  Azure Virtual Network TAP (vTAP) has been deprecated. Use one of the alternative approaches below to deliver traffic to the CodeRed NDR sensor.
+</div>
+<ul>
+  <li><strong>Azure Network Watcher Packet Capture</strong> &mdash; Use Network Watcher to capture packets from target VMs and forward them to the sensor for analysis.</li>
+  <li><strong>NSG Flow Logs</strong> &mdash; For VMs on the same vNet, enable NSG Flow Logs and forward them to the sensor via Filebeat or Logstash.</li>
+  <li><strong>Third-party virtual TAP solutions</strong> &mdash; Solutions such as cPacket or Gigamon can provide virtual TAP functionality in Azure.</li>
+  <li><strong>Inline deployment</strong> &mdash; Deploy the sensor as an inline appliance using Azure VPN Gateway mirroring or a network virtual appliance (NVA) chain.</li>
+</ul>
+
+<!-- GCP -->
+<h3>Google Cloud (GCP)</h3>
+
+<h4>Create a VM Instance</h4>
+<table>
+  <tr><th>Setting</th><th>Minimum</th><th>Production</th></tr>
+  <tr><td>Image</td><td colspan="2">Ubuntu 24.04 LTS</td></tr>
+  <tr><td>Machine type</td><td>e2-standard-2 (2 vCPU, 8 GB)</td><td>n2-standard-4 (4 vCPU, 16 GB)</td></tr>
+  <tr><td>Boot disk</td><td>100 GB SSD</td><td>500 GB SSD</td></tr>
+  <tr><td>NICs</td><td colspan="2">2 NICs (each requires its own VPC network)</td></tr>
+  <tr><td>Firewall rules</td><td colspan="2">Same ports as AWS security group above</td></tr>
+</table>
+
+<h4>Install CodeRed NDR</h4>
+<pre><code><span class="prompt">$</span> curl -sL https://raw.githubusercontent.com/lolomee/CodeRed-NDR/main/install.sh | sudo bash</code></pre>
+
+<h4>Set Up Packet Mirroring</h4>
+<ol>
+  <li><strong>Create an Internal Load Balancer (ILB)</strong> &mdash; the ILB acts as the collector and forwards mirrored traffic to the NDR instance.</li>
+  <li><strong>Create a Packet Mirroring policy</strong> &mdash; specify the source (instances, subnets, or tags to monitor), the collector (ILB), and filter criteria (protocols and direction).</li>
+  <li>Configure the second NIC as the monitor interface in the NDR CLI (menu option 2).</li>
+</ol>
+
+<h4>gcloud CLI Example</h4>
+<pre><code><span class="comment"># 1. Create health check for the ILB</span>
+<span class="prompt">$</span> gcloud compute health-checks create tcp ndr-health-check \
+    --port=22 --region=us-central1
+
+<span class="comment"># 2. Create backend service</span>
+<span class="prompt">$</span> gcloud compute backend-services create ndr-backend \
+    --load-balancing-scheme=INTERNAL \
+    --protocol=TCP \
+    --health-checks=ndr-health-check \
+    --region=us-central1
+
+<span class="comment"># 3. Add NDR instance to backend</span>
+<span class="prompt">$</span> gcloud compute backend-services add-backend ndr-backend \
+    --instance-group=ndr-instance-group \
+    --region=us-central1
+
+<span class="comment"># 4. Create forwarding rule (ILB)</span>
+<span class="prompt">$</span> gcloud compute forwarding-rules create ndr-ilb \
+    --load-balancing-scheme=INTERNAL \
+    --backend-service=ndr-backend \
+    --is-mirroring-collector \
+    --network=monitor-vpc \
+    --subnet=monitor-subnet \
+    --region=us-central1
+
+<span class="comment"># 5. Create packet mirroring policy</span>
+<span class="prompt">$</span> gcloud compute packet-mirrorings create ndr-mirror-policy \
+    --network=monitor-vpc \
+    --region=us-central1 \
+    --collector-ilb=ndr-ilb \
+    --mirrored-subnets=monitored-subnet</code></pre>
+
+<!-- Alibaba Cloud -->
+<h3>Alibaba Cloud (Aliyun)</h3>
+
+<h4>Create an ECS Instance</h4>
+<table>
+  <tr><th>Setting</th><th>Minimum</th><th>Production</th></tr>
+  <tr><td>Image</td><td colspan="2">Ubuntu 24.04 LTS</td></tr>
+  <tr><td>Instance type</td><td>ecs.g7.large (2 vCPU, 8 GB)</td><td>ecs.g7.xlarge (4 vCPU, 16 GB)</td></tr>
+  <tr><td>System disk</td><td>100 GB ESSD</td><td>500 GB ESSD</td></tr>
+  <tr><td>NICs</td><td colspan="2">2 ENIs &mdash; management + monitor</td></tr>
+  <tr><td>Security group</td><td colspan="2">Same ports as AWS security group above</td></tr>
+</table>
+
+<h4>Install CodeRed NDR</h4>
+<pre><code><span class="prompt">$</span> curl -sL https://raw.githubusercontent.com/lolomee/CodeRed-NDR/main/install.sh | sudo bash</code></pre>
+
+<h4>Set Up Traffic Mirroring</h4>
+<p>Alibaba Cloud supports VPC Traffic Mirroring with a workflow similar to AWS:</p>
+<ol>
+  <li><strong>Create a mirror source</strong> &mdash; select the ENIs of the instances you want to monitor.</li>
+  <li><strong>Create a mirror target</strong> &mdash; select the NDR sensor&rsquo;s second ENI.</li>
+  <li><strong>Create a mirror session</strong> &mdash; associate the source with the target and define filter rules.</li>
+  <li>Configure the second ENI as the monitor interface in the NDR CLI (menu option 2).</li>
+</ol>
+
+<div class="callout callout-info">
+  <div class="callout-title">Region Availability</div>
+  Alibaba Cloud Traffic Mirroring is available in both China and international regions. Check the <a href="https://www.alibabacloud.com/help/en/vpc/user-guide/traffic-mirroring-overview">Alibaba Cloud documentation</a> for the latest supported regions.
+</div>
+
+<!-- Cloud Best Practices -->
+<h3>Cloud Deployment Best Practices</h3>
+<ul>
+  <li><strong>Always use 2 NICs</strong> &mdash; management traffic and mirrored traffic should be separated to avoid interference and simplify firewall rules.</li>
+  <li><strong>Size the instance for your traffic volume</strong> &mdash; 1 Gbps sustained traffic requires approximately 4 vCPU and 8 GB RAM.</li>
+  <li><strong>Use SSD storage for <code>/nsm</code></strong> &mdash; Zeek and Suricata produce high I/O from log writes; SSD or ESSD storage is essential.</li>
+  <li><strong>Enable auto-scaling of disk</strong> &mdash; if the cloud provider supports volume auto-expansion, enable it to prevent disk-full conditions.</li>
+  <li><strong>Monitor packet loss</strong> &mdash; use the NDR CLI diagnostics (menu option 11) to check for packet drops on the monitor interface.</li>
+  <li><strong>Same availability zone</strong> &mdash; place the NDR sensor in the same availability zone as monitored resources to minimize cross-AZ data transfer costs.</li>
+  <li><strong>Multi-VPC monitoring</strong> &mdash; deploy one sensor per VPC, or use transit gateway mirroring (AWS Transit Gateway, Azure Virtual WAN, GCP NCC) to aggregate traffic.</li>
+</ul>
+
+<!-- Cloud vs On-Prem Comparison -->
+<h3>Cloud vs On-Prem Comparison</h3>
+<table>
+  <tr>
+    <th>Feature</th>
+    <th>On-Prem (OVA)</th>
+    <th>AWS</th>
+    <th>Azure</th>
+    <th>GCP</th>
+    <th>Alibaba Cloud</th>
+  </tr>
+  <tr>
+    <td>Traffic source</td>
+    <td>SPAN / TAP</td>
+    <td>VPC Traffic Mirroring</td>
+    <td>Network Watcher</td>
+    <td>Packet Mirroring</td>
+    <td>VPC Traffic Mirroring</td>
+  </tr>
+  <tr>
+    <td>Delivery method</td>
+    <td>OVA import</td>
+    <td>EC2 + install script</td>
+    <td>VM + install script</td>
+    <td>GCE + install script</td>
+    <td>ECS + install script</td>
+  </tr>
+  <tr>
+    <td>2nd NIC</td>
+    <td>VMware port group</td>
+    <td>Second ENI</td>
+    <td>Second NIC</td>
+    <td>Second VPC NIC</td>
+    <td>Second ENI</td>
+  </tr>
+  <tr>
+    <td>Encapsulation</td>
+    <td>N/A</td>
+    <td>VXLAN</td>
+    <td>Varies</td>
+    <td>GRE</td>
+    <td>VXLAN</td>
+  </tr>
+</table>
+
+
+<!-- ─────────────── 4. INITIAL SETUP ─────────────── -->
+<h2 id="initial-setup">4. Initial Setup (First Boot Wizard)</h2>
 
 <h3>Default Credentials</h3>
 <table>
@@ -532,8 +799,8 @@ details .details-body { padding: 1rem 1.25rem; }
 </div>
 
 
-<!-- ─────────────── 4. SPAN / MIRROR PORT CONFIG ─────────────── -->
-<h2 id="span-mirror">4. SPAN / Mirror Port Configuration</h2>
+<!-- ─────────────── 5. SPAN / MIRROR PORT CONFIG ─────────────── -->
+<h2 id="span-mirror">5. SPAN / Mirror Port Configuration</h2>
 
 <h3>Why the Sensor Needs Mirrored Traffic</h3>
 <p>CodeRed NDR operates as a passive sensor. It does not sit inline in the traffic path. Instead, it requires a copy of network traffic delivered to its monitor interface(s). This copy is created by configuring a SPAN (Switched Port Analyzer) session or mirror port on your network switch, or by using a hardware network TAP.</p>
@@ -650,8 +917,8 @@ details .details-body { padding: 1rem 1.25rem; }
 </ul>
 
 
-<!-- ─────────────── 5. CLI MANAGEMENT GUIDE ─────────────── -->
-<h2 id="cli-management">5. CLI Management Guide</h2>
+<!-- ─────────────── 6. CLI MANAGEMENT GUIDE ─────────────── -->
+<h2 id="cli-management">6. CLI Management Guide</h2>
 
 <h3>Accessing the CLI</h3>
 <p>SSH into the sensor as the <code>coderedndr</code> user. The CLI menu launches automatically upon login.</p>
@@ -797,8 +1064,8 @@ details .details-body { padding: 1rem 1.25rem; }
 <p>Re-runs the full initial setup wizard. This is useful when you need to reconfigure all settings at once, such as after migrating the sensor to a new network.</p>
 
 
-<!-- ─────────────── 6. DETECTION CAPABILITIES ─────────────── -->
-<h2 id="detection">6. Detection Capabilities</h2>
+<!-- ─────────────── 7. DETECTION CAPABILITIES ─────────────── -->
+<h2 id="detection">7. Detection Capabilities</h2>
 
 <h3>Signature-Based Detection (Suricata)</h3>
 <p>Suricata processes all monitored traffic against the <strong>Emerging Threats / Open</strong> (ET/Open) rule set. Rules are automatically updated every 6 hours via cron. Community ID is enabled for all events to support cross-tool correlation. Detection categories include:</p>
@@ -912,8 +1179,8 @@ details .details-body { padding: 1rem 1.25rem; }
 </table>
 
 
-<!-- ─────────────── 7. SIEM INTEGRATION ─────────────── -->
-<h2 id="siem-integration">7. SIEM Integration</h2>
+<!-- ─────────────── 8. SIEM INTEGRATION ─────────────── -->
+<h2 id="siem-integration">8. SIEM Integration</h2>
 
 <h3>Supported SIEM Platforms</h3>
 <p>CodeRed NDR forwards logs via Filebeat. The following SIEM output types are configurable during setup or via the first-boot wizard:</p>
@@ -988,8 +1255,8 @@ details .details-body { padding: 1rem 1.25rem; }
 <p>When forwarding to Elasticsearch, logs are indexed under the pattern <code>codered-ndr-*</code>. Create an index pattern or data view in Kibana matching this pattern to browse sensor data.</p>
 
 
-<!-- ─────────────── 8. TROUBLESHOOTING ─────────────── -->
-<h2 id="troubleshooting">8. Troubleshooting</h2>
+<!-- ─────────────── 9. TROUBLESHOOTING ─────────────── -->
+<h2 id="troubleshooting">9. Troubleshooting</h2>
 
 <h3>No Traffic Detected</h3>
 <ol>
@@ -1054,8 +1321,8 @@ details .details-body { padding: 1rem 1.25rem; }
 <p>To re-run the full setup wizard and reconfigure all settings from scratch, use CLI option <strong>15 (Re-run setup wizard)</strong>. This does not require reimporting the OVA.</p>
 
 
-<!-- ─────────────── 9. MAINTENANCE ─────────────── -->
-<h2 id="maintenance">9. Maintenance</h2>
+<!-- ─────────────── 10. MAINTENANCE ─────────────── -->
+<h2 id="maintenance">10. Maintenance</h2>
 
 <h3>Automatic Updates</h3>
 <table>
@@ -1097,8 +1364,8 @@ details .details-body { padding: 1rem 1.25rem; }
 </table>
 
 
-<!-- ─────────────── 10. SECURITY & HARDENING ─────────────── -->
-<h2 id="security">10. Security &amp; Hardening</h2>
+<!-- ─────────────── 11. SECURITY & HARDENING ─────────────── -->
+<h2 id="security">11. Security &amp; Hardening</h2>
 
 <h3>Appliance Hardening Summary</h3>
 <p>The CodeRed NDR sensor is built on a hardened Ubuntu 24.04 LTS base image with the following security controls:</p>
@@ -1147,8 +1414,8 @@ details .details-body { padding: 1rem 1.25rem; }
 <p>If you expand the VM's virtual disk in your hypervisor, the sensor will automatically detect the additional space on next boot and resize the partition and filesystem. No manual intervention is required.</p>
 
 
-<!-- ─────────────── 11. APPENDIX ─────────────── -->
-<h2 id="appendix">11. Appendix</h2>
+<!-- ─────────────── 12. APPENDIX ─────────────── -->
+<h2 id="appendix">12. Appendix</h2>
 
 <h3>Default Ports</h3>
 <table>
