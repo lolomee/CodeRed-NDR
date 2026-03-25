@@ -401,11 +401,16 @@ details .details-body { padding: 1rem 1.25rem; }
   Increase resources proportionally for throughput above 500 Mbps. For 1 Gbps sustained traffic, allocate at least 8 vCPU and 16 GB RAM. The /nsm partition stores Zeek logs and Suricata EVE output; size accordingly for your retention needs.
 </div>
 
+<div class="callout callout-info">
+  <div class="callout-title">Obtaining the OVA</div>
+  The CodeRed NDR OVA file is provided by <strong>Provintell</strong>. Contact your Provintell account representative to obtain the latest OVA image.
+</div>
+
 <h3>OVA Import &mdash; VMware ESXi</h3>
 <ol>
   <li>Log in to the ESXi web UI or vSphere Client.</li>
   <li>Select <strong>Create / Register VM</strong> &rarr; <strong>Deploy a virtual machine from an OVF or OVA file</strong>.</li>
-  <li>Upload the <code>codered-ndr-2.0.0.ova</code> file.</li>
+  <li>Upload the <code>codered-ndr-2.0.0.ova</code> file provided by Provintell.</li>
   <li>Choose a datastore with sufficient space (100 GB minimum, 500 GB recommended).</li>
   <li>Configure networking:
     <ul>
@@ -451,12 +456,11 @@ details .details-body { padding: 1rem 1.25rem; }
 <!-- ─────────────── 3. CLOUD DEPLOYMENT ─────────────── -->
 <h2 id="cloud-deployment">3. Cloud Deployment</h2>
 
-<p>CodeRed NDR can be deployed on major cloud platforms by installing the sensor on a Linux VM and configuring the cloud provider's traffic mirroring service to feed network traffic to the sensor. This section covers AWS, Azure, Google Cloud, and Alibaba Cloud.</p>
+<p>CodeRed NDR can be deployed on major cloud platforms. Contact <strong>Provintell</strong> to obtain the pre-built cloud image (AMI, VM image, or OVA) for your platform. Once deployed, configure the cloud provider's traffic mirroring service to feed network traffic to the sensor.</p>
 
 <div class="callout callout-info">
-  <div class="callout-title">Installation Command</div>
-  The install command is the same across all cloud platforms:
-  <pre><code><span class="prompt">$</span> curl -sL https://raw.githubusercontent.com/lolomee/CodeRed-NDR/main/install.sh | sudo bash</code></pre>
+  <div class="callout-title">Obtaining the Cloud Image</div>
+  Cloud images are provided by <strong>Provintell</strong>. Contact your Provintell account representative to receive the CodeRed NDR image for your cloud platform (AWS AMI, Azure VM Image, GCP Image, or Alibaba Cloud Image).
 </div>
 
 <!-- AWS -->
@@ -482,8 +486,13 @@ details .details-body { padding: 1rem 1.25rem; }
   <tr><td>Outbound</td><td>443</td><td>TCP</td><td>Rule updates, threat intel feeds</td></tr>
 </table>
 
-<h4>Install CodeRed NDR</h4>
-<pre><code><span class="prompt">$</span> curl -sL https://raw.githubusercontent.com/lolomee/CodeRed-NDR/main/install.sh | sudo bash</code></pre>
+<h4>Deploy CodeRed NDR</h4>
+<ol>
+  <li>Launch an EC2 instance using the <strong>CodeRed NDR AMI</strong> provided by Provintell.</li>
+  <li>Attach a second ENI (Elastic Network Interface) for traffic mirroring.</li>
+  <li>SSH into the instance: <code>ssh coderedndr@&lt;instance-ip&gt;</code></li>
+  <li>Complete the first-time setup wizard.</li>
+</ol>
 
 <h4>Set Up VPC Traffic Mirroring</h4>
 <ol>
@@ -555,8 +564,13 @@ details .details-body { padding: 1rem 1.25rem; }
   <tr><td>NSG</td><td colspan="2">Same ports as AWS security group above</td></tr>
 </table>
 
-<h4>Install CodeRed NDR</h4>
-<pre><code><span class="prompt">$</span> curl -sL https://raw.githubusercontent.com/lolomee/CodeRed-NDR/main/install.sh | sudo bash</code></pre>
+<h4>Deploy CodeRed NDR</h4>
+<ol>
+  <li>Create a VM using the <strong>CodeRed NDR VM Image</strong> provided by Provintell.</li>
+  <li>Attach a second NIC for traffic capture.</li>
+  <li>SSH into the VM: <code>ssh coderedndr@&lt;vm-ip&gt;</code></li>
+  <li>Complete the first-time setup wizard.</li>
+</ol>
 
 <h4>Set Up Traffic Capture</h4>
 <div class="callout callout-warning">
@@ -583,8 +597,13 @@ details .details-body { padding: 1rem 1.25rem; }
   <tr><td>Firewall rules</td><td colspan="2">Same ports as AWS security group above</td></tr>
 </table>
 
-<h4>Install CodeRed NDR</h4>
-<pre><code><span class="prompt">$</span> curl -sL https://raw.githubusercontent.com/lolomee/CodeRed-NDR/main/install.sh | sudo bash</code></pre>
+<h4>Deploy CodeRed NDR</h4>
+<ol>
+  <li>Create a VM instance using the <strong>CodeRed NDR Image</strong> provided by Provintell.</li>
+  <li>Attach a second NIC (requires a separate VPC network).</li>
+  <li>SSH into the instance: <code>ssh coderedndr@&lt;instance-ip&gt;</code></li>
+  <li>Complete the first-time setup wizard.</li>
+</ol>
 
 <h4>Set Up Packet Mirroring</h4>
 <ol>
@@ -639,8 +658,13 @@ details .details-body { padding: 1rem 1.25rem; }
   <tr><td>Security group</td><td colspan="2">Same ports as AWS security group above</td></tr>
 </table>
 
-<h4>Install CodeRed NDR</h4>
-<pre><code><span class="prompt">$</span> curl -sL https://raw.githubusercontent.com/lolomee/CodeRed-NDR/main/install.sh | sudo bash</code></pre>
+<h4>Deploy CodeRed NDR</h4>
+<ol>
+  <li>Create an ECS instance using the <strong>CodeRed NDR Image</strong> provided by Provintell.</li>
+  <li>Attach a second ENI for traffic mirroring.</li>
+  <li>SSH into the instance: <code>ssh coderedndr@&lt;instance-ip&gt;</code></li>
+  <li>Complete the first-time setup wizard.</li>
+</ol>
 
 <h4>Set Up Traffic Mirroring</h4>
 <p>Alibaba Cloud supports VPC Traffic Mirroring with a workflow similar to AWS:</p>
