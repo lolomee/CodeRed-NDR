@@ -642,13 +642,38 @@ def run_setup():
         config.set('network', 'mgmt_gateway', gw)
         config.set('network', 'mgmt_dns', dns)
 
-    # ── Monitor Interfaces ──
+    # ── Monitor Interfaces (optional) ──
     header('3. MONITORING INTERFACES (SPAN/MIRROR PORTS)')
     print('  Select the interfaces connected to your SPAN/mirror ports.')
-    print('  You can select multiple interfaces for multi-zone monitoring.\n')
-    mon_ifaces = prompt_multi_interface('Monitor interface(s)', exclude=[mgmt_iface])
-    config.set('network', 'monitor_interfaces', ','.join(mon_ifaces))
-    config.set('network', 'monitor_interface', mon_ifaces[0])
+    print('  You can select multiple interfaces for multi-zone monitoring.')
+    print('  Press Enter to skip (configure later via menu option 7).\n')
+    interfaces = get_interfaces()
+    available = [i for i in interfaces if i != mgmt_iface]
+    if available:
+        print('  Detected interfaces:')
+        for i, iface in enumerate(available, 1):
+            _, out = run_cmd(['ip', '-4', '-br', 'addr', 'show', iface])
+            status = out.strip().split('\n')[0] if out.strip() else ''
+            print(f'    {i}. {iface:<16} {status}')
+        print()
+    try:
+        val = input('  Monitor interface(s) [skip]: ').strip()
+    except EOFError:
+        val = ''
+    mon_ifaces = []
+    if val:
+        parts = [p.strip() for p in val.replace(' ', ',').split(',') if p.strip()]
+        for p in parts:
+            if p.isdigit() and 1 <= int(p) <= len(available):
+                mon_ifaces.append(available[int(p) - 1])
+            elif re.match(r'^[a-zA-Z]', p):
+                mon_ifaces.append(p)
+        if mon_ifaces:
+            config.set('network', 'monitor_interfaces', ','.join(mon_ifaces))
+            config.set('network', 'monitor_interface', mon_ifaces[0])
+            print(f'  Selected: {", ".join(mon_ifaces)}')
+    if not mon_ifaces:
+        print('  Skipped — configure monitor interfaces later via CLI menu option 7.')
 
     # ── Sensor Identity ──
     header('4. SENSOR IDENTITY')
@@ -680,7 +705,7 @@ def run_setup():
         print_line('IP Address:', f'{ip}/{netmask_to_cidr(mask)}')
         print_line('Gateway:', gw)
         print_line('DNS:', dns)
-    print_line('Monitor Interfaces:', ', '.join(mon_ifaces))
+    print_line('Monitor Interfaces:', ', '.join(mon_ifaces) if mon_ifaces else 'not configured (set later)')
     print_line('Sensor Name:', name)
     print_line('SIEM Destination:', f'{endpoint}:{get_val(config, "forwarding", "siem_port", "9200")}' if endpoint else 'not configured')
     print_line('IPS Mode:', ips)
@@ -701,8 +726,11 @@ def run_setup():
     print('  [3/5] Configuring management network...')
     apply_network(config)
 
-    print(f'  [4/5] Configuring {len(mon_ifaces)} monitor interface(s)...')
-    apply_monitor_interfaces(mon_ifaces)
+    if mon_ifaces:
+        print(f'  [4/5] Configuring {len(mon_ifaces)} monitor interface(s)...')
+        apply_monitor_interfaces(mon_ifaces)
+    else:
+        print('  [4/5] Skipping monitor interfaces (not configured)...')
 
     print('  [5/5] Starting sensor services...')
     # Configure Zeek node.cfg with monitor interfaces
@@ -711,12 +739,17 @@ def run_setup():
     apply_suricata_config(config)
     # Configure Filebeat
     apply_filebeat_config(config)
-    # Enable and start services
-    for svc in ['codered-zeek', 'codered-suricata', 'filebeat']:
-        run_cmd(['systemctl', 'enable', svc], sudo=True)
-        run_cmd(['systemctl', 'start', svc], sudo=True)
-    # Update Suricata rules
-    run_cmd(['/opt/codered/bin/update-rules.sh'], timeout=120, sudo=True)
+    if mon_ifaces:
+        # Enable and start services only if monitor interface is set
+        for svc in ['codered-zeek', 'codered-suricata', 'filebeat']:
+            run_cmd(['systemctl', 'enable', svc], sudo=True)
+            run_cmd(['systemctl', 'start', svc], sudo=True)
+        # Update Suricata rules
+        run_cmd(['/opt/codered/bin/update-rules.sh'], timeout=120, sudo=True)
+    else:
+        # Only start Filebeat (for when SIEM is configured but no SPAN yet)
+        apply_filebeat_config(config)
+        print('  Note: Zeek and Suricata will start after you configure monitor interfaces.')
 
     # Mark setup complete
     Path(SETUP_SENTINEL).touch(mode=0o644)
