@@ -21,30 +21,14 @@ jobs:
         run: pip install pytest
 
       - name: Run unit tests
-        run: python -m pytest firstboot/tests/ shell/tests/ -v
+        run: python -m pytest tests/ -v
 
-  salt-validate:
+  shellcheck:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
 
-      - name: Validate Salt state syntax
+      - name: Validate shell scripts
         run: |
-          pip install jinja2 pyyaml
-          python -c "
-          import yaml, glob
-          errors = 0
-          for f in glob.glob('salt/**/*.sls', recursive=True):
-              try:
-                  # Basic YAML parse (won't resolve Jinja, but catches syntax errors)
-                  with open(f) as fh:
-                      content = fh.read()
-                  # Check for common issues
-                  if '\\t' in content:
-                      print(f'WARNING: tabs found in {f}')
-                  print(f'OK: {f}')
-              except Exception as e:
-                  print(f'ERROR: {f}: {e}')
-                  errors += 1
-          exit(errors)
-          "
+          sudo apt-get install -y shellcheck
+          find bin/ firstboot/ -name '*.sh' -exec shellcheck -S warning {} +

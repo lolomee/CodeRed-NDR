@@ -1,0 +1,47 @@
+# CodeRed NDR - Filebeat Zeek Module
+- module: zeek
+  connection:
+    enabled: true
+    var.paths: ["/nsm/zeek/logs/current/conn.log"]
+  dns:
+    enabled: true
+    var.paths: ["/nsm/zeek/logs/current/dns.log"]
+  http:
+    enabled: true
+    var.paths: ["/nsm/zeek/logs/current/http.log"]
+  files:
+    enabled: true
+    var.paths: ["/nsm/zeek/logs/current/files.log"]
+  ssl:
+    enabled: true
+    var.paths: ["/nsm/zeek/logs/current/ssl.log"]
+  notice:
+    enabled: true
+    var.paths: ["/nsm/zeek/logs/current/notice.log"]
+  smtp:
+    enabled: true
+    var.paths: ["/nsm/zeek/logs/current/smtp.log"]
+  ssh:
+    enabled: true
+    var.paths: ["/nsm/zeek/logs/current/ssh.log"]
+  ntp:
+    enabled: true
+    var.paths: ["/nsm/zeek/logs/current/ntp.log"]
+  dhcp:
+    enabled: true
+    var.paths: ["/nsm/zeek/logs/current/dhcp.log"]
+  rdp:
+    enabled: true
+    var.paths: ["/nsm/zeek/logs/current/rdp.log"]
+  pe:
+    enabled: true
+    var.paths: ["/nsm/zeek/logs/current/pe.log"]
+  x509:
+    enabled: true
+    var.paths: ["/nsm/zeek/logs/current/x509.log"]
+  smb_files:
+    enabled: true
+    var.paths: ["/nsm/zeek/logs/current/smb_files.log"]
+  smb_mapping:
+    enabled: true
+    var.paths: ["/nsm/zeek/logs/current/smb_mapping.log"]

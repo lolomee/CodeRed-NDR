@@ -1,0 +1,5 @@
+# CodeRed NDR - Filebeat Suricata Module
+- module: suricata
+  eve:
+    enabled: true
+    var.paths: ["/nsm/suricata/log/eve.json"]

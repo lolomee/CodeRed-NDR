@@ -24,15 +24,15 @@ jobs:
 
       - name: Shellcheck
         run: |
-          find build/ -name '*.sh' -exec shellcheck {} +
+          find bin/ -name '*.sh' -exec shellcheck {} +
           shellcheck shell/rbash_profile
 
       - name: Python lint
         run: |
-          python -m pylint firstboot/*.py shell/*.py \
+          python -m pylint shell/*.py \
             --disable=C0114,C0115,C0116,C0411,E0401,W0511 \
             --exit-zero
 
       - name: YAML lint
         run: |
-          yamllint -d relaxed salt/
+          yamllint -d relaxed filebeat/
