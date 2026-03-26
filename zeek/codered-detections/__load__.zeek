@@ -21,3 +21,15 @@
 @load ./ransomware
 @load ./ot-anomaly
 @load ./cloud-threats
+
+# Evasion, tunneling & protocol anomaly
+@load ./icmp-tunnel
+@load ./http-c2
+@load ./hassh-ssh
+@load ./protocol-anomaly
+
+# Credential access & AD recon
+@load ./credential-access
+
+# Insider threat & data staging
+@load ./insider-threat
