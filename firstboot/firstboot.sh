@@ -189,10 +189,11 @@ step 5 "SIEM log forwarding"
 
 echo ""
 echo "  SIEM output type:"
-echo "    [1] Elasticsearch  (default port 9200)"
-echo "    [2] Logstash       (default port 5044)"
-echo "    [3] Syslog / CEF   (default port 514)"
-echo "    [4] Skip — configure later"
+echo "    [1] Elasticsearch  (HTTP/HTTPS — Elastic, OpenSearch, Splunk HEC)"
+echo "    [2] Logstash       (Beats protocol TCP — Logstash, Wazuh)"
+echo "    [3] Syslog TCP     (raw syslog TCP — Pre Security, QRadar, Graylog)"
+echo "    [4] Syslog UDP     (raw syslog UDP)"
+echo "    [5] Skip — configure later"
 echo ""
 read -rp "  Select [1]: " SIEM_TYPE
 SIEM_TYPE="${SIEM_TYPE:-1}"
@@ -200,8 +201,9 @@ SIEM_TYPE="${SIEM_TYPE:-1}"
 case "$SIEM_TYPE" in
     1) SIEM_OUTPUT="elasticsearch"; DEFAULT_PORT="9200" ;;
     2) SIEM_OUTPUT="logstash";      DEFAULT_PORT="5044" ;;
-    3) SIEM_OUTPUT="syslog";        DEFAULT_PORT="514"  ;;
-    4) SIEM_OUTPUT="none";          DEFAULT_PORT=""      ;;
+    3) SIEM_OUTPUT="syslog-tcp";    DEFAULT_PORT="514"  ;;
+    4) SIEM_OUTPUT="syslog-udp";    DEFAULT_PORT="514"  ;;
+    5) SIEM_OUTPUT="none";          DEFAULT_PORT=""      ;;
     *) SIEM_OUTPUT="elasticsearch"; DEFAULT_PORT="9200" ;;
 esac
 
@@ -466,13 +468,16 @@ output.logstash:
   hosts: ["${SIEM_HOST}:${SIEM_PORT:-5044}"]
 LSEOF
             ;;
-        syslog)
+        syslog-tcp|syslog-udp)
+            # Raw syslog handled by codered-syslog-forwarder.py, not Filebeat
+            # Write buffer output so Filebeat stays quiet
             cat >> "$FILEBEAT_CFG" << SLEOF
-output.syslog:
+output.file:
   enabled: true
-  address: "${SIEM_HOST}:${SIEM_PORT:-514}"
-  network: "tcp"
-  format: "rfc5424"
+  path: /var/log/codered
+  filename: filebeat-buffer
+  rotate_every_kb: 10240
+  number_of_files: 3
 SLEOF
             ;;
         *)
@@ -561,8 +566,27 @@ if [ -n "${MONITOR_IF:-}" ]; then
     nohup /opt/codered/bin/update-rules.sh &>/var/log/codered/rule-update.log &
     log "Rule update started in background"
 else
-    # Start Filebeat only (if SIEM configured)
-    [ -n "${SIEM_HOST:-}" ] && systemctl enable filebeat &>/dev/null && systemctl restart filebeat &>/dev/null || true
+    # Start appropriate forwarder based on output type
+    if [ -n "${SIEM_HOST:-}" ]; then
+        case "${SIEM_OUTPUT:-elasticsearch}" in
+            syslog-tcp|syslog-udp)
+                # Use native syslog forwarder — Filebeat can't do raw syslog
+                systemctl disable filebeat &>/dev/null || true
+                systemctl stop filebeat &>/dev/null || true
+                systemctl enable codered-syslog &>/dev/null || true
+                systemctl restart codered-syslog &>/dev/null || true
+                log "Syslog forwarder started -> ${SIEM_OUTPUT} ${SIEM_HOST}:${SIEM_PORT}"
+                ;;
+            *)
+                # Use Filebeat for Elasticsearch/Logstash
+                systemctl disable codered-syslog &>/dev/null || true
+                systemctl stop codered-syslog &>/dev/null || true
+                systemctl enable filebeat &>/dev/null || true
+                systemctl restart filebeat &>/dev/null || true
+                log "Filebeat started -> ${SIEM_OUTPUT} ${SIEM_HOST}:${SIEM_PORT}"
+                ;;
+        esac
+    fi
     warn "Zeek and Suricata not started — no monitor interface configured."
     warn "Add a SPAN interface via CLI menu option 7 to begin monitoring."
 fi
