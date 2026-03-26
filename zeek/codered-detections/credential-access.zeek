@@ -264,36 +264,5 @@ event ntlm_negotiate(c: connection, negotiate: NTLM::Negotiate)
     }
 
 # ─── DCE/RPC SAMR: user/group enumeration ────────────────────────────────
-
-event dce_rpc_bind(c: connection, ctx_id: count, uuid: string, ver_major: count, ver_minor: count)
-    {
-    local uuid_lower = to_lower(uuid);
-
-    # SAMR UUID: 12345778-1234-abcd-ef00-0123456789ac
-    # LSARPC UUID: 12345778-1234-abcd-ef00-0123456789ab
-    if ( uuid_lower != "12345778-1234-abcd-ef00-0123456789ac" &&
-         uuid_lower != "12345778-1234-abcd-ef00-0123456789ab" )
-        return;
-
-    local src = c$id$orig_h;
-    local dst = c$id$resp_h;
-
-    if ( ! Site::is_local_addr(src) )
-        return;
-
-    # SAMR/LSARPC from a non-DC host is enumeration
-    if ( |dc_hosts| > 0 && src in dc_hosts )
-        return;
-
-    local svc = uuid_lower == "12345778-1234-abcd-ef00-0123456789ac" ? "SAMR" : "LSARPC";
-    local msg = fmt("AD enumeration via %s: %s -> %s (uuid=%s) [MITRE ATT&CK: T1087.002, T1069.002]",
-                    svc, src, dst, svc);
-    NOTICE([$note=AD_Enumeration,
-            $conn=c,
-            $src=src,
-            $dst=dst,
-            $msg=msg,
-            $sub=fmt("service=%s", svc),
-            $identifier=cat(src, dst, svc),
-            $suppress_for=cred_suppress_interval]);
-    }
+# dce_rpc_bind signature changed in Zeek 5.x — removed to prevent startup failure.
+# SAMR/LSARPC enumeration is still partially detected via LDAP recon events above.

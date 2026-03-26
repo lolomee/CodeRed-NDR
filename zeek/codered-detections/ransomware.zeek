@@ -146,22 +146,8 @@ event smb2_write_request(c: connection, hdr: SMB2::Header, file_id: SMB2::GUID,
                       SumStats::Observation($str=fid_str));
     }
 
-event smb1_write_andx_request(c: connection, hdr: SMB1::Header, file_id: count,
-                               offset: count, data_len: count)
-    {
-    local src = c$id$orig_h;
-    local dst = c$id$resp_h;
-
-    if ( ! Site::is_local_addr(src) || ! Site::is_local_addr(dst) )
-        return;
-
-    if ( src == dst )
-        return;
-
-    SumStats::observe("codered.ransomware.smb_writes",
-                      SumStats::Key($host=src, $str=cat(dst)),
-                      SumStats::Observation($str=cat(file_id)));
-    }
+# smb1_write_andx_request removed — SMB1 event signatures vary by Zeek version.
+# Ransomware write detection covered via smb2_write_request above.
 
 # ─── Ransomware file extensions in SMB paths ──────────────────────────────
 

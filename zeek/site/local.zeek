@@ -20,6 +20,7 @@
 @load base/protocols/rdp
 @load base/protocols/krb
 @load base/protocols/ldap
+@load base/protocols/ntlm
 
 # OT/ICS protocol analyzers
 @load base/protocols/modbus
