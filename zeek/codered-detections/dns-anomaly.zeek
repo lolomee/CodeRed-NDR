@@ -41,6 +41,7 @@ export {
 }
 
 # ─── Shannon entropy calculation ───
+# Compatible with Zeek 4.x and 5.x — avoids local declarations inside loops
 function shannon_entropy(s: string): double
     {
     if ( |s| == 0 )
@@ -48,21 +49,24 @@ function shannon_entropy(s: string): double
 
     local freq: table[string] of count = table();
     local i: count = 0;
+    local cur: string = "";
     while ( i < |s| )
         {
-        local ch = s[i];
-        if ( ch in freq )
-            freq[ch] += 1;
+        cur = s[i];
+        if ( cur in freq )
+            freq[cur] += 1;
         else
-            freq[ch] = 1;
+            freq[cur] = 1;
         ++i;
         }
 
     local entropy: double = 0.0;
-    local n = |s| + 0.0;
-    for ( ch in freq )
+    local n: double = |s| + 0.0;
+    local p: double = 0.0;
+    local key: string = "";
+    for ( key in freq )
         {
-        local p = freq[ch] / n;
+        p = freq[key] / n;
         if ( p > 0.0 )
             entropy -= p * (ln(p) / ln(2.0));
         }

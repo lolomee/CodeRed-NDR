@@ -7,7 +7,7 @@ CONF="/etc/codered/sensor.conf"
 
 # Read monitor interface from sensor config
 if [ -f "$CONF" ]; then
-    MONITOR_IF=$(grep "^monitor_interface" "$CONF" | cut -d'=' -f2 | tr -d ' \r\n')
+    MONITOR_IF=$(grep "^monitor_interface " "$CONF" | head -1 | cut -d'=' -f2 | tr -d ' \r\n')
 else
     echo "[!] No sensor.conf found. Run first-boot wizard."
     exit 1
