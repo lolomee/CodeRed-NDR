@@ -127,55 +127,48 @@ event zeek_init()
     ]);
     }
 
-event ssh_auth_failed(c: connection)
+# ssh_auth_failed / ssh_auth_successful — signatures vary between Zeek versions.
+# Using connection_state_remove on SSH port instead (stable across all versions).
+# Short sessions (< 5s) = failed auth. All SSH sessions track targets for spray.
+
+event connection_state_remove(c: connection)
     {
+    # Only SSH connections
+    if ( c$id$resp_p != 22/tcp )
+        return;
+
     local src = c$id$orig_h;
     local dst = c$id$resp_h;
 
     if ( ! Site::is_local_addr(src) )
         return;
 
-    SumStats::observe("codered.ssh.auth_fail",
-                      SumStats::Key($host=src, $str=cat(dst)),
-                      SumStats::Observation($num=1));
-
-    SumStats::observe("codered.ssh.targets",
-                      SumStats::Key($host=src),
-                      SumStats::Observation($str=cat(dst)));
-    }
-
-# ssh_capabilities / HASSH fingerprinting removed — requires
-# @load policy/protocols/ssh/hassh which is not in standard Zeek APT.
-# HASSH fingerprints are available via Suricata EVE JSON ssh fields.
-
-event ssh_auth_successful(c: connection)
-    {
-    local src = c$id$orig_h;
-    local dst = c$id$resp_h;
-
-    if ( ! Site::is_local_addr(src) )
-        return;
-
-    # Track targets for spray detection on successful auths too
+    # Always track unique targets for spray detection
     SumStats::observe("codered.ssh.targets",
                       SumStats::Key($host=src),
                       SumStats::Observation($str=cat(dst)));
 
-    # ── SSH tunneling: successful SSH to non-standard port ──
-    # SSH on port 443, 80, or 8080 is a strong tunneling indicator
-    local resp_port = c$id$resp_p;
-    if ( resp_port == 443/tcp || resp_port == 80/tcp ||
-         resp_port == 8080/tcp || resp_port == 8443/tcp )
+    # Short session = likely failed auth (brute force indicator)
+    if ( c$duration < 5 secs )
+        {
+        SumStats::observe("codered.ssh.auth_fail",
+                          SumStats::Key($host=src, $str=cat(dst)),
+                          SumStats::Observation($num=1));
+        }
+
+    # SSH on non-standard port = tunneling indicator
+    if ( c$id$resp_p == 443/tcp || c$id$resp_p == 80/tcp ||
+         c$id$resp_p == 8080/tcp || c$id$resp_p == 8443/tcp )
         {
         local msg = fmt("SSH on non-standard port (tunneling?): %s -> %s:%s [MITRE ATT&CK: T1572, T1048]",
-                        src, dst, resp_port);
+                        src, dst, c$id$resp_p);
         NOTICE([$note=SSH_Tunnel,
                 $conn=c,
                 $src=src,
                 $dst=dst,
                 $msg=msg,
-                $sub=fmt("ssh_on_port=%s", resp_port),
-                $identifier=cat(src, dst, cat(resp_port)),
+                $sub=fmt("ssh_on_port=%s", c$id$resp_p),
+                $identifier=cat(src, dst, cat(c$id$resp_p)),
                 $suppress_for=ssh_suppress_interval]);
         }
     }
