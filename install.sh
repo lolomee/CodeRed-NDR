@@ -524,6 +524,7 @@ fi
 step 6 "Hardening SSH and installing fail2ban..."
 
 # --- SSH daemon hardening ---
+mkdir -p /etc/ssh/sshd_config.d
 SSHD_HARDENING="/etc/ssh/sshd_config.d/90-codered-hardening.conf"
 cat > "$SSHD_HARDENING" << 'SSHD'
 # CodeRed NDR — SSH hardening
