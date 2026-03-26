@@ -1347,45 +1347,78 @@ def show_user_guide():
     audit('view:user-guide')
 
     GUIDE = """
-============================================================
-  CODERED NDR SENSOR - USER GUIDE
-============================================================
+================================================================
+  CODERED NDR SENSOR - USER GUIDE                    v2.0.0
+================================================================
 
-  OVERVIEW
-  ────────
-  This sensor passively monitors your network traffic for
-  threats and anomalies. It needs two network connections:
+  CONTENTS
+  --------
+  1.  Overview
+  2.  Quick start
+  3.  SPAN / mirror port configuration
+  4.  VMware & cloud deployment
+  5.  Detection capabilities
+  6.  ML behavioral engine
+  7.  OT / ICS monitoring
+  8.  Cloud threat detection
+  9.  CLI menu reference
+  10. Log files & data paths
+  11. Network & firewall requirements
+  12. Security hardening
+  13. Tuning & customisation
+  14. Troubleshooting
+  15. Quick reference
 
-    NIC 1 (first NIC) = Management (SSH access + SIEM forwarding)
-    NIC 2+ (additional NICs) = Monitor (receives mirrored/SPAN traffic)
+
+  1. OVERVIEW
+  -----------
+  CodeRed NDR is a passive network detection and response sensor.
+  It monitors a copy of your network traffic using Zeek and
+  Suricata, detects threats using 20 behavioural detection scripts
+  and an ML anomaly engine, and forwards alerts to your SIEM via
+  Filebeat.
+
+  The sensor requires two network connections:
+
+    NIC 1  Management  SSH access + SIEM forwarding (needs an IP)
+    NIC 2+ Monitor     Receives mirrored/SPAN traffic (no IP)
+
+  Four services run on the sensor:
+    Zeek        Parses protocols, runs detection scripts
+    Suricata    Signature-based IDS, JA3/JA4 TLS fingerprinting
+    Filebeat    Ships logs and alerts to your SIEM
+    codered-ml  ML behavioral baseline engine (anomaly detection)
 
 
-  QUICK START
-  ───────────
-  1. Import the OVA into your hypervisor (VMware/Proxmox)
-  2. Assign two NICs:
-     - NIC 1 → your management network
-     - NIC 2 → your SPAN/mirror port group
-  3. Power on, SSH in: ssh coderedndr@<ip>
-  4. Complete the setup wizard
-  5. Sensor starts monitoring automatically
+  2. QUICK START
+  --------------
+  Step 1  Import the OVA into VMware or Proxmox
+  Step 2  Add a second network adapter in VM settings,
+          connected to your SPAN port group
+  Step 3  Enable Promiscuous Mode on the SPAN port group
+          (VMware: Edit port group -> Security -> Accept)
+  Step 4  Power on the VM
+  Step 5  SSH in:  ssh coderedndr@<sensor-ip>
+          Default password:  CodeRed@NDR!
+          You MUST change this on first login.
+  Step 6  Complete the setup wizard (~5 minutes):
+          - Hostname and sensor name
+          - Management IP (static or DHCP)
+          - Monitor interface (wizard live-checks SPAN traffic)
+          - SIEM address and port (wizard tests connectivity)
+  Step 7  Wizard starts all services automatically.
+          Rule-based detection is immediate.
+          ML anomaly detection activates after 50 hours per host.
 
 
-  HOW TO CONFIGURE SPAN / MIRROR PORT
-  ────────────────────────────────────
-  The sensor needs a copy of your network traffic. Configure
-  your switch to mirror traffic to the port connected to the
-  sensor's monitor NIC(s).
+  3. SPAN / MIRROR PORT CONFIGURATION
+  ------------------------------------
+  The sensor needs a copy of your traffic. Configure your switch
+  to mirror traffic to the port connected to sensor NIC 2.
+  At minimum, mirror your internet uplink (firewall-facing port).
 
-  At minimum, mirror your INTERNET UPLINK port (the port
-  connecting to your firewall/router).
-
-  ┌──────────────┐
-  │   Switch     │
-  │              │   SPAN / Mirror
-  │  Uplink ─────┼──────────────────▶  Sensor NIC 2
-  │  (to FW)     │   (copy of traffic)
-  └──────────────┘
+  Diagram:
+    Switch uplink  ----SPAN copy---->  Sensor NIC 2
 
   Cisco IOS:
     monitor session 1 source interface Gi0/1 both
@@ -1402,9 +1435,10 @@ def show_user_guide():
     monitor session 1 destination Ethernet48
 
   Juniper:
-    set forwarding-options analyzer SPAN input ingress interface ge-0/0/0
-    set forwarding-options analyzer SPAN input egress interface ge-0/0/0
-    set forwarding-options analyzer SPAN output interface ge-0/0/47
+    set forwarding-options analyzer SPAN input ingress
+      interface ge-0/0/0
+    set forwarding-options analyzer SPAN output
+      interface ge-0/0/47
 
   HP / Aruba:
     mirror-port 48
@@ -1414,81 +1448,403 @@ def show_user_guide():
     /interface ethernet switch
     set switch1 mirror-source=ether1 mirror-target=ether24
 
+  Hardware TAP (recommended for production):
+    Firewall --> [ TAP ] --> Core switch
+                   |
+                   v
+             Sensor NIC 2
 
-  VMWARE VIRTUAL ENVIRONMENT
-  ──────────────────────────
-  If monitoring VMs on the same ESXi host:
-
-  1. Create a port group for SPAN (e.g., "SPAN-Destination")
-  2. Set Security → Promiscuous Mode → ACCEPT
-  3. Connect the sensor's NIC 2 to this port group
-  4. For VDS: use Port Mirroring to mirror source ports
-     to the sensor's port
-
-  IMPORTANT: Promiscuous mode MUST be enabled on the port
-  group connected to the sensor's monitor NIC(s).
+  Use a TAP when: link speed >= 1Gbps, SPAN drops packets under
+  load, or compliance requires truly passive monitoring.
+  Vendors: Garland Technology, Gigamon, Dualcomm.
 
 
-  USING A NETWORK TAP (RECOMMENDED)
-  ──────────────────────────────────
-  A hardware TAP is more reliable than SPAN for production:
+  4. VMWARE & CLOUD DEPLOYMENT
+  ----------------------------
+  VMware ESXi / vSphere:
+    1. Create port group "SPAN-Destination"
+    2. Security -> Promiscuous Mode -> ACCEPT (required)
+    3. Connect sensor NIC 2 to this port group
+    4. Use Port Mirroring on VDS to mirror source ports
 
-    Firewall ──▶ [ TAP ] ◀── Core Switch
-                    │
-                    ▼
-              Sensor NIC 2
+  AWS (monitoring EC2 traffic):
+    - Use VPC Traffic Mirroring to mirror ENI traffic
+      to the sensor monitor ENI
+    - Security group: allow SSH inbound, SIEM port outbound
 
-  TAP vendors: Garland Technology, Gigamon, Dualcomm
+  Azure:
+    - Use Azure vTAP or Network Watcher packet capture
+    - Sensor monitor NIC receives mirrored traffic
 
-  Use a TAP when:
-  - Monitoring 1 Gbps+ links
-  - SPAN drops packets under load
-  - Compliance requires passive monitoring
+  GCP:
+    - Use Packet Mirroring policy to mirror subnet traffic
+      to the sensor internal IP
 
 
-  NETWORK REQUIREMENTS
-  ────────────────────
-  Open these ports FROM the sensor:
+  5. DETECTION CAPABILITIES
+  -------------------------
+  CodeRed NDR covers ~75 MITRE ATT&CK techniques across
+  20 Zeek detection scripts:
 
-    Port   │ Direction  │ Purpose
-    ───────┼────────────┼──────────────
-    9200   │ Outbound   │ SIEM forwarding
-    53     │ Outbound   │ DNS
-    123    │ Outbound   │ NTP
-    22     │ Inbound    │ SSH management
+  C2 & Covert Channels
+    beaconing        C2 timing/jitter analysis (T1071, T1573)
+    ja3-fingerprint  Cobalt Strike, Metasploit, Sliver, Havoc,
+                     BlackCat via TLS JA3/JA3S fingerprints
+    http-c2          Domain fronting, malleable C2 URIs, fast-
+                     flux DNS, DNS-over-HTTPS bypass (T1090.004)
+    dns-anomaly      DGA domains (Shannon entropy), DNS tunneling
+    icmp-tunnel      ICMP data tunneling (oversized payloads)
+    protocol-anomaly Protocol-port mismatch, Tor exit nodes,
+                     IPv6-in-IPv4 tunneling, SNMP enumeration
+
+  Lateral Movement
+    lateral-smb      Admin share access (C$, ADMIN$), PtH spike,
+                     remote service pipes (T1021.002, T1543.003)
+    lateral-rdp      RDP brute force, spray, workstation hops
+    lateral-wmi      WMI, DCOM, WinRM, PsExec, PAExec (T1047)
+
+  Credential Attacks
+    kerberos-attacks Kerberoasting, AS-REP roasting, Golden Ticket
+    credential-access NTLM relay, LLMNR/Responder poisoning,
+                     LDAP AD recon, SAMR enumeration
+    hassh-ssh        SSH brute force, spray, HASSH fingerprinting
+                     (Paramiko, Impacket, AsyncSSH detection)
+
+  Exfiltration & Impact
+    long-connections Long-lived sessions, asymmetric data transfer
+    ransomware       SMB mass file encryption spread, shadow copy
+                     deletion, double-extortion exfil (T1486)
+    insider-threat   Data staging (1GB+), mass share access,
+                     FTP exfil, bulk email, off-hours transfers
+
+  Commodity Threats
+    cryptomining     Stratum protocol, 30+ mining pool domains,
+                     XMRig/miner user-agents (T1496)
+    scan-detect      Port scan, network sweep (T1046)
+    cert-anomaly     Self-signed, short-lived, IP-as-CN certs
+
+  OT / ICS  (see Section 7)
+    ot-anomaly       Modbus, DNP3, IT-to-OT pivoting
+
+  Cloud  (see Section 8)
+    cloud-threats    IMDS abuse, AWS key exposure, cloud C2
+
+
+  6. ML BEHAVIORAL ENGINE
+  -----------------------
+  The codered-ml service learns normal behavior per host and
+  alerts when a host deviates significantly from its own history.
+
+  How it works:
+    - Reads Zeek conn.log, dns.log, http.log every 60 seconds
+    - Builds per-host hourly feature profiles (9 features):
+        conn_count     total connections made
+        bytes_out      total bytes sent
+        bytes_in       total bytes received
+        unique_dsts    unique destination IPs
+        ext_dsts       unique external destinations
+        dns_queries    DNS request volume
+        unique_fqdns   unique domains queried
+        http_reqs      HTTP request count
+        avg_duration   average connection length
+    - After 50 hours of data, trains an Isolation Forest model
+      using the host's own 7-day history as the baseline
+    - Anomalies written to /nsm/codered/ml-alerts.json and
+      shipped to SIEM alongside Zeek/Suricata alerts
+
+  ML alert types (MITRE ATT&CK):
+    ML_DataExfiltration    Bytes-out spike to external hosts
+    ML_DNS_Anomaly         Unusual DNS volume or unique domains
+    ML_Reconnaissance      External destination spread spike
+    ML_ConnectionSpike     Unusual total connection volume
+    ML_BehavioralAnomaly   Multi-feature deviation
+
+  Important notes:
+    - No GPU required. Runs on sensor VM CPU.
+    - Resource-limited: 25% CPU max, 512MB RAM max
+    - Warm-up: 50 hours per host before ML activates
+    - Rule-based detections are immediate (no warm-up)
+    - Some false positives expected in the first week
+    - Tune ANOMALY_THRESHOLD in codered-ml.py if needed
+
+  Check ML status:
+    Menu -> 1 (Status) shows codered-ml service state
+    Menu -> 3 (Logs) -> ML alerts to view anomaly alerts
+    sudo tail -f /var/log/codered/ml-engine.log
+
+
+  7. OT / ICS MONITORING
+  ----------------------
+  Protocols monitored (ot-anomaly detection script):
+    Modbus TCP    port 502   -- coil/register writes
+    DNP3          port 20000 -- Direct Operate, Restart commands
+    EtherNet/IP   port 44818 -- Allen-Bradley
+    IEC 104       port 2404  -- substation automation
+    OPC-UA        port 4840  -- industrial data exchange
+    BACnet        port 47808 -- building automation
+
+  Detections:
+    - Unauthorized Modbus write commands from unknown hosts
+    - DNP3 dangerous function codes (Direct Operate, Restart)
+    - IT-to-OT lateral movement (IT subnet -> OT subnet)
+    - OT device reconnaissance (5+ unique OT targets in 3 min)
+    - Engineering station abuse from unknown hosts
+
+  Configuration (add to local.zeek):
+    redef CodeRed::ot_engineering_stations += {
+        10.100.1.10, 10.100.1.11
+    };
+    redef CodeRed::ot_subnets += { 192.168.100.0/24 };
+    redef CodeRed::it_subnets += { 10.0.0.0/8 };
+
+
+  8. CLOUD THREAT DETECTION
+  -------------------------
+  The cloud-threats script covers cloud-specific attacks:
+
+    IMDS credential theft  Access to 169.254.169.254 (AWS/Azure/
+                           GCP metadata) from internal hosts.
+                           Indicates SSRF or container escape.
+    AWS key exposure       IAM key prefixes (AKIA, ASIA etc.)
+                           detected in HTTP headers
+    Cloud storage C2       S3, Azure Blob, GCP Storage, Dropbox,
+                           Mega, Discord CDN used as C2 channel
+    Metadata path access   Requests to /latest/meta-data/iam/,
+                           /computeMetadata/v1/, etc.
+    Tunneling SaaS         ngrok, serveo, pagekite connections
+    Large upload exfil     50MB+ outbound flagged as potential
+                           cloud exfiltration
+
+
+  9. CLI MENU REFERENCE
+  ---------------------
+  SSH as coderedndr then type a number and press Enter.
+
+   1  Sensor status       Services, disk, CPU, uptime, SIEM
+                          destination, rules age, ML status
+   2  Network interfaces  All NICs, promiscuous status
+   3  View logs           Suricata alerts, Zeek conn/dns/http,
+                          ML anomaly alerts, audit log
+   4  Diagnostics         DNS, gateway, SIEM connectivity, NTP,
+                          disk, monitor interface, packet drops,
+                          log freshness, Filebeat error check
+   5  Network settings    Change management IP / DNS / gateway
+   6  Hostname            Rename the sensor
+   7  Monitor interfaces  Add, replace or remove SPAN interfaces
+                          (supports multiple SPAN ports)
+   8  SIEM destination    Change SIEM address, port, TLS,
+                          output type (ES/Logstash/Syslog)
+   9  Restart services    Restart Zeek, Suricata, Filebeat,
+                          codered-ml, or all at once
+  10  Support bundle      Creates diagnostic .tar.gz archive
+                          (tokens redacted). Download via SCP.
+  11  Change password     Change login password. Current password
+                          verified via PAM before accepting new.
+  12  Reboot              Restart the sensor VM
+  13  Shutdown            Power off the sensor
+  14  User guide          This guide
+  15  Re-run setup wizard Reconfigure everything from scratch
+
+
+  10. LOG FILES & DATA PATHS
+  --------------------------
+  /nsm/zeek/logs/current/
+    conn.log      All network connections
+    dns.log       DNS requests and replies
+    http.log      HTTP requests
+    ssl.log       TLS sessions with JA3/JA3S fingerprints
+    notice.log    All Zeek detection alerts
+    files.log     Files transferred over the network
+
+  /nsm/suricata/log/
+    eve.json      Suricata EVE JSON (alerts + metadata)
+
+  /nsm/codered/
+    ml-alerts.json  ML behavioral anomaly alerts
+
+  /var/log/codered/
+    audit.log     All CLI actions (user + source IP + action)
+    cli.log       CLI session log
+    ml-engine.log ML engine activity and model training log
+    disk-resize.log Auto-resize events
+
+  /var/lib/codered/
+    ml-baseline.db  SQLite -- per-host ML baselines (7-day)
+
+  /opt/codered/
+    bin/          Management scripts
+    ml/           ML engine (codered-ml.py)
+    zeek/codered-detections/  All 20 detection scripts
+
+
+  11. NETWORK & FIREWALL REQUIREMENTS
+  ------------------------------------
+  Outbound from sensor:
+    9200  TCP  SIEM (Elasticsearch default)
+    5044  TCP  SIEM (Logstash default)
+    514   TCP  SIEM (Syslog default)
+    53    UDP  DNS resolution
+    123   UDP  NTP time sync
+    443   TCP  Rule and intel feed updates (HTTPS)
+
+  Inbound to sensor:
+    22    TCP  SSH management (restrict to admin IP ranges)
 
   Sensor VM requirements:
-    Minimum:      4 CPU,  8 GB RAM, 100 GB disk
-    Recommended:  8 CPU, 16 GB RAM, 500 GB disk
+    CPU:   4 vCPUs minimum  (8 recommended)
+    RAM:   8 GB minimum     (16 recommended)
+    Disk:  100 GB minimum   (500 GB recommended)
+    NICs:  2 minimum (NIC 1 management, NIC 2+ monitor)
 
 
-  TROUBLESHOOTING
-  ───────────────
-  Not receiving traffic?
-    1. Menu → 2 (Interfaces) → check monitor NIC shows PROMISC
-    2. Verify SPAN is active on your switch
-    3. VMware: check promiscuous mode on port group
+  12. SECURITY HARDENING
+  ----------------------
+  SSH hardening applied by default:
+    - Root login disabled
+    - Max 4 authentication attempts before disconnect
+    - 30-second login grace time
+    - Idle session disconnect after 15 minutes
+    - Modern cipher/kex/MAC algorithms only
+    - fail2ban: 4 failures in 5 min = 30-min IP ban
 
-  Cannot reach SIEM?
-    1. Menu → 4 (Diagnostics) → check SIEM connectivity line
-    2. Verify firewall allows sensor → SIEM on configured port
+  File permissions:
+    /etc/codered/sensor.conf    640 (root:root)
+    /etc/filebeat/filebeat.yml  600 (SIEM credentials)
+    /nsm/                       750 (root:adm)
+    /var/log/codered/           750 (root:adm)
 
-  High disk usage?
-    1. Menu → 1 (Status) → check /nsm usage
-    2. Increase VM disk in hypervisor if needed
+  Password policy (menu option 11):
+    - Current password verified via PAM before change accepted
+    - Minimum 12 characters
+    - Must include uppercase, a digit, and a symbol
+    - Password never written to disk during the change process
 
-  Services not running?
-    1. Menu → 9 (Restart services) → restart all
+  To restrict SSH by source IP, edit:
+    /etc/ssh/sshd_config.d/90-codered-hardening.conf
+  Add:  AllowUsers coderedndr@10.0.1.0/24
+  Then: systemctl reload ssh
 
 
-  QUICK REFERENCE
-  ───────────────
-  Default login:     coderedndr / CodeRed@NDR!
-  Management NIC:    First NIC (needs IP address)
-  Monitor NICs:      Additional NICs (SPAN ports, no IP)
-  SIEM default port: 9200
+  13. TUNING & CUSTOMISATION
+  --------------------------
+  Override detection thresholds in:
+    /opt/zeek/share/zeek/site/local.zeek
 
-============================================================
+  Common tuning examples:
+
+    # Raise beaconing threshold (reduce false positives)
+    redef CodeRed::beaconing_min_connections = 15;
+
+    # Disable internal beaconing detection (flat networks)
+    redef CodeRed::beaconing_detect_internal = F;
+
+    # Add known RDP jump servers (suppress lateral hop alerts)
+    redef CodeRed::rdp_jump_servers += { 10.0.1.50 };
+
+    # Add known SSH jump servers
+    redef CodeRed::ssh_jump_servers += { 10.0.1.51 };
+
+    # Add known domain controllers (Kerberos detection)
+    redef CodeRed::known_dcs += { 10.0.1.10, 10.0.1.11 };
+
+    # Add known OT engineering stations
+    redef CodeRed::ot_engineering_stations += { 10.100.1.10 };
+
+    # Allow additional DoH resolvers
+    redef CodeRed::approved_doh_resolvers += {
+        "dns.company.com"
+    };
+
+    # Raise data staging threshold (default 1GB)
+    redef CodeRed::staging_bytes_threshold = 2147483648;
+
+    # Adjust business hours for off-hours detection (UTC)
+    redef CodeRed::business_hours_start = 8;
+    redef CodeRed::business_hours_end   = 19;
+
+  After editing local.zeek:
+    Menu -> 9 -> Restart Zeek to apply
+
+  ML engine tuning (/opt/codered/ml/codered-ml.py):
+    ANOMALY_THRESHOLD = -0.15  (more negative = fewer alerts)
+    WARMUP_SAMPLES    = 50     (hours before ML activates)
+    CONTAMINATION     = 0.01   (expected anomaly fraction ~1%)
+    After editing: systemctl restart codered-ml
+
+  Update threat intel feeds:
+    sudo /opt/codered/bin/update-intel.sh
+
+  Update Suricata rules:
+    sudo /opt/codered/bin/update-rules.sh
+
+
+  14. TROUBLESHOOTING
+  -------------------
+  No traffic in conn.log after 60 seconds:
+    1. Menu -> 2 -- monitor NIC must show PROMISC and UP
+    2. Verify switch SPAN config is delivering traffic
+    3. VMware: port group promiscuous mode must be Accept
+    4. Test: sudo tcpdump -i <monitor-if> -c 10
+       No output = SPAN not delivering traffic
+
+  SIEM showing UNREACHABLE in diagnostics:
+    1. Menu -> 8 -- confirm SIEM address is correct
+    2. Check firewall: sensor -> SIEM on configured port
+    3. Test: nc -z -w5 <siem-ip> <port>
+
+  Services not running:
+    1. Menu -> 9 -> Restart all
+    2. Menu -> 3 -> System log for errors
+    3. sudo journalctl -u codered-zeek -n 50
+
+  High packet drop rate (Suricata):
+    1. Menu -> 4 -- shows drop percentage
+    2. Increase vCPUs in hypervisor
+    3. sudo /opt/codered/bin/tune-interface.sh <monitor-if>
+
+  High disk usage (/nsm filling):
+    1. Menu -> 1 -- check /nsm percentage
+    2. Expand VM disk in hypervisor (auto-resize on next boot)
+    3. sudo /opt/codered/bin/disk-cleanup.sh
+
+  ML engine not producing alerts:
+    - Check it is running: systemctl status codered-ml
+    - Check warm-up: sqlite3 /var/lib/codered/ml-baseline.db
+        "SELECT host, COUNT(*) FROM host_features
+         GROUP BY host ORDER BY 2 DESC LIMIT 10;"
+      ML activates per-host after 50 rows (50+ hours)
+    - View log: sudo tail -f /var/log/codered/ml-engine.log
+
+  Too many ML false positives:
+    - Increase ANOMALY_THRESHOLD to -0.25 in codered-ml.py
+    - Allow 1 week for baselines to stabilise
+    - Restart: systemctl restart codered-ml
+
+  Generate support bundle:
+    Menu -> 10 -- creates /tmp/codered-diag-<timestamp>.tar.gz
+    Download: scp coderedndr@<ip>:/tmp/codered-diag-*.tar.gz .
+
+
+  15. QUICK REFERENCE
+  -------------------
+  Default login         coderedndr / CodeRed@NDR!
+  Management NIC        First NIC (needs IP address)
+  Monitor NIC(s)        Additional NICs (SPAN/TAP, no IP)
+  SIEM default port     9200 (Elasticsearch)
+  Zeek alerts           /nsm/zeek/logs/current/notice.log
+  Suricata alerts       /nsm/suricata/log/eve.json
+  ML anomaly alerts     /nsm/codered/ml-alerts.json
+  Audit log             /var/log/codered/audit.log
+  ML baseline DB        /var/lib/codered/ml-baseline.db
+  Detection scripts     /opt/codered/zeek/codered-detections/
+  ML engine             /opt/codered/ml/codered-ml.py
+  Health check          sudo /opt/codered/bin/health-check.sh
+  Update intel feeds    sudo /opt/codered/bin/update-intel.sh
+  Update Suricata rules sudo /opt/codered/bin/update-rules.sh
+  Zeek local config     /opt/zeek/share/zeek/site/local.zeek
+  SSH hardening config  /etc/ssh/sshd_config.d/90-codered-hardening.conf
+
+================================================================
 """
 
     # Page through the guide
