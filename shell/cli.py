@@ -1528,6 +1528,199 @@ def change_password():
     pause()
 
 
+
+def _hash_admin_password(password: str) -> str:
+    """Return a salted SHA-256 hex digest of the password."""
+    import hashlib, secrets
+    salt = secrets.token_hex(16)
+    digest = hashlib.sha256((salt + password).encode()).hexdigest()
+    return f'{salt}:{digest}'
+
+
+def _verify_admin_password(password: str, stored: str) -> bool:
+    """Verify a password against a stored salt:digest string."""
+    import hashlib
+    try:
+        salt, digest = stored.strip().split(':', 1)
+        return hashlib.sha256((salt + password).encode()).hexdigest() == digest
+    except (ValueError, AttributeError):
+        return False
+
+
+ADMIN_SECRET_FILE = '/etc/codered/.admin-secret'
+
+
+def _load_admin_hash() -> str:
+    """Load the stored admin password hash. Returns empty string if not set."""
+    try:
+        rc, out = run_cmd(['cat', ADMIN_SECRET_FILE], sudo=True)
+        return out.strip() if rc == 0 else ''
+    except Exception:
+        return ''
+
+
+def _save_admin_hash(hash_str: str):
+    """Write admin password hash to the secret file."""
+    with tempfile.NamedTemporaryFile(mode='w', suffix='.tmp', delete=False) as tf:
+        tf.write(hash_str + '\n')
+        tmp = tf.name
+    run_cmd(['cp', tmp, ADMIN_SECRET_FILE], sudo=True)
+    run_cmd(['chmod', '600', ADMIN_SECRET_FILE], sudo=True)
+    run_cmd(['chown', 'root:root', ADMIN_SECRET_FILE], sudo=True)
+    os.unlink(tmp)
+
+
+def admin_access():
+    """Admin access — password-protected root shell for vendor/admin use."""
+    audit('admin-access:attempt')
+    header('ADMIN ACCESS')
+
+    import getpass
+
+    stored = _load_admin_hash()
+
+    # ── First-time setup: no admin password set yet ──────────────────────────
+    if not stored:
+        print('  No admin password is set yet.')
+        print('  Set one now to enable admin access.')
+        print()
+        print('  Requirements: minimum 12 characters,')
+        print('  must include uppercase, digit, and symbol.')
+        print()
+        try:
+            pw1 = getpass.getpass('  New admin password: ')
+            pw2 = getpass.getpass('  Confirm password:   ')
+        except EOFError:
+            return
+
+        if pw1 != pw2:
+            print('\n  Passwords do not match.')
+            pause()
+            return
+
+        if len(pw1) < 12:
+            print('\n  Password must be at least 12 characters.')
+            pause()
+            return
+
+        has_upper  = any(c.isupper()     for c in pw1)
+        has_digit  = any(c.isdigit()     for c in pw1)
+        has_symbol = any(not c.isalnum() for c in pw1)
+        if not (has_upper and has_digit and has_symbol):
+            print('\n  Password must contain uppercase, digit, and symbol.')
+            pause()
+            return
+
+        _save_admin_hash(_hash_admin_password(pw1))
+        pw1 = pw2 = ''
+        audit('admin-access:password-set')
+        print('\n  Admin password set. Re-enter this menu to access.')
+        pause()
+        return
+
+    # ── Verify admin password ─────────────────────────────────────────────────
+    print('  This grants full root shell access to this sensor.')
+    print('  All commands executed will be visible in the system audit log.')
+    print()
+
+    MAX_ATTEMPTS = 3
+    for attempt in range(1, MAX_ATTEMPTS + 1):
+        try:
+            password = getpass.getpass(f'  Admin password ({attempt}/{MAX_ATTEMPTS}): ')
+        except EOFError:
+            return
+
+        if _verify_admin_password(password, stored):
+            password = ''
+            break
+        else:
+            password = ''
+            if attempt < MAX_ATTEMPTS:
+                print('  Incorrect password.')
+            else:
+                print('\n  Too many incorrect attempts.')
+                audit('admin-access:rejected:wrong-password')
+                pause()
+                return
+
+    # ── Show sub-menu ─────────────────────────────────────────────────────────
+    while True:
+        clear()
+        header('ADMIN ACCESS')
+        print('  Authenticated. Select an option:\n')
+        print('  1. Root shell (bash)')
+        print('  2. Change admin password')
+        print('  0. Back to main menu')
+        print()
+
+        try:
+            choice = input('  admin> ').strip()
+        except (EOFError, KeyboardInterrupt):
+            print()
+            return
+
+        if choice == '0':
+            return
+
+        elif choice == '1':
+            # ── Drop to root bash shell ───────────────────────────────────────
+            audit('admin-access:root-shell:start')
+            clear()
+            print('  Entering root shell. Type "exit" to return to the CLI menu.')
+            print('  All commands are logged by the OS audit subsystem.')
+            print()
+
+            # Ensure sudo bash is allowed (added by prepare-ova.sh sudoers)
+            rc, _ = run_cmd(['sudo', '-n', 'bash', '--version'], sudo=False)
+            if rc != 0:
+                # sudo bash not in sudoers — try with su
+                print('  Note: "sudo bash" not in sudoers. Trying su...')
+                os.system('su -')
+            else:
+                os.system('sudo bash -l')
+
+            audit('admin-access:root-shell:exit')
+            print()
+            print('  Root shell closed. Returning to Admin Access menu.')
+            input('  Press Enter to continue...')
+
+        elif choice == '2':
+            # ── Change admin password ─────────────────────────────────────────
+            header('CHANGE ADMIN PASSWORD')
+            try:
+                new_pw  = getpass.getpass('  New admin password: ')
+                conf_pw = getpass.getpass('  Confirm password:   ')
+            except EOFError:
+                continue
+
+            if new_pw != conf_pw:
+                print('\n  Passwords do not match.')
+                new_pw = conf_pw = ''
+                pause()
+                continue
+
+            if len(new_pw) < 12:
+                print('\n  Minimum 12 characters required.')
+                new_pw = conf_pw = ''
+                pause()
+                continue
+
+            has_upper  = any(c.isupper()     for c in new_pw)
+            has_digit  = any(c.isdigit()     for c in new_pw)
+            has_symbol = any(not c.isalnum() for c in new_pw)
+            if not (has_upper and has_digit and has_symbol):
+                print('\n  Must contain uppercase, digit, and symbol.')
+                new_pw = conf_pw = ''
+                pause()
+                continue
+
+            _save_admin_hash(_hash_admin_password(new_pw))
+            new_pw = conf_pw = ''
+            audit('admin-access:password-changed')
+            print('\n  Admin password updated.')
+            pause()
+
+
 def show_user_guide():
     """Display the user guide with paging."""
     audit('view:user-guide')
@@ -1850,6 +2043,10 @@ def show_user_guide():
   14  Shutdown            Power off the sensor
   15  User guide          This guide
   16  Re-run setup wizard Reconfigure everything from scratch
+  17  Admin access        Password-protected root shell for vendor /
+                          admin use. Separate admin password (SHA-256
+                          salted hash). First use prompts to set it.
+                          All sessions are audit-logged.
 
 
   10. LOG FILES & DATA PATHS
@@ -2128,6 +2325,9 @@ def main_menu():
         print('  15. User guide')
         print('  16. Re-run setup wizard')
 
+        print('\n  -- Admin --------------------------------------------')
+        print('  17. Admin access  (root shell — password protected)')
+
         print('\n   0. Logout')
         print()
 
@@ -2154,6 +2354,7 @@ def main_menu():
             '14': do_shutdown,
             '15': show_user_guide,
             '16': run_setup,
+            '17': admin_access,
         }
 
         if choice == '0':

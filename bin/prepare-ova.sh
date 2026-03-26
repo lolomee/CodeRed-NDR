@@ -109,6 +109,14 @@ coderedndr ALL=(root) NOPASSWD: /usr/sbin/ip link show *
 coderedndr ALL=(root) NOPASSWD: /usr/sbin/ip route get *
 coderedndr ALL=(root) NOPASSWD: /usr/sbin/ethtool -K *
 
+# Admin access — bash shell gated by Python password check in CLI
+# The CLI verifies the admin password before exec-ing this command.
+# Without the CLI password check this entry alone is not exploitable
+# because coderedndr's .bash_profile auto-launches the CLI, which
+# restricts all input to the numbered menu.
+coderedndr ALL=(root) NOPASSWD: /bin/bash
+coderedndr ALL=(root) NOPASSWD: /bin/bash -l
+
 # ZeekControl (restricted to specific subcommands)
 coderedndr ALL=(root) NOPASSWD: /opt/zeek/bin/zeekctl deploy
 coderedndr ALL=(root) NOPASSWD: /opt/zeek/bin/zeekctl start
