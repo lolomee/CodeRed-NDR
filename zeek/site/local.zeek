@@ -38,7 +38,7 @@
 @load policy/frameworks/intel/do_notice
 
 # JA3/HASSH fingerprinting (requires Zeek 4.x+)
-@load policy/protocols/ssl/ja3
+# @load policy/protocols/ssl/ja3  # Not available in standard Zeek APT package — use JA3 from Suricata EVE instead
 @load policy/protocols/ssh/hassh
 
 # Community ID (for cross-tool correlation with Suricata and Filebeat)
