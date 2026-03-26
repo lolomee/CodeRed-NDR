@@ -1,15 +1,17 @@
 #!/bin/bash
-# /etc/profile.d/codered-cli.sh
-# Launches the restricted CLI for the coderedai user only.
-# The ubuntu user is unaffected (full bash + sudo for admin).
+# /opt/codered/shell/rbash_profile
+# Auto-launches the CodeRed NDR management CLI for the coderedndr user.
+# Placed in /home/coderedndr/.bash_profile by prepare-ova.sh.
 
-if [ "$(whoami)" = "coderedai" ]; then
-    # Customer mode - restricted CLI, no bash escape
-    logger -t codered-audit "coderedai login from ${SSH_CLIENT%% *:-console}"
-    export PATH=""
-    unset ENV BASH_ENV CDPATH GLOBIGNORE
-    readonly HISTFILE=/dev/null
-    set -r
-    exec /usr/bin/python3 /opt/codered/shell/cli.py
-    exit 0
+if [ "$(whoami)" = "coderedndr" ] && [ -t 0 ] && [ -z "$CODERED_CLI_RUNNING" ]; then
+    logger -t codered-audit "coderedndr login from ${SSH_CLIENT%% *:-console}"
+    export CODERED_CLI_RUNNING=1
+    sudo /usr/local/bin/coderedndr
+    # After CLI exits — brief pause then logout
+    echo ""
+    echo "  CLI exited. Type 'exit' to disconnect or press Enter for shell."
+    read -rt 10 -p "  > " CHOICE || true
+    if [ "${CHOICE:-exit}" = "exit" ]; then
+        logout
+    fi
 fi

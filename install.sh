@@ -176,6 +176,7 @@ apt-get install -y -qq \
     ca-certificates \
     lsb-release \
     python3 \
+    python3-pip \
     python3-configparser \
     python3-pam \
     netcat-openbsd \

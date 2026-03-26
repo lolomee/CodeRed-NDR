@@ -922,7 +922,7 @@ def show_status():
     # Services
     print()
     print('  Services:')
-    for display_name, svc in [('Zeek', 'codered-zeek'), ('Suricata', 'codered-suricata'), ('Filebeat', 'filebeat')]:
+    for display_name, svc in [('Zeek', 'codered-zeek'), ('Suricata', 'codered-suricata'), ('Filebeat', 'filebeat'), ('ML Engine', 'codered-ml')]:
         rc, out = run_cmd(['systemctl', 'is-active', svc], sudo=True)
         status = out.strip()
         if status == 'active':
