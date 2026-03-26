@@ -2224,12 +2224,15 @@ def packet_capture_monitor():
     import subprocess, threading, time, collections
 
     config = load_config()
-    iface = get_val(config, 'sensor', 'monitor_interface', '')
+    # sensor.conf stores monitor interface under [network] section
+    iface = get_val(config, 'network', 'monitor_interface', '')
     if not iface:
-        # Try monitor_interfaces (multi)
-        iface = get_val(config, 'sensor', 'monitor_interfaces', '')
-        if iface:
-            iface = iface.split(',')[0].strip()
+        iface = get_val(config, 'network', 'monitor_interfaces', '')
+    if not iface:
+        # Fallback: try sensor section
+        iface = get_val(config, 'sensor', 'monitor_interface', '')
+    if iface:
+        iface = iface.split(',')[0].strip()
 
     if not iface:
         print('\n  [!] No monitor interface configured.')
