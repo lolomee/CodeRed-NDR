@@ -221,37 +221,6 @@ event dns_request(c: connection, msg: dns_msg, query: string, qtype: count, qcla
     }
 
 # ─── Ransomware staging download (HTTP) ───────────────────────────────────
-# Use http_entity_data event which has stable access to MIME type via c$http
-
-event http_entity_data(c: connection, is_orig: bool, length: count, data: string)
-    {
-    if ( is_orig )
-        return;  # Only check server responses
-
-    local src = c$id$orig_h;
-    local dst = c$id$resp_h;
-
-    if ( ! Site::is_local_addr(src) || Site::is_local_addr(dst) )
-        return;
-
-    if ( ! c$http?$mime_type )
-        return;
-
-    local mime = to_lower(c$http$mime_type);
-    if ( mime == "application/x-dosexec" ||
-         mime == "application/x-msdownload" ||
-         mime == "application/x-executable" ||
-         mime == "application/octet-stream" )
-        {
-        local msg = fmt("Executable download (ransomware staging?): %s <- %s (mime=%s) [MITRE ATT&CK: T1105]",
-                        src, dst, mime);
-        NOTICE([$note=Ransomware_Staging_Download,
-                $conn=c,
-                $src=src,
-                $dst=dst,
-                $msg=msg,
-                $sub=fmt("mime=%s", mime),
-                $identifier=cat(src, dst, "exec_download"),
-                $suppress_for=ransomware_suppress_interval]);
-        }
-    }
+# MIME type detection removed — c$http fields are unreliable in Zeek 6.x
+# http_entity_data context. Executable download detection is handled by
+# Suricata EVE JSON (http.content_type field forwarded to SIEM via Filebeat).
