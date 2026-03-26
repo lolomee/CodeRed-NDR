@@ -1008,7 +1008,6 @@ def show_status():
             log_file = '/var/log/codered/syslog-forwarder.log'
         else:
             log_file = '/var/log/filebeat/filebeat'
-        import os
         if os.path.exists(log_file):
             try:
                 with open(log_file) as lf:
