@@ -350,41 +350,62 @@ def apply_hostname(hostname: str) -> bool:
     return rc == 0
 
 def apply_network(config: configparser.ConfigParser) -> bool:
-    """Apply management network configuration."""
+    """Apply management network configuration via netplan (Ubuntu server standard).
+    Falls back to nmcli if NetworkManager is present (desktop installs)."""
     iface = get_val(config, 'network', 'mgmt_interface', 'ens32')
-    mode = get_val(config, 'network', 'mgmt_mode', 'dhcp')
-    conn_name = f'codered-{iface}'
-
+    mode  = get_val(config, 'network', 'mgmt_mode', 'dhcp')
     audit(f'apply-network:{iface}:{mode}')
 
-    # Delete existing connection
-    run_cmd(['nmcli', 'connection', 'delete', conn_name], sudo=True)
+    # ── Build netplan YAML ────────────────────────────────────────────────────
+    netplan_file = '/etc/netplan/01-codered-mgmt.yaml'
 
     if mode == 'dhcp':
-        rc, out = run_cmd(['nmcli', 'connection', 'add',
-            'con-name', conn_name, 'ifname', iface, 'type', 'ethernet',
-            'ipv4.method', 'auto', 'connection.autoconnect', 'yes'], sudo=True)
+        yaml_content = f"""network:
+  version: 2
+  renderer: networkd
+  ethernets:
+    {iface}:
+      dhcp4: true
+      dhcp6: false
+"""
     else:
-        ip = get_val(config, 'network', 'mgmt_ip')
+        ip   = get_val(config, 'network', 'mgmt_ip')
         mask = get_val(config, 'network', 'mgmt_netmask', '255.255.255.0')
-        gw = get_val(config, 'network', 'mgmt_gateway')
-        dns = get_val(config, 'network', 'mgmt_dns', '8.8.8.8')
+        gw   = get_val(config, 'network', 'mgmt_gateway')
+        dns  = get_val(config, 'network', 'mgmt_dns', '8.8.8.8')
         cidr = netmask_to_cidr(mask)
-        dns_str = ' '.join(s.strip() for s in dns.split(','))
+        dns_list = ', '.join(f'"{s.strip()}"' for s in dns.split(','))
 
-        rc, out = run_cmd(['nmcli', 'connection', 'add',
-            'con-name', conn_name, 'ifname', iface, 'type', 'ethernet',
-            'ipv4.method', 'manual',
-            'ipv4.addresses', f'{ip}/{cidr}',
-            'ipv4.gateway', gw,
-            'ipv4.dns', dns_str,
-            'connection.autoconnect', 'yes'], sudo=True)
+        if not ip or not gw:
+            print('    ! Static IP: missing IP or gateway.')
+            return False
 
+        yaml_content = f"""network:
+  version: 2
+  renderer: networkd
+  ethernets:
+    {iface}:
+      dhcp4: false
+      addresses:
+        - {ip}/{cidr}
+      routes:
+        - to: default
+          via: {gw}
+      nameservers:
+        addresses: [{dns_list}]
+"""
+
+    with tempfile.NamedTemporaryFile(mode='w', suffix='.yaml', delete=False) as tf:
+        tf.write(yaml_content)
+        tmp = tf.name
+    run_cmd(['cp', tmp, netplan_file], sudo=True)
+    run_cmd(['chmod', '600', netplan_file], sudo=True)
+    os.unlink(tmp)
+
+    rc, out = run_cmd(['netplan', 'apply'], timeout=15, sudo=True)
     if rc != 0:
-        print(f'    ! Network config failed: {out}')
+        print(f'    ! netplan apply failed: {out}')
         return False
-
-    run_cmd(['nmcli', 'connection', 'up', conn_name], timeout=15, sudo=True)
     return True
 
 def apply_monitor_interface(iface: str) -> bool:
@@ -850,8 +871,6 @@ def run_setup():
         # Update Suricata rules
         run_cmd(['/opt/codered/bin/update-rules.sh'], timeout=120, sudo=True)
     else:
-        # Only start Filebeat (for when SIEM is configured but no SPAN yet)
-        apply_filebeat_config(config)
         print('  Note: Zeek and Suricata will start after you configure monitor interfaces.')
 
     # Mark setup complete
@@ -1005,10 +1024,11 @@ def restart_services():
     """Restart sensor services."""
     header('RESTART SERVICES')
     services = {
-        '1': ('All NDR services', ['codered-zeek', 'codered-suricata', 'filebeat']),
+        '1': ('All NDR services', ['codered-zeek', 'codered-suricata', 'filebeat', 'codered-ml']),
         '2': ('Zeek', ['codered-zeek']),
         '3': ('Suricata', ['codered-suricata']),
         '4': ('Filebeat', ['filebeat']),
+        '5': ('ML engine', ['codered-ml']),
     }
     for k, (name, _) in services.items():
         print(f'  {k}. {name}')
@@ -1612,10 +1632,10 @@ def admin_login():
         # This replaces the current CLI process; on exit the SSH session ends.
         # coderedndr sudoers has NOPASSWD for this exact command.
         try:
-            os.execvp('sudo', ['sudo', '-u', username, '-i'])
+            os.execvp('sudo', ['sudo', '-u', username, '/bin/bash', '-l'])
         except OSError as e:
             print(f'  Failed to launch admin shell: {e}')
-            print('  Ensure "sudo -u <username> -i" is in the sudoers file.')
+            print('  Ensure sudoers allows: coderedndr ALL=(<username>) NOPASSWD: /bin/bash -l')
             pause()
         return
 

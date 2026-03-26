@@ -235,7 +235,7 @@ if [ "$SIEM_OUTPUT" != "none" ]; then
     fi
 fi
 
-# ─── Step 5: Review and confirm ─────────────────────────────
+# ─── Step 6: Review and confirm ─────────────────────────────
 step 6 "Review configuration"
 
 echo ""
@@ -562,9 +562,13 @@ else
     warn "Add a SPAN interface via CLI menu option 7 to begin monitoring."
 fi
 
-# Mark complete
-mkdir -p /var/lib/codered
+# Mark complete — write BOTH markers:
+# 1. .firstboot-complete — checked by firstboot.sh itself on re-run
+# 2. .setup-complete     — checked by the CLI (is_configured()) to skip wizard
+mkdir -p /var/lib/codered /etc/codered
 echo "$(date -u +"%Y-%m-%dT%H:%M:%SZ")" > "$MARKER"
+touch /etc/codered/.setup-complete
+chmod 644 /etc/codered/.setup-complete
 
 # ─── Done ───────────────────────────────────────────────────
 echo ""

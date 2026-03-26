@@ -720,6 +720,24 @@ log "Login banner configured"
 ###############################################################################
 step 8 "Configuring first-boot trigger"
 
+
+# ── Save GitHub token for private repo auto-updates ─────────────────────────
+# If GITHUB_TOKEN is set when running prepare-ova.sh, save it so deployed
+# sensors can pull updates from the private repo automatically.
+if [ -n "${GITHUB_TOKEN:-}" ]; then
+    printf '%s' "$GITHUB_TOKEN" > /etc/codered/.git-token
+    chmod 600 /etc/codered/.git-token
+    chown root:root /etc/codered/.git-token
+    if [ -d /opt/codered/repo/.git ]; then
+        git -C /opt/codered/repo remote set-url origin \
+            "https://${GITHUB_TOKEN}@github.com/lolomee/CodeRed-NDR.git" 2>/dev/null || true
+    fi
+    log "GitHub token saved — deployed sensors will receive auto-updates"
+else
+    warn "GITHUB_TOKEN not set — auto-updates will fail on deployed sensors."
+    warn "Re-run: GITHUB_TOKEN=ghp_xxx sudo bash prepare-ova.sh"
+fi
+
 # Make the first-boot wizard also trigger from CLI if sensor.conf missing
 # Remove the marker so first boot will run
 rm -f /var/lib/codered/.firstboot-complete 2>/dev/null || true

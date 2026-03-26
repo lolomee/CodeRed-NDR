@@ -7,6 +7,14 @@ log() { echo "${TIMESTAMP} [UPDATE] $*" | tee -a "$LOG"; logger -t codered-updat
 log "Starting CodeRed auto-update..."
 [ -d "$REPO_DIR/.git" ] || { log "Repo not configured."; exit 0; }
 cd "$REPO_DIR"
+
+# Configure git credentials if token is available (private repo support)
+TOKEN_FILE="/etc/codered/.git-token"
+if [ -f "$TOKEN_FILE" ]; then
+    TOKEN=$(cat "$TOKEN_FILE")
+    git remote set-url origin "https://${TOKEN}@github.com/lolomee/CodeRed-NDR.git" 2>/dev/null || true
+fi
+
 BEFORE=$(git rev-parse HEAD)
 git pull --ff-only origin "$(git branch --show-current)" >> "$LOG" 2>&1 || { log "ERROR: git pull failed"; exit 1; }
 AFTER=$(git rev-parse HEAD)

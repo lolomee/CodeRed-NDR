@@ -33,6 +33,27 @@ CODERED_DIR="/opt/codered"
 CODERED_SRC="/tmp/codered-ndr-install"
 STEP_TOTAL=8
 
+# ─── GitHub auth for private repo ─────────────────────────────
+# If GITHUB_TOKEN is set (passed via env), use it for git operations.
+# The token is saved to /etc/codered/.git-token for auto-updates.
+# Usage:  GITHUB_TOKEN=ghp_xxx sudo bash install.sh
+#         GITHUB_TOKEN=ghp_xxx curl -sSL .../install.sh | sudo bash
+if [ -n "${GITHUB_TOKEN:-}" ]; then
+    # Inject token into the clone URL
+    CODERED_REPO_AUTH="https://${GITHUB_TOKEN}@github.com/lolomee/CodeRed-NDR.git"
+    # Save for auto-updates
+    mkdir -p /etc/codered
+    printf '%s' "$GITHUB_TOKEN" > /etc/codered/.git-token
+    chmod 600 /etc/codered/.git-token
+    chown root:root /etc/codered/.git-token
+elif [ -f /etc/codered/.git-token ]; then
+    # Reuse a previously saved token (e.g. on reinstall)
+    GITHUB_TOKEN=$(cat /etc/codered/.git-token)
+    CODERED_REPO_AUTH="https://${GITHUB_TOKEN}@github.com/lolomee/CodeRed-NDR.git"
+else
+    CODERED_REPO_AUTH="$CODERED_REPO"
+fi
+
 # ─── Helpers ───────────────────────────────────────────────
 
 log()  { echo -e "${GREEN}[OK]${NC} $*"; }
@@ -288,10 +309,14 @@ if [ -d "${SCRIPT_DIR}/.git" ] && [ -f "${SCRIPT_DIR}/shell/cli.py" ]; then
     # Running from a local git checkout — use it directly
     CODERED_SRC="${SCRIPT_DIR}"
     log "Using local repo at ${CODERED_SRC}."
-elif git clone --depth 1 "$CODERED_REPO" "$CODERED_SRC" 2>/dev/null; then
+elif git clone --depth 1 "$CODERED_REPO_AUTH" "$CODERED_SRC" 2>/dev/null; then
     log "Downloaded CodeRed NDR from GitHub."
 else
-    err "Failed to clone CodeRed NDR repo. Check internet connection."
+    if [ "$CODERED_REPO_AUTH" = "$CODERED_REPO" ]; then
+        err "Failed to clone CodeRed NDR repo. Repo is private — set GITHUB_TOKEN=<token> and re-run."
+    else
+        err "Failed to clone CodeRed NDR repo. Check your GITHUB_TOKEN has repo read access."
+    fi
 fi
 
 # Re-read version from source
@@ -403,52 +428,38 @@ RULESCRIPT
 
 # --- Create codered-update.sh if not already copied from repo ---
 
+# Note: codered-update.sh is always taken from the repo (already copied above).
+# The inline fallback below only activates if the repo copy is somehow missing.
 if [ ! -f "${CODERED_DIR}/bin/codered-update.sh" ]; then
+    warn "codered-update.sh not found in repo — writing minimal fallback."
     cat > "${CODERED_DIR}/bin/codered-update.sh" << 'UPDATESCRIPT'
 #!/bin/bash
-# CodeRed NDR - Auto-Update Script
+# CodeRed NDR - Auto-Update Script (minimal fallback — reinstall for full version)
 set -euo pipefail
-
 LOG="/var/log/codered/update.log"
 REPO_DIR="/opt/codered/repo"
+TOKEN_FILE="/etc/codered/.git-token"
 TIMESTAMP=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
-
 log() { echo "${TIMESTAMP} [UPDATE] $*" | tee -a "$LOG"; logger -t codered-update "$*"; }
-
 log "Starting CodeRed auto-update..."
-
-[ -d "$REPO_DIR/.git" ] || { log "Update repo not configured. Skipping."; exit 0; }
-
+[ -d "$REPO_DIR/.git" ] || { log "Repo not configured. Skipping."; exit 0; }
 cd "$REPO_DIR"
+# Configure git credentials if token is available
+if [ -f "$TOKEN_FILE" ]; then
+    TOKEN=$(cat "$TOKEN_FILE")
+    git remote set-url origin "https://${TOKEN}@github.com/lolomee/CodeRed-NDR.git" 2>/dev/null || true
+fi
 BEFORE=$(git rev-parse HEAD)
-
-if ! git pull --ff-only origin "$(git branch --show-current)" >> "$LOG" 2>&1; then
-    log "ERROR: git pull failed."
-    exit 1
-fi
-
+git pull --ff-only origin "$(git branch --show-current)" >> "$LOG" 2>&1 || { log "ERROR: git pull failed."; exit 1; }
 AFTER=$(git rev-parse HEAD)
-
-if [ "$BEFORE" = "$AFTER" ]; then
-    log "No updates available."
-    echo "$TIMESTAMP" > /var/log/codered/last-update.log
-    exit 0
-fi
-
+[ "$BEFORE" = "$AFTER" ] && { log "No updates."; echo "$TIMESTAMP" > /var/log/codered/last-update.log; exit 0; }
 log "Updates: ${BEFORE:0:8} -> ${AFTER:0:8}"
-
-# Sync updated files
-[ -f "$REPO_DIR/shell/cli.py" ] && {
-    chattr -i /opt/codered/shell/cli.py 2>/dev/null || true
-    cp "$REPO_DIR/shell/cli.py" /opt/codered/shell/cli.py
-    chmod 755 /opt/codered/shell/cli.py
-    chattr +i /opt/codered/shell/cli.py 2>/dev/null || true
-}
+[ -f "$REPO_DIR/shell/cli.py" ] && { chattr -i /opt/codered/shell/cli.py 2>/dev/null || true; cp "$REPO_DIR/shell/cli.py" /opt/codered/shell/cli.py; chattr +i /opt/codered/shell/cli.py 2>/dev/null || true; }
 [ -f "$REPO_DIR/VERSION" ] && cp "$REPO_DIR/VERSION" /opt/codered/VERSION
 [ -f "$REPO_DIR/conf/codered.defaults" ] && cp "$REPO_DIR/conf/codered.defaults" /etc/codered/codered.defaults
-[ -d "$REPO_DIR/bin" ] && cp "$REPO_DIR"/bin/* /opt/codered/bin/ 2>/dev/null || true
-[ -f "$REPO_DIR/firstboot/firstboot.sh" ] && cp "$REPO_DIR/firstboot/firstboot.sh" /opt/codered/firstboot/firstboot.sh
-
+[ -d "$REPO_DIR/bin" ] && cp "$REPO_DIR"/bin/*.sh /opt/codered/bin/ 2>/dev/null || true
+[ -d "$REPO_DIR/zeek/codered-detections" ] && cp -r "$REPO_DIR/zeek/codered-detections" /opt/codered/zeek/ 2>/dev/null || true
+[ -f "$REPO_DIR/ml/codered-ml.py" ] && cp "$REPO_DIR/ml/codered-ml.py" /opt/codered/ml/codered-ml.py 2>/dev/null || true
 echo "$TIMESTAMP" > /var/log/codered/last-update.log
 log "Update complete."
 UPDATESCRIPT
@@ -461,8 +472,8 @@ if [ -d "${CODERED_DIR}/repo/.git" ]; then
     git -C "${CODERED_DIR}/repo" pull --ff-only 2>/dev/null || true
 else
     rm -rf "${CODERED_DIR}/repo"
-    git clone --depth 1 "$CODERED_REPO" "${CODERED_DIR}/repo" 2>/dev/null || \
-        warn "Could not clone update repo. Auto-updates will not work until configured."
+    git clone --depth 1 "$CODERED_REPO_AUTH" "${CODERED_DIR}/repo" 2>/dev/null || \
+        warn "Could not clone update repo. Auto-updates disabled. Set GITHUB_TOKEN and re-run."
 fi
 
 # --- Create coderedndr command ---
