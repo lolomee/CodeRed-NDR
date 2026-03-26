@@ -156,6 +156,8 @@ apt-get install -y -qq \
     lsb-release \
     python3 \
     python3-configparser \
+    python3-pam \
+    netcat-openbsd \
     dialog \
     ethtool \
     net-tools \
@@ -597,10 +599,15 @@ pip3 install --quiet --break-system-packages \
 pip3 install --quiet \
     scikit-learn numpy 2>/dev/null || true
 
-# Deploy ML engine
+# Deploy ML engine from source repo
 mkdir -p /opt/codered/ml
-cp "${CODERED_DIR}/ml/codered-ml.py" /opt/codered/ml/codered-ml.py
-chmod 750 /opt/codered/ml/codered-ml.py
+if [ -f "${CODERED_SRC}/ml/codered-ml.py" ]; then
+    cp "${CODERED_SRC}/ml/codered-ml.py" /opt/codered/ml/codered-ml.py
+    chmod 750 /opt/codered/ml/codered-ml.py
+    log "ML engine deployed from source"
+else
+    warn "ML engine source not found at ${CODERED_SRC}/ml/codered-ml.py — skipping"
+fi
 
 # Create ML output directory
 mkdir -p /nsm/codered
@@ -754,7 +761,7 @@ WantedBy=timers.target
 EOF
 
 # --- codered-ml.service (ML behavioral engine) ---
-cp /opt/codered/ml/codered-ml.service /etc/systemd/system/codered-ml.service \
+cp "${CODERED_SRC}/ml/codered-ml.service" /etc/systemd/system/codered-ml.service \
     2>/dev/null || \
 cat > /etc/systemd/system/codered-ml.service << 'EOF'
 [Unit]
@@ -847,9 +854,10 @@ echo "    /var/log/codered/  - Logs"
 echo ""
 echo "  Next steps:"
 echo "    1. sudo coderedndr"
-echo "    2. Select monitor interfaces  (option 7)"
-echo "    3. Set CodeRed AI destination (option 8)"
-echo "    4. Start NDR services         (option 9)"
+echo "    2. Set deployment mode        (option 9 — on-prem or cloud)"
+echo "    3. Select monitor interfaces  (option 7)"
+echo "    4. Set SIEM destination       (option 8)"
+echo "    5. Start NDR services         (option 10)"
 echo ""
 echo "  Services are stopped. Start them via the coderedndr menu."
 echo ""
