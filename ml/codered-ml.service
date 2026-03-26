@@ -1,0 +1,23 @@
+[Unit]
+Description=CodeRed NDR - Behavioral ML Engine
+Documentation=https://github.com/lolomee/CodeRed-NDR
+After=network-online.target codered-zeek.service
+Wants=codered-zeek.service
+
+[Service]
+Type=simple
+User=root
+ExecStartPre=/usr/bin/mkdir -p /nsm/codered /var/lib/codered /var/log/codered
+ExecStart=/usr/bin/python3 /opt/codered/ml/codered-ml.py
+Restart=on-failure
+RestartSec=10
+StandardOutput=append:/var/log/codered/ml-engine.log
+StandardError=append:/var/log/codered/ml-engine.log
+
+# Resource limits — ML engine should not starve Zeek/Suricata
+CPUQuota=25%
+MemoryMax=512M
+Nice=10
+
+[Install]
+WantedBy=multi-user.target

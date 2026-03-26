@@ -31,7 +31,7 @@ NC='\033[0m'
 CODERED_REPO="https://github.com/lolomee/CodeRed-NDR.git"
 CODERED_DIR="/opt/codered"
 CODERED_SRC="/tmp/codered-ndr-install"
-STEP_TOTAL=7
+STEP_TOTAL=8
 
 # ─── Helpers ───────────────────────────────────────────────
 
@@ -565,10 +565,56 @@ else
 fi
 
 # ═══════════════════════════════════════════════════════════
-# Step 7: Create systemd units and set permissions
+# Step 7: Install ML behavioral engine
 # ═══════════════════════════════════════════════════════════
 
-step 7 "Creating systemd units and setting permissions..."
+step 7 "Installing ML behavioral engine..."
+
+# Install Python ML dependencies
+pip3 install --quiet --break-system-packages \
+    scikit-learn numpy 2>/dev/null || \
+pip3 install --quiet \
+    scikit-learn numpy 2>/dev/null || true
+
+# Deploy ML engine
+mkdir -p /opt/codered/ml
+cp "${CODERED_DIR}/ml/codered-ml.py" /opt/codered/ml/codered-ml.py
+chmod 750 /opt/codered/ml/codered-ml.py
+
+# Create ML output directory
+mkdir -p /nsm/codered
+chmod 750 /nsm/codered
+
+# Add ML alert input to Filebeat config
+if [ -f /etc/filebeat/filebeat.yml ] && \
+   ! grep -q "codered-ml-alerts" /etc/filebeat/filebeat.yml; then
+    cat >> /etc/filebeat/filebeat.yml << 'FBML'
+
+# CodeRed NDR - ML behavioral anomaly alerts
+- type: log
+  id: codered-ml-alerts
+  enabled: true
+  paths:
+    - /nsm/codered/ml-alerts.json
+  json.keys_under_root: true
+  json.add_error_key: true
+  json.overwrite_keys: true
+  fields:
+    source: codered-ml
+    log_type: behavioral_anomaly
+  fields_under_root: false
+  ignore_older: 24h
+FBML
+fi
+
+log "ML behavioral engine installed"
+log "Note: ML models need 50h of traffic data before anomaly detection activates"
+
+# ═══════════════════════════════════════════════════════════
+# Step 8: Create systemd units and set permissions
+# ═══════════════════════════════════════════════════════════
+
+step 8 "Creating systemd units and setting permissions..."
 
 # --- codered-zeek.service ---
 cat > /etc/systemd/system/codered-zeek.service << 'EOF'
@@ -684,6 +730,30 @@ Persistent=true
 
 [Install]
 WantedBy=timers.target
+EOF
+
+# --- codered-ml.service (ML behavioral engine) ---
+cp /opt/codered/ml/codered-ml.service /etc/systemd/system/codered-ml.service \
+    2>/dev/null || \
+cat > /etc/systemd/system/codered-ml.service << 'EOF'
+[Unit]
+Description=CodeRed NDR - Behavioral ML Engine
+After=network-online.target codered-zeek.service
+Wants=codered-zeek.service
+
+[Service]
+Type=simple
+User=root
+ExecStartPre=/usr/bin/mkdir -p /nsm/codered /var/lib/codered /var/log/codered
+ExecStart=/usr/bin/python3 /opt/codered/ml/codered-ml.py
+Restart=on-failure
+RestartSec=10
+CPUQuota=25%
+MemoryMax=512M
+Nice=10
+
+[Install]
+WantedBy=multi-user.target
 EOF
 
 systemctl daemon-reload

@@ -1,0 +1,18 @@
+# CodeRed NDR — Filebeat ML Alert Input
+# Add this to /etc/filebeat/filebeat.yml inputs section
+# or include via filebeat.config.inputs path
+
+- type: log
+  id: codered-ml-alerts
+  enabled: true
+  paths:
+    - /nsm/codered/ml-alerts.json
+  json.keys_under_root: true
+  json.add_error_key: true
+  json.overwrite_keys: true
+  fields:
+    source: codered-ml
+    log_type: behavioral_anomaly
+  fields_under_root: false
+  # Only ship lines written in the last 24h (skip stale restarts)
+  ignore_older: 24h
