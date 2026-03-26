@@ -70,7 +70,7 @@ event zeek_init()
     ]);
     }
 
-event icmp_echo_request(c: connection, icmp: icmp_conn, id: count, seq: count, payload: string)
+event icmp_echo_request(c: connection, icmp: icmp_info, id: count, seq: count, payload: string)
     {
     local src = c$id$orig_h;
     local dst = c$id$resp_h;
@@ -98,7 +98,7 @@ event icmp_echo_request(c: connection, icmp: icmp_conn, id: count, seq: count, p
         }
     }
 
-event icmp_echo_reply(c: connection, icmp: icmp_conn, id: count, seq: count, payload: string)
+event icmp_echo_reply(c: connection, icmp: icmp_info, id: count, seq: count, payload: string)
     {
     local src = c$id$orig_h;
     local plen = |payload|;
