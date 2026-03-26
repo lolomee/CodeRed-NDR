@@ -53,8 +53,11 @@ export {
 }
 
 # ─── Admin share access ────────────────────────────────────────────────────
+# Note: smb1_tree_connect_andx_request signature varies by Zeek version.
+# Using smb_mapping event which is stable across Zeek 4.x and 5.x.
 
-event smb1_tree_connect_andx_request(c: connection, hdr: SMB1::Header, path: string)
+event smb1_tree_connect_andx_request(c: connection, hdr: SMB1::Header, path: string,
+                                      service: string, extra_parameters: string)
     {
     # Normalise: strip \\SERVER\SHARE to just SHARE, uppercase
     local parts = split_string(path, /\\/);
@@ -63,7 +66,6 @@ event smb1_tree_connect_andx_request(c: connection, hdr: SMB1::Header, path: str
     if ( share !in smb_admin_shares )
         return;
 
-    # Only flag cross-host access (not localhost loops)
     if ( c$id$orig_h == c$id$resp_h )
         return;
 
@@ -109,34 +111,48 @@ event smb2_tree_connect_request(c: connection, hdr: SMB2::Header, path: string)
     }
 
 # ─── Remote service / lateral pipe access ─────────────────────────────────
+# smb_pipe_connect_heuristic was removed in Zeek 5.x.
+# Use smb_files event which is stable and captures named pipe access.
 
-event smb_pipe_connect_heuristic(c: connection, pipe: string)
+event smb_files(f: fa_file)
     {
-    local pipe_lower = to_lower(pipe);
+    if ( ! f?$source )
+        return;
 
-    # Strip leading \\ or \PIPE\
-    local clean = gsub(pipe_lower, /^(\\\\|\\pipe\\)/, "");
+    local src_str = to_lower(f$source);
+
+    # Check if this is a named pipe access
+    local pipe_lower = src_str;
+    local clean = gsub(pipe_lower, /^(\\\\[^\\]+\\|\\pipe\\|pipe\\)/, "");
 
     if ( clean !in smb_lateral_pipes )
         return;
 
-    if ( ! Site::is_local_addr(c$id$orig_h) )
+    # Get connection info if available
+    if ( ! f?$conns )
         return;
 
-    local is_service_pipe = ( clean == "svcctl" || clean == "atsvc" );
-    local note_type = is_service_pipe ? SMB_RemoteService_Install : SMB_AdminShare_Access;
-    local tactic   = is_service_pipe ? "T1543.003" : "T1021.002";
+    for ( cid in f$conns )
+        {
+        local c = f$conns[cid];
+        if ( ! Site::is_local_addr(c$id$orig_h) )
+            next;
 
-    local msg = fmt("SMB lateral pipe: %s -> %s (pipe=%s) [MITRE ATT&CK: %s]",
-                    c$id$orig_h, c$id$resp_h, clean, tactic);
-    NOTICE([$note=note_type,
-            $conn=c,
-            $src=c$id$orig_h,
-            $dst=c$id$resp_h,
-            $msg=msg,
-            $sub=fmt("pipe=%s", clean),
-            $identifier=cat(c$id$orig_h, c$id$resp_h, clean),
-            $suppress_for=smb_suppress_interval]);
+        local is_service_pipe = ( clean == "svcctl" || clean == "atsvc" );
+        local note_type = is_service_pipe ? SMB_RemoteService_Install : SMB_AdminShare_Access;
+        local tactic    = is_service_pipe ? "T1543.003" : "T1021.002";
+
+        local msg = fmt("SMB lateral pipe: %s -> %s (pipe=%s) [MITRE ATT&CK: %s]",
+                        c$id$orig_h, c$id$resp_h, clean, tactic);
+        NOTICE([$note=note_type,
+                $conn=c,
+                $src=c$id$orig_h,
+                $dst=c$id$resp_h,
+                $msg=msg,
+                $sub=fmt("pipe=%s", clean),
+                $identifier=cat(c$id$orig_h, c$id$resp_h, clean),
+                $suppress_for=smb_suppress_interval]);
+        }
     }
 
 # ─── SMB auth failure spike (PtH / credential spray) ─────────────────────

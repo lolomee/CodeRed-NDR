@@ -267,7 +267,8 @@ event smb2_tree_connect_request(c: connection, hdr: SMB2::Header, path: string)
                       SumStats::Observation($str=to_lower(path)));
     }
 
-event smb1_tree_connect_andx_request(c: connection, hdr: SMB1::Header, path: string)
+event smb1_tree_connect_andx_request(c: connection, hdr: SMB1::Header, path: string,
+                                      service: string, extra_parameters: string)
     {
     local src = c$id$orig_h;
 

@@ -178,14 +178,16 @@ event dce_rpc_bind(c: connection, ctx_id: count, uuid: string, ver_major: count,
     }
 
 # ─── PsExec-style detection via SMB named pipe ───────────────────────────
+# smb_pipe_connect_heuristic removed in Zeek 5.x — use smb_files instead
 
-event smb_pipe_connect_heuristic(c: connection, pipe: string)
+event smb_files(f: fa_file)
     {
-    local pipe_lower = to_lower(pipe);
-    local clean = gsub(pipe_lower, /^(\\\\|\\pipe\\)/, "");
+    if ( ! f?$source )
+        return;
 
-    # Check if any known remote execution pipe name is a prefix of clean
-    # (handles PSEXESVC-{uuid} variant naming)
+    local pipe_lower = to_lower(f$source);
+    local clean = gsub(pipe_lower, /^(\\\\[^\\]+\\|\\pipe\\|pipe\\)/, "");
+
     local matched = F;
     local match_name = "";
     for ( p in remote_exec_pipes )
@@ -201,22 +203,26 @@ event smb_pipe_connect_heuristic(c: connection, pipe: string)
     if ( ! matched )
         return;
 
-    if ( ! Site::is_local_addr(c$id$orig_h) )
+    if ( ! f?$conns )
         return;
 
-    local src = c$id$orig_h;
-    local dst = c$id$resp_h;
+    for ( cid in f$conns )
+        {
+        local c = f$conns[cid];
+        if ( ! Site::is_local_addr(c$id$orig_h) )
+            next;
 
-    local msg = fmt("PsExec/remote exec pipe detected: %s -> %s (pipe=%s) [MITRE ATT&CK: T1569.002, T1021.002]",
-                    src, dst, clean);
-    NOTICE([$note=PsExec_Execution,
-            $conn=c,
-            $src=src,
-            $dst=dst,
-            $msg=msg,
-            $sub=fmt("pipe=%s", clean),
-            $identifier=cat(src, dst, clean),
-            $suppress_for=wmi_suppress_interval]);
+        local msg = fmt("PsExec-style lateral movement: %s -> %s via SMB pipe %s [MITRE ATT&CK: T1021.002, T1569.002]",
+                        c$id$orig_h, c$id$resp_h, match_name);
+        NOTICE([$note=WMI_RemoteExec,
+                $conn=c,
+                $src=c$id$orig_h,
+                $dst=c$id$resp_h,
+                $msg=msg,
+                $sub=fmt("pipe=%s", match_name),
+                $identifier=cat(c$id$orig_h, c$id$resp_h, match_name),
+                $suppress_for=10 min]);
+        }
     }
 
 # ─── HTTP-based WMI (WMI over SOAP / WSMAN) ──────────────────────────────
