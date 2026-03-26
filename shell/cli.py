@@ -2348,20 +2348,43 @@ def packet_capture_monitor():
             pause()
 
         elif mode == 'netstats':
-            # Zeek capture stats — refreshes every 3 seconds
-            print('  Zeek capture stats (refreshes every 3s, Ctrl+C to stop)\n')
+            # Interface stats from /proc/net/dev — no Broker dependency
+            print('  Live interface stats (refreshes every 2s, Ctrl+C to stop)\n')
             import time
+            prev_rx = prev_tx = 0
             try:
                 while True:
-                    rc, out = run_cmd(['/opt/zeek/bin/zeekctl', 'netstats'], sudo=True)
-                    # Clear previous output and reprint
-                    lines = out.strip().splitlines()
-                    for line in lines:
-                        print(f'  {line}')
-                    print()
-                    time.sleep(3)
-                    # Move cursor up to overwrite
-                    print(f'\033[{len(lines)+1}A', end='')
+                    rx_bytes = tx_bytes = rx_pkts = tx_pkts = 0
+                    with open('/proc/net/dev') as f:
+                        for line in f:
+                            if iface + ':' in line:
+                                parts = line.split()
+                                rx_bytes = int(parts[1])
+                                rx_pkts  = int(parts[2])
+                                tx_bytes = int(parts[9])
+                                tx_pkts  = int(parts[10])
+                                break
+                    rx_rate = (rx_bytes - prev_rx) / 2 if prev_rx else 0
+                    prev_rx = rx_bytes
+                    prev_tx = tx_bytes
+
+                    def fmt(n):
+                        if n >= 1073741824: return f'{n/1073741824:.1f} GB'
+                        if n >= 1048576:    return f'{n/1048576:.1f} MB'
+                        if n >= 1024:       return f'{n/1024:.1f} KB'
+                        return f'{n} B'
+
+                    print(f'\033[2J\033[H', end='')  # clear screen
+                    print(f'  Interface : {iface}')
+                    print(f'  {"─"*40}')
+                    print(f'  RX packets : {rx_pkts:>12,}')
+                    print(f'  RX bytes   : {rx_bytes:>12,}  ({fmt(rx_bytes)})')
+                    print(f'  TX packets : {tx_pkts:>12,}')
+                    print(f'  TX bytes   : {tx_bytes:>12,}  ({fmt(tx_bytes)})')
+                    print(f'  {"─"*40}')
+                    print(f'  Inbound rate : {fmt(rx_rate)}/s')
+                    print(f'\n  Updated: {__import__("datetime").datetime.now().strftime("%H:%M:%S")}  (Ctrl+C to stop)')
+                    time.sleep(2)
             except KeyboardInterrupt:
                 print('\n')
 
