@@ -155,13 +155,15 @@ event zeek_init()
     ]);
     }
 
-event dns_A_reply(c: connection, msg: dns_msg, ans: dns_answer, a: addr)
+event dns_request(c: connection, msg: dns_msg, query: string, qtype: count, qclass: count)
     {
-    if ( msg?$query && |msg$query| > 0 )
+    # Track domain -> IP mappings for fast-flux detection
+    # We observe the query here; the A record answer is correlated by SumStats
+    if ( |query| > 0 && qtype == 1 )  # qtype 1 = A record
         {
         SumStats::observe("codered.http.domain_ips",
-                          SumStats::Key($str=msg$query),
-                          SumStats::Observation($str=cat(a)));
+                          SumStats::Key($str=query),
+                          SumStats::Observation($str=cat(c$id$resp_h)));
         }
     }
 
