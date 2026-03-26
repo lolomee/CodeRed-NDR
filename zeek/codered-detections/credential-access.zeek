@@ -143,7 +143,7 @@ event zeek_init()
 # ─── LDAP: query tracking and auth failure ───────────────────────────────
 
 event ldap_search_request(c: connection, message_id: count, base_object: string,
-                           scope: int, deref_aliases: int, size_limit: count,
+                           scope: count, deref_aliases: count, size_limit: count,
                            time_limit: count, types_only: bool,
                            filter: string, attributes: vector of string)
     {
@@ -197,7 +197,7 @@ event ldap_search_request(c: connection, message_id: count, base_object: string,
     }
 
 event ldap_bind_request(c: connection, message_id: count, version: int,
-                         name: string, authType: LDAP::AuthType,
+                         name: string, authType: count,
                          authData: string)
     {
     # Count bind attempts for spray detection
