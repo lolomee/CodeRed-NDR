@@ -177,11 +177,18 @@ echo ""
 # ═════════════════════════════════════════════════════════════
 info "[1/9] Stopping and disabling services..."
 
+# Stop Zeek cleanly via zeekctl first (prevents corrupt state files)
+if command -v zeekctl &>/dev/null; then
+    /opt/zeek/bin/zeekctl stop 2>/dev/null || true
+    log "Zeek stopped via zeekctl"
+fi
+
 # List of all CodeRed-related service and timer units
 UNITS=(
     codered-zeek.service
     codered-suricata.service
     codered-pcap.service
+    codered-ml.service
     filebeat.service
     codered-rule-update.timer
     codered-rule-update.service
@@ -211,7 +218,7 @@ log "All CodeRed services stopped and disabled."
 # ═════════════════════════════════════════════════════════════
 info "[2/9] Removing systemd unit files..."
 
-# Remove all codered-* unit files
+# Remove all codered-* unit files (including codered-ml)
 for f in /etc/systemd/system/codered-*; do
     if [ -f "$f" ]; then
         rm -f "$f"
@@ -324,6 +331,51 @@ fi
 if [ -f /etc/netplan/01-codered-default.yaml ]; then
     rm -f /etc/netplan/01-codered-default.yaml
     log "Removed /etc/netplan/01-codered-default.yaml"
+fi
+
+# Filebeat config — remove CodeRed-generated config and restore stock
+if [ -f /etc/filebeat/filebeat.yml ]; then
+    rm -f /etc/filebeat/filebeat.yml
+    # Restore stock filebeat.yml if Filebeat is still installed
+    if command -v filebeat &>/dev/null; then
+        filebeat export config > /etc/filebeat/filebeat.yml 2>/dev/null || true
+    fi
+    log "Removed /etc/filebeat/filebeat.yml (CodeRed config)"
+fi
+
+# Suricata CodeRed override config
+if [ -f /etc/suricata/codered-override.yaml ]; then
+    rm -f /etc/suricata/codered-override.yaml
+    log "Removed /etc/suricata/codered-override.yaml"
+fi
+
+# fail2ban CodeRed jail config
+if [ -f /etc/fail2ban/jail.d/codered-sshd.conf ]; then
+    rm -f /etc/fail2ban/jail.d/codered-sshd.conf
+    systemctl reload fail2ban 2>/dev/null || true
+    log "Removed /etc/fail2ban/jail.d/codered-sshd.conf"
+fi
+
+# Restore Zeek local.zeek to stock (remove CodeRed custom config)
+ZEEK_SITE="/opt/zeek/share/zeek/site/local.zeek"
+if [ -f "$ZEEK_SITE" ] && grep -q "CodeRed NDR" "$ZEEK_SITE" 2>/dev/null; then
+    cat > "$ZEEK_SITE" << 'ZEEKLOCALEOF'
+# This is a skeleton policy file.
+# Zeek comes with a set of policy scripts. To customize Zeek for your
+# environment, just redefine variables and add/remove @load statements here.
+# See /opt/zeek/share/zeek/site/README for details.
+@load base/protocols/conn
+@load base/protocols/dns
+@load base/protocols/http
+@load base/protocols/ssl
+@load base/protocols/ssh
+@load base/protocols/smtp
+@load base/protocols/ftp
+@load base/frameworks/notice
+@load base/frameworks/intel
+@load policy/protocols/conn/community-id-logging
+ZEEKLOCALEOF
+    log "Restored Zeek local.zeek to stock config"
 fi
 
 # SSH issue.net banner — restore to default
@@ -493,6 +545,10 @@ echo "    - /etc/codered/ (configuration)"
 echo "    - /var/log/codered/ (logs)"
 echo "    - /var/lib/codered/ (state)"
 echo "    - Sudoers, logrotate, CLI, MOTD, SSH hardening configs"
+echo "    - /etc/filebeat/filebeat.yml (CodeRed config)"
+echo "    - /etc/suricata/codered-override.yaml"
+echo "    - /etc/fail2ban/jail.d/codered-sshd.conf"
+echo "    - Zeek local.zeek restored to stock"
 echo "    - Filebeat CodeRed module configs"
 
 if [ "$REMOVE_DATA" = true ]; then
