@@ -231,7 +231,7 @@ check_log_freshness "Zeek dns.log"  "/nsm/zeek/logs/current/dns.log" 10
 # ── SIEM Connectivity ──
 echo -e "\n${BOLD}SIEM Connectivity${NC}"
 if [ -n "$SIEM_HOST" ]; then
-    if timeout 5 bash -c "echo >/dev/tcp/$SIEM_HOST/$SIEM_PORT" 2>/dev/null; then
+    if nc -z -w 5 "$SIEM_HOST" "$SIEM_PORT" 2>/dev/null; then
         ok "SIEM endpoint $SIEM_HOST:$SIEM_PORT: reachable"
     else
         crit "SIEM endpoint $SIEM_HOST:$SIEM_PORT: UNREACHABLE"
