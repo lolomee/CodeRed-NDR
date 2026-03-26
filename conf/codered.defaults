@@ -21,9 +21,10 @@ cloud_mode = no
 vxlan_port = 4789
 
 [forwarding]
-backend = elastic-agent
-siem_endpoint =
+siem_output = elasticsearch
+siem_host =
 siem_port = 9200
+siem_tls = false
 
 [zeek]
 workers = auto
@@ -45,6 +46,8 @@ firewall = yes
 
 [autoupdate]
 enabled = yes
+# Token is read from /etc/codered/.git-token (set during install or prepare-ova.sh)
+# Do not put the token in this file — it would be synced by auto-update
 repo_url = https://github.com/lolomee/CodeRed-NDR.git
 branch = main
 interval = 6h
