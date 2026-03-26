@@ -524,7 +524,20 @@ fi
 step 6 "Hardening SSH and installing fail2ban..."
 
 # --- SSH daemon hardening ---
-mkdir -p /etc/ssh/sshd_config.d
+# Create the sshd_config.d directory (may not exist on minimal Ubuntu installs)
+install -d -m 755 /etc/ssh/sshd_config.d || mkdir -p /etc/ssh/sshd_config.d || true
+
+# Ensure the main sshd_config includes the .d/ directory
+# (Ubuntu 22.04+ has this by default but some minimal images do not)
+if [ -f /etc/ssh/sshd_config ]; then
+    if ! grep -q "Include /etc/ssh/sshd_config.d" /etc/ssh/sshd_config; then
+        echo "" >> /etc/ssh/sshd_config
+        echo "# CodeRed NDR: include drop-in config directory" >> /etc/ssh/sshd_config
+        echo "Include /etc/ssh/sshd_config.d/*.conf" >> /etc/ssh/sshd_config
+        log "Added Include directive for sshd_config.d to main sshd_config"
+    fi
+fi
+
 SSHD_HARDENING="/etc/ssh/sshd_config.d/90-codered-hardening.conf"
 cat > "$SSHD_HARDENING" << 'SSHD'
 # CodeRed NDR — SSH hardening
