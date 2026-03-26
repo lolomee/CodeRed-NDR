@@ -150,31 +150,8 @@ event smb2_write_request(c: connection, hdr: SMB2::Header, file_id: SMB2::GUID,
 # Ransomware write detection covered via smb2_write_request above.
 
 # ─── Ransomware file extensions in SMB paths ──────────────────────────────
-
-event smb2_create_request(c: connection, name: string)
-    {
-    local name_lower = to_lower(name);
-
-    for ( ext in ransomware_extensions )
-        {
-        if ( ext in name_lower )
-            {
-            local src = c$id$orig_h;
-            local dst = c$id$resp_h;
-            local msg = fmt("Ransomware file extension on SMB share: %s -> %s creating %s [MITRE ATT&CK: T1486]",
-                            src, dst, name);
-            NOTICE([$note=Ransomware_SMB_Spread,
-                    $conn=c,
-                    $src=src,
-                    $dst=dst,
-                    $msg=msg,
-                    $sub=fmt("file=%s ext=%s", name, ext),
-                    $identifier=cat(src, dst, ext),
-                    $suppress_for=ransomware_suppress_interval]);
-            return;
-            }
-        }
-    }
+# smb2_create_request signature is unstable across Zeek versions.
+# Ransomware spread detection covered via smb2_write_request burst detection above.
 
 # ─── Double-extortion exfil: large outbound transfer ─────────────────────
 
@@ -244,13 +221,12 @@ event dns_request(c: connection, msg: dns_msg, query: string, qtype: count, qcla
     }
 
 # ─── Ransomware staging download (HTTP) ───────────────────────────────────
+# Use http_entity_data event which has stable access to MIME type via c$http
 
-event http_reply(c: connection, version: string, code: count, reason: string)
+event http_entity_data(c: connection, is_orig: bool, length: count, data: string)
     {
-    # Flag large HTTP downloads from external hosts that deliver executables
-    # Common ransomware staging: download dropper, then encrypt.
-    if ( code != 200 )
-        return;
+    if ( is_orig )
+        return;  # Only check server responses
 
     local src = c$id$orig_h;
     local dst = c$id$resp_h;
@@ -267,9 +243,8 @@ event http_reply(c: connection, version: string, code: count, reason: string)
          mime == "application/x-executable" ||
          mime == "application/octet-stream" )
         {
-        local msg = fmt("Executable download (ransomware staging?): %s <- %s (mime=%s uri=%s) [MITRE ATT&CK: T1105]",
-                        src, dst, mime,
-                        c$http?$uri ? c$http$uri : "unknown");
+        local msg = fmt("Executable download (ransomware staging?): %s <- %s (mime=%s) [MITRE ATT&CK: T1105]",
+                        src, dst, mime);
         NOTICE([$note=Ransomware_Staging_Download,
                 $conn=c,
                 $src=src,
