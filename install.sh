@@ -361,6 +361,17 @@ if [ -d "${CODERED_SRC}/zeek/codered-detections" ]; then
     log "Detection scripts deployed: $(ls /opt/codered/zeek/codered-detections/*.zeek 2>/dev/null | wc -l) scripts"
 fi
 
+# Validate Zeek scripts before starting service
+if command -v zeekctl &>/dev/null; then
+    log "Validating Zeek detection scripts..."
+    if ! /opt/zeek/bin/zeekctl check 2>&1 | tee /tmp/zeek-check.log | grep -q "error"; then
+        log "Zeek script validation passed."
+    else
+        warn "Zeek script validation found issues — check /tmp/zeek-check.log"
+        warn "Zeek service may not start. Run: zeekctl check"
+    fi
+fi
+
 # Zeek site local.zeek — deploy to /opt/zeek/share/zeek/site/
 # This is the main Zeek config that loads all CodeRed detection scripts.
 # It will be modified by the CLI when cloud_mode is toggled.
