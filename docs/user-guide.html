@@ -100,7 +100,7 @@ details .details-body { padding: 1rem 1.25rem; }
       <li><a href="#overview">1. Overview</a></li>
       <li><a href="#quickstart">2. Quick start</a></li>
       <li><a href="#span">3. SPAN / mirror port</a></li>
-      <li><a href="#deployment">4. VMware &amp; cloud</a></li>
+      <li><a href="#deployment">4. VMware &amp; cloud deployment</a></li>
       <li><a href="#detection">5. Detection capabilities</a></li>
       <li class="toc-h3"><a href="#c2">C2 &amp; covert channels</a></li>
       <li class="toc-h3"><a href="#lateral">Lateral movement</a></li>
@@ -212,19 +212,60 @@ set switch1 mirror-source=ether1 mirror-target=ether24</pre></div>
            Sensor NIC 2</pre>
 
     <h2 id="deployment">4. VMware &amp; cloud deployment</h2>
-    <h3>VMware ESXi / vSphere</h3>
+
+    <div class="callout callout-danger">
+      <div class="callout-title">Cloud mode must be enabled or detections will not work</div>
+      AWS, Alibaba Cloud, and Azure all deliver mirrored traffic wrapped in a VXLAN header (UDP/4789). If the sensor is set to on-prem mode, it receives the encapsulated packets but cannot parse the inner traffic &mdash; all Zeek detection scripts and Suricata signatures are blind. Always set <strong>Deployment mode &rarr; cloud</strong> in the wizard or via Menu &rarr; 9 when deploying in a cloud environment.
+    </div>
+
+    <h3>VMware ESXi / vSphere &mdash; on-prem mode</h3>
     <ol>
       <li>Create a port group named <em>SPAN-Destination</em>.</li>
       <li>Edit port group &rarr; Security &rarr; Promiscuous Mode &rarr; <strong>Accept</strong> (required).</li>
       <li>Connect sensor NIC 2 to this port group.</li>
       <li>For VDS: use Port Mirroring to mirror source ports to the sensor port.</li>
+      <li>Wizard: select <strong>on-prem</strong> mode (default).</li>
     </ol>
-    <h3>AWS</h3>
-    <p>Use <strong>VPC Traffic Mirroring</strong> to mirror ENI traffic to the sensor monitor ENI. Security group: allow SSH inbound, SIEM port outbound.</p>
-    <h3>Azure</h3>
-    <p>Use <strong>Azure vTAP</strong> or Network Watcher packet capture to deliver mirrored traffic to the sensor monitor NIC.</p>
-    <h3>GCP</h3>
-    <p>Use a <strong>Packet Mirroring</strong> policy to mirror subnet traffic to the sensor internal IP.</p>
+
+    <h3>AWS &mdash; cloud mode</h3>
+    <ol>
+      <li>Deploy the sensor OVA as an EC2 instance (t3.large minimum recommended).</li>
+      <li>Add a second ENI as the monitor interface in the same VPC.</li>
+      <li>Security group on the monitor ENI: allow <strong>UDP/4789 inbound</strong> from the ENIs you want to monitor.</li>
+      <li>AWS Console &rarr; VPC &rarr; Traffic Mirroring &rarr; Mirror Targets:<br>Create a target pointing to the sensor monitor ENI.</li>
+      <li>AWS Console &rarr; VPC &rarr; Traffic Mirroring &rarr; Mirror Sessions:<br>Source = ENI to monitor, Target = sensor monitor ENI.</li>
+      <li>Wizard: select <strong>cloud</strong> mode, VXLAN port <code>4789</code>.</li>
+    </ol>
+    <div class="callout callout-info">
+      <div class="callout-title">Supported EC2 instance families</div>
+      AWS Traffic Mirroring works on Nitro-based instances: M5/M6/M7/M8, C5/C6/C7/C8, T3/T4, R5/R6/R7, and most current generation types. T2 and older Xen-based instances are not supported. Check the <a href="https://docs.aws.amazon.com/vpc/latest/mirroring/traffic-mirroring-sessions.html">AWS documentation</a> for the full list.
+    </div>
+
+    <h3>Alibaba Cloud &mdash; cloud mode</h3>
+    <ol>
+      <li>Deploy the sensor as an ECS instance.</li>
+      <li>Add a second ENI as the monitor interface in the same VPC.</li>
+      <li>Security group: allow <strong>UDP/4789 inbound</strong> from source ENIs.</li>
+      <li>VPC Console &rarr; Traffic Mirroring &rarr; Create mirror session:<br>Source = ENI to monitor, Destination = sensor monitor ENI.</li>
+      <li>Wizard: select <strong>cloud</strong> mode, VXLAN port <code>4789</code>.</li>
+    </ol>
+
+    <h3>Azure &mdash; cloud mode</h3>
+    <p>Use <strong>Azure vTAP</strong> (preview) or Network Watcher Packet Capture to mirror traffic to the sensor monitor NIC. Set wizard to <strong>cloud</strong> mode, VXLAN port <code>4789</code>.</p>
+
+    <h3>GCP &mdash; cloud mode</h3>
+    <p>Use a <strong>Packet Mirroring</strong> policy to mirror subnet traffic to the sensor internal IP. Set wizard to <strong>cloud</strong> mode, VXLAN port <code>4789</code>.</p>
+
+    <h3>Toggling cloud mode after deployment</h3>
+    <p>Use <strong>Menu &rarr; 9 (Deployment mode)</strong> to switch between on-prem and cloud at any time. The sensor saves the setting, reconfigures Zeek and Suricata, and restarts both services automatically.</p>
+    <pre>codered> 9
+  Current mode: ON-PREM
+  Deployment mode (on-prem/cloud): cloud
+  VXLAN port [4789]: 4789
+  Apply cloud mode? Restart Zeek and Suricata. [Y/n]: Y
+  Zeek: OK
+  Suricata: OK
+  VXLAN decapsulation is now active.</pre>
 
     <h2 id="detection">5. Detection capabilities</h2>
     <p>CodeRed NDR covers <strong>~75 MITRE ATT&amp;CK techniques</strong> across 20 Zeek behavioral detection scripts plus Suricata signatures. All rule-based detections are immediate &mdash; no warm-up required.</p>
@@ -435,13 +476,14 @@ redef CodeRed::it_subnets += { 10.0.0.0/8 };</pre>
         <tr><td>6</td><td>Hostname</td><td>Rename the sensor (updates hostname and sensor.conf)</td></tr>
         <tr><td>7</td><td>Monitor interfaces</td><td>Add, replace, or remove SPAN/TAP interfaces. Supports multiple interfaces for multi-zone monitoring.</td></tr>
         <tr><td>8</td><td>SIEM destination</td><td>Change SIEM address, port, TLS, and output type (Elasticsearch / Logstash / Syslog)</td></tr>
-        <tr><td>9</td><td>Restart services</td><td>Restart Zeek, Suricata, Filebeat, codered-ml, or all at once</td></tr>
-        <tr><td>10</td><td>Support bundle</td><td>Generates <code>/tmp/codered-diag-&lt;timestamp&gt;.tar.gz</code> with logs and config (tokens redacted)</td></tr>
-        <tr><td>11</td><td>Change password</td><td>Current password verified via PAM. Min 12 chars, requires uppercase + digit + symbol.</td></tr>
-        <tr><td>12</td><td>Reboot</td><td>Restart the sensor VM</td></tr>
-        <tr><td>13</td><td>Shutdown</td><td>Power off the sensor</td></tr>
-        <tr><td>14</td><td>User guide</td><td>Paged text version of this guide (accessible without a browser)</td></tr>
-        <tr><td>15</td><td>Re-run setup wizard</td><td>Reconfigure everything from scratch</td></tr>
+        <tr><td>9</td><td>Deployment mode</td><td>Switch between <strong>on-prem</strong> (raw SPAN/TAP) and <strong>cloud</strong> (VXLAN decapsulation for AWS, Alibaba Cloud, Azure). Applies config and restarts Zeek and Suricata automatically.</td></tr>
+        <tr><td>10</td><td>Restart services</td><td>Restart Zeek, Suricata, Filebeat, codered-ml, or all at once</td></tr>
+        <tr><td>11</td><td>Support bundle</td><td>Generates <code>/tmp/codered-diag-&lt;timestamp&gt;.tar.gz</code> with logs and config (tokens redacted)</td></tr>
+        <tr><td>12</td><td>Change password</td><td>Current password verified via PAM. Min 12 chars, requires uppercase + digit + symbol.</td></tr>
+        <tr><td>13</td><td>Reboot</td><td>Restart the sensor VM</td></tr>
+        <tr><td>14</td><td>Shutdown</td><td>Power off the sensor</td></tr>
+        <tr><td>15</td><td>User guide</td><td>Paged text version of this guide (accessible without a browser)</td></tr>
+        <tr><td>16</td><td>Re-run setup wizard</td><td>Reconfigure everything from scratch</td></tr>
       </tbody>
     </table>
     <p>Download a support bundle:</p>

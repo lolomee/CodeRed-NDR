@@ -15,6 +15,11 @@ mgmt_gateway =
 mgmt_dns = 8.8.8.8,8.8.4.4
 monitor_interface = ens34
 
+# Cloud mode: set to yes when traffic arrives via VXLAN encapsulation
+# (AWS VPC Traffic Mirroring, Alibaba Cloud VPC Traffic Mirroring, Azure vTAP)
+cloud_mode = no
+vxlan_port = 4789
+
 [forwarding]
 backend = elastic-agent
 siem_endpoint =

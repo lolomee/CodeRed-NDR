@@ -326,6 +326,27 @@ if [ -d "${CODERED_SRC}/bin" ]; then
     cp "${CODERED_SRC}"/bin/* "${CODERED_DIR}/bin/" 2>/dev/null || true
 fi
 
+# Zeek detection scripts — copy to /opt/codered/zeek/
+mkdir -p /opt/codered/zeek
+if [ -d "${CODERED_SRC}/zeek/codered-detections" ]; then
+    cp -r "${CODERED_SRC}/zeek/codered-detections" /opt/codered/zeek/
+    log "Detection scripts deployed: $(ls /opt/codered/zeek/codered-detections/*.zeek 2>/dev/null | wc -l) scripts"
+fi
+
+# Zeek site local.zeek — deploy to /opt/zeek/share/zeek/site/
+# This is the main Zeek config that loads all CodeRed detection scripts.
+# It will be modified by the CLI when cloud_mode is toggled.
+ZEEK_SITE_DIR="/opt/zeek/share/zeek/site"
+if [ -d "$ZEEK_SITE_DIR" ]; then
+    if [ -f "${CODERED_SRC}/zeek/site/local.zeek" ]; then
+        cp "${CODERED_SRC}/zeek/site/local.zeek" "${ZEEK_SITE_DIR}/local.zeek"
+        chmod 644 "${ZEEK_SITE_DIR}/local.zeek"
+        log "Zeek site config deployed to ${ZEEK_SITE_DIR}/local.zeek"
+    fi
+else
+    warn "Zeek site directory not found at ${ZEEK_SITE_DIR}. Install Zeek first."
+fi
+
 # Auto-update script
 if [ -f "${CODERED_SRC}/bin/codered-update.sh" ]; then
     cp "${CODERED_SRC}/bin/codered-update.sh" "${CODERED_DIR}/bin/codered-update.sh"

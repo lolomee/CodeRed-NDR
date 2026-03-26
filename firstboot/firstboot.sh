@@ -19,7 +19,7 @@ warn() { echo -e "  ${YELLOW}[!]${NC}   $*"; }
 err()  { echo -e "  ${RED}[x]${NC}   $*"; }
 step() { echo -e "\n  ${CYAN}${BOLD}[$1/$TOTAL_STEPS] $2${NC}"; }
 
-TOTAL_STEPS=6
+TOTAL_STEPS=7
 
 clear
 echo -e "${BOLD}${CYAN}"
@@ -160,8 +160,36 @@ if [ -n "$INPUT_MONITOR" ]; then
     fi
 fi
 
-# ─── Step 4: SIEM forwarding ────────────────────────────────
-step 4 "SIEM log forwarding"
+# ─── Step 4: Deployment mode ─────────────────────────────────
+step 4 "Deployment mode"
+
+echo ""
+echo "  Where is this sensor receiving mirrored traffic from?"
+echo ""
+echo "    [1] On-premises  Physical/virtual switch SPAN port (default)"
+echo "    [2] Cloud        AWS VPC Traffic Mirroring, Alibaba Cloud, Azure vTAP"
+echo "                     Traffic arrives VXLAN-encapsulated on UDP/4789"
+echo ""
+read -rp "  Select [1]: " DEPLOY_MODE
+DEPLOY_MODE="${DEPLOY_MODE:-1}"
+
+CLOUD_MODE="no"
+VXLAN_PORT="4789"
+
+if [ "$DEPLOY_MODE" = "2" ]; then
+    CLOUD_MODE="yes"
+    read -rp "  VXLAN port [4789]: " INPUT_VXLAN
+    VXLAN_PORT="${INPUT_VXLAN:-4789}"
+    echo ""
+    warn "Cloud mode enabled. Your security group / firewall must allow:"
+    warn "  Inbound UDP/${VXLAN_PORT} from your traffic mirror source ENIs"
+    warn "  Without this, mirrored packets will be silently dropped by the VPC."
+else
+    log "On-premises mode — raw SPAN/TAP capture, no encapsulation."
+fi
+
+# ─── Step 5: SIEM forwarding ─────────────────────────────────
+step 5 "SIEM log forwarding"
 
 echo ""
 echo "  SIEM output type:"
@@ -212,7 +240,7 @@ if [ "$SIEM_OUTPUT" != "none" ]; then
 fi
 
 # ─── Step 5: Review and confirm ─────────────────────────────
-step 5 "Review configuration"
+step 6 "Review configuration"
 
 echo ""
 echo "  ┌─────────────────────────────────────────────────────┐"
@@ -229,7 +257,7 @@ read -rp "  Apply this configuration? (Y/n): " CONFIRM
 [[ "${CONFIRM:-Y}" =~ ^[Nn]$ ]] && { echo "  Cancelled."; exit 0; }
 
 # ─── Step 6: Apply ──────────────────────────────────────────
-step 6 "Applying configuration"
+step 7 "Applying configuration"
 
 echo ""
 
@@ -250,6 +278,8 @@ mgmt_ip = $MGMT_IP
 mgmt_gateway = $MGMT_GATEWAY
 mgmt_dns = $MGMT_DNS
 monitor_interface = ${MONITOR_IF:-}
+cloud_mode = $CLOUD_MODE
+vxlan_port = $VXLAN_PORT
 
 [forwarding]
 siem_output = $SIEM_OUTPUT
