@@ -192,28 +192,9 @@ event http_request(c: connection, method: string, original_URI: string,
             }
         }
 
-    # ── GCP metadata headers (X-Google-Metadata-Request) ──
-    if ( c$http?$client_header_names )
-        {
-        for ( idx in c$http$client_header_names )
-            {
-            local hdr = to_lower(c$http$client_header_names[idx]);
-            if ( hdr == "metadata-flavor" || hdr == "x-aws-ec2-metadata-token" )
-                {
-                local hmsg = fmt("Cloud metadata header in HTTP request: %s -> %s (header=%s) [MITRE ATT&CK: T1552.005]",
-                                 src, dst, hdr);
-                NOTICE([$note=Cloud_API_Abuse,
-                        $conn=c,
-                        $src=src,
-                        $dst=dst,
-                        $msg=hmsg,
-                        $sub=fmt("metadata_header=%s", hdr),
-                        $identifier=cat(src, hdr),
-                        $suppress_for=cloud_suppress_interval]);
-                return;
-                }
-            }
-        }
+    # ── GCP metadata headers ──
+    # c$http$client_header_names removed in Zeek 6.x HTTP record.
+    # GCP/AWS metadata header detection covered by URI path check above.
     }
 
 # ─── AWS credential material in HTTP headers / responses ──────────────────
