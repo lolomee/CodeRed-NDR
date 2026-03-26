@@ -212,12 +212,12 @@ event http_request(c: connection, method: string, original_URI: string,
     if ( c$http?$user_agent )
         ua = to_lower(c$http$user_agent);
 
-    for ( pattern in lolbin_user_agents )
+    for ( ua_pat in lolbin_user_agents )
         {
-        if ( ( |pattern| == 0 && |ua| == 0 ) ||
-             ( |pattern| > 0 && pattern in ua ) )
+        if ( ( |ua_pat| == 0 && |ua| == 0 ) ||
+             ( |ua_pat| > 0 && ua_pat in ua ) )
             {
-            local tool = lolbin_user_agents[pattern];
+            local tool = lolbin_user_agents[ua_pat];
             local ua_msg = fmt("Suspicious HTTP user-agent (%s): %s -> %s (ua=%s) [MITRE ATT&CK: T1218, T1071.001]",
                                tool, src, dst, c$http$user_agent);
             NOTICE([$note=HTTP_C2_UserAgent,
@@ -226,7 +226,7 @@ event http_request(c: connection, method: string, original_URI: string,
                     $dst=dst,
                     $msg=ua_msg,
                     $sub=fmt("ua=%s tool=%s", ua, tool),
-                    $identifier=cat(src, pattern),
+                    $identifier=cat(src, ua_pat),
                     $suppress_for=http_c2_suppress_interval]);
             break;
             }

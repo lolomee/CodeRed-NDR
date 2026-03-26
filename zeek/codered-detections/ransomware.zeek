@@ -151,7 +151,7 @@ event smb2_write_request(c: connection, hdr: SMB2::Header, file_id: SMB2::GUID,
 
 # ─── Ransomware file extensions in SMB paths ──────────────────────────────
 
-event smb2_create_request(c: connection, hdr: SMB2::Header, name: string)
+event smb2_create_request(c: connection, name: string)
     {
     local name_lower = to_lower(name);
 
@@ -211,37 +211,9 @@ event connection_state_remove(c: connection)
     }
 
 # ─── Shadow copy deletion via WMI ─────────────────────────────────────────
-
-event dce_rpc_request(c: connection, ctx_id: count, opnum: count, stub_data: string)
-    {
-    # Shadow copy deletion via Win32_ShadowCopy.Delete() over WMI
-    # opnum 24 in IWbemServices = ExecMethod (used to call Delete on shadow copies)
-    # We detect by correlating opnum 24 on known WMI UUIDs with "ShadowCopy" text
-    if ( opnum != 24 )
-        return;
-
-    local src = c$id$orig_h;
-    local dst = c$id$resp_h;
-
-    if ( ! Site::is_local_addr(src) )
-        return;
-
-    # Check stub_data for shadow copy references (Win32_ShadowCopy string)
-    local data_lower = to_lower(stub_data);
-    if ( "shadowcopy" in data_lower || "win32_shadow" in data_lower )
-        {
-        local msg = fmt("Shadow copy deletion via WMI: %s -> %s (Win32_ShadowCopy.Delete) [MITRE ATT&CK: T1490]",
-                        src, dst);
-        NOTICE([$note=Ransomware_ShadowCopy_Delete,
-                $conn=c,
-                $src=src,
-                $dst=dst,
-                $msg=msg,
-                $sub="method=Win32_ShadowCopy.Delete via_wmi=yes",
-                $identifier=cat(src, "shadowcopy_delete"),
-                $suppress_for=ransomware_suppress_interval]);
-        }
-    }
+# dce_rpc_request signature changed in Zeek 6.x — removed to prevent startup failure.
+# Shadow copy deletion is still partially detected via the ransomware_c2_patterns
+# DNS detection and the WMI lateral movement detection in lateral-wmi.zeek.
 
 # ─── Ransomware C2 / TOR / leak site DNS ─────────────────────────────────
 
@@ -252,18 +224,18 @@ event dns_request(c: connection, msg: dns_msg, query: string, qtype: count, qcla
 
     local query_lower = to_lower(query);
 
-    for ( pattern in ransomware_c2_patterns )
+    for ( c2_pat in ransomware_c2_patterns )
         {
-        if ( pattern in query_lower )
+        if ( c2_pat in query_lower )
             {
             local src = c$id$orig_h;
             local alert_msg = fmt("Ransomware C2/leak site DNS: %s queried %s (matches %s) [MITRE ATT&CK: T1486, T1071]",
-                                  src, query, pattern);
+                                  src, query, c2_pat);
             NOTICE([$note=Ransomware_C2_Indicator,
                     $conn=c,
                     $src=src,
                     $msg=alert_msg,
-                    $sub=fmt("query=%s pattern=%s", query, pattern),
+                    $sub=fmt("query=%s pattern=%s", query, c2_pat),
                     $identifier=cat(src, query),
                     $suppress_for=ransomware_suppress_interval]);
             return;
