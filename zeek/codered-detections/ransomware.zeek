@@ -300,29 +300,25 @@ event http_reply(c: connection, version: string, code: count, reason: string)
     if ( ! Site::is_local_addr(src) || Site::is_local_addr(dst) )
         return;
 
-    if ( ! c$http?$resp_mime_types )
+    if ( ! c$http?$mime_type )
         return;
 
-    for ( idx in c$http$resp_mime_types )
+    local mime = to_lower(c$http$mime_type);
+    if ( mime == "application/x-dosexec" ||
+         mime == "application/x-msdownload" ||
+         mime == "application/x-executable" ||
+         mime == "application/octet-stream" )
         {
-        local mime = to_lower(c$http$resp_mime_types[idx]);
-        if ( mime == "application/x-dosexec" ||
-             mime == "application/x-msdownload" ||
-             mime == "application/x-executable" ||
-             mime == "application/octet-stream" )
-            {
-            local msg = fmt("Executable download (ransomware staging?): %s <- %s (mime=%s uri=%s) [MITRE ATT&CK: T1105]",
-                            src, dst, mime,
-                            c$http?$uri ? c$http$uri : "unknown");
-            NOTICE([$note=Ransomware_Staging_Download,
-                    $conn=c,
-                    $src=src,
-                    $dst=dst,
-                    $msg=msg,
-                    $sub=fmt("mime=%s", mime),
-                    $identifier=cat(src, dst, "exec_download"),
-                    $suppress_for=ransomware_suppress_interval]);
-            return;
-            }
+        local msg = fmt("Executable download (ransomware staging?): %s <- %s (mime=%s uri=%s) [MITRE ATT&CK: T1105]",
+                        src, dst, mime,
+                        c$http?$uri ? c$http$uri : "unknown");
+        NOTICE([$note=Ransomware_Staging_Download,
+                $conn=c,
+                $src=src,
+                $dst=dst,
+                $msg=msg,
+                $sub=fmt("mime=%s", mime),
+                $identifier=cat(src, dst, "exec_download"),
+                $suppress_for=ransomware_suppress_interval]);
         }
     }

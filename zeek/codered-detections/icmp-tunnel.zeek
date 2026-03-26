@@ -40,14 +40,6 @@ export {
     const icmp_suppress_interval: interval = 10 min &redef;
 }
 
-# Per-source ICMP tracking for rate and volume
-global icmp_tracker: table[addr] of record {
-    pkt_count:   count;
-    total_bytes: count;
-    large_count: count;
-    last_reset:  time;
-} &create_expire=2 min;
-
 event zeek_init()
     {
     # ICMP rate burst detection via SumStats

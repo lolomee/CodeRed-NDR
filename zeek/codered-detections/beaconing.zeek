@@ -23,6 +23,11 @@ export {
 
     ## Epoch length for the SumStats reducer (should match the window).
     const beaconing_epoch: interval = 1 hr &redef;
+
+    ## If T, also detect beaconing between internal hosts (east-west C2).
+    ## Enable this to catch compromised hosts calling back to an internal pivot.
+    ## May generate more noise in large flat networks — tune with beaconing_min_connections.
+    const beaconing_detect_internal: bool = T &redef;
 }
 
 # Track timestamps of connections per src-dst pair.
@@ -33,12 +38,12 @@ event connection_state_remove(c: connection)
     local src = c$id$orig_h;
     local dst = c$id$resp_h;
 
-    # Skip local-to-local if both are private (optional tuning point)
-    if ( Site::is_local_addr(src) && Site::is_local_addr(dst) )
+    # Only track connections where source is an internal host
+    if ( ! Site::is_local_addr(src) )
         return;
 
-    # Only track outbound from local network
-    if ( ! Site::is_local_addr(src) )
+    # Skip internal-to-internal unless east-west C2 detection is enabled
+    if ( Site::is_local_addr(dst) && ! beaconing_detect_internal )
         return;
 
     if ( [src, dst] !in beacon_tracker )

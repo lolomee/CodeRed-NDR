@@ -163,8 +163,8 @@ event zeek_init()
 function is_off_hours(): bool
     {
     local now = current_time();
-    local hr   = to_int(strftime("%H", now));
-    return ( hr < (int) business_hours_start || hr >= (int) business_hours_end );
+    local hr: count = to_count(strftime("%H", now));
+    return ( hr < business_hours_start || hr >= business_hours_end );
     }
 
 # ─── Internal data staging via SMB ───────────────────────────────────────
@@ -178,7 +178,7 @@ event connection_state_remove(c: connection)
         return;
 
     local resp_bytes: count = 0;
-    if ( c$conn?$resp_bytes )
+    if ( c?$conn && c$conn?$resp_bytes )
         resp_bytes = c$conn$resp_bytes;
 
     # Track large reads from internal hosts (data pulled from file server)
@@ -193,7 +193,7 @@ event connection_state_remove(c: connection)
     if ( c$id$resp_p == 21/tcp || c$id$resp_p == 990/tcp )
         {
         local orig_bytes: count = 0;
-        if ( c$conn?$orig_bytes )
+        if ( c?$conn && c$conn?$orig_bytes )
             orig_bytes = c$conn$orig_bytes;
 
         if ( orig_bytes >= ftp_exfil_bytes && ! Site::is_local_addr(dst) )
@@ -216,12 +216,11 @@ event connection_state_remove(c: connection)
     if ( is_off_hours() && ! Site::is_local_addr(dst) )
         {
         local ob: count = 0;
-        if ( c$conn?$orig_bytes )
+        if ( c?$conn && c$conn?$orig_bytes )
             ob = c$conn$orig_bytes;
 
         if ( ob >= offhours_bytes_threshold )
             {
-            local gb_val = ob / 1073741824;
             local offmsg = fmt("Off-hours large external transfer: %s -> %s sent %dMB after hours [MITRE ATT&CK: T1020, T1030]",
                                src, dst, ob / 1048576);
             NOTICE([$note=Insider_OffHours_Activity,

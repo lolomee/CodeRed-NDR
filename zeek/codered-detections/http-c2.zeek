@@ -180,7 +180,7 @@ event http_request(c: connection, method: string, original_URI: string,
         host_lower = to_lower(c$http$host);
 
     # ── Domain Fronting: SNI vs Host header mismatch ──
-    if ( c$ssl?$server_name && |host_lower| > 0 )
+    if ( c?$ssl && c$ssl?$server_name && |host_lower| > 0 )
         {
         local sni = to_lower(c$ssl$server_name);
         # Extract base domains for comparison (last 2 labels)

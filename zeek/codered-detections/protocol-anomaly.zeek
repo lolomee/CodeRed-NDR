@@ -105,12 +105,12 @@ event zeek_init()
     }
 
 # ─── Protocol-port mismatch ───────────────────────────────────────────────
+# Use connection_state_remove so c$service is fully populated by the time
+# we check it (protocol analyzers confirm the service during the connection).
 
-event protocol_confirmed(c: connection, atype: count)
+event connection_state_remove(c: connection)
     {
-    # Zeek fires this event when a protocol analyzer confirms a match.
-    # We check if the confirmed protocol is on an unexpected port.
-    if ( ! c?$service )
+    if ( ! c?$service || |c$service| == 0 )
         return;
 
     local src = c$id$orig_h;
@@ -196,37 +196,30 @@ event connection_established(c: connection)
         }
     }
 
-# ─── IPv6-in-IPv4 tunneling (protocol 41 / GRE) ──────────────────────────
+# ─── IPv6-in-IPv4 tunneling via Zeek Tunnel framework ─────────────────────
+# Zeek's tunnel detection framework raises events when it identifies
+# encapsulated traffic. ip_in_ip fires for protocol-41 (6in4) encapsulation.
+# GRE is detected via the gre_encapsulation event in the same framework.
 
-event new_connection(c: connection)
+@load base/frameworks/tunnels
+
+event Tunnel::ip_in_ip(outer: connection, inner: pkt_hdr)
     {
-    # Zeek logs IP protocol numbers in conn records.
-    # Protocol 41 = 6in4 (direct IPv6-in-IPv4 encapsulation)
-    # Protocol 47 = GRE (can encapsulate IPv6 or other protocols)
-    if ( ! c$conn?$proto )
-        return;
-
-    local proto = c$conn$proto;
-
-    if ( proto != 41 && proto != 47 )
-        return;
-
-    local src = c$id$orig_h;
-    local dst = c$id$resp_h;
+    local src = outer$id$orig_h;
+    local dst = outer$id$resp_h;
 
     if ( ! Site::is_local_addr(src) )
         return;
 
-    local proto_name = proto == 41 ? "6in4 (IPv6-in-IPv4)" : "GRE";
-    local msg = fmt("IPv6/GRE tunneling: %s -> %s using IP protocol %d (%s) [MITRE ATT&CK: T1572]",
-                    src, dst, proto, proto_name);
+    local msg = fmt("IPv6-in-IPv4 (6in4) tunnel: %s -> %s [MITRE ATT&CK: T1572]",
+                    src, dst);
     NOTICE([$note=IPv6_Tunnel_Detected,
-            $conn=c,
+            $conn=outer,
             $src=src,
             $dst=dst,
             $msg=msg,
-            $sub=fmt("ip_proto=%d proto_name=%s", proto, proto_name),
-            $identifier=cat(src, dst, cat(proto)),
+            $sub="tunnel_type=6in4_proto41",
+            $identifier=cat(src, dst, "6in4"),
             $suppress_for=proto_suppress_interval]);
     }
 
