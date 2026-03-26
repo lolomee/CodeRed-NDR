@@ -31,7 +31,7 @@ NC='\033[0m'
 CODERED_REPO="https://github.com/lolomee/CodeRed-NDR.git"
 CODERED_DIR="/opt/codered"
 CODERED_SRC="/tmp/codered-ndr-install"
-STEP_TOTAL=6
+STEP_TOTAL=7
 
 # ─── Helpers ───────────────────────────────────────────────
 
@@ -483,10 +483,92 @@ else
 fi
 
 # ═══════════════════════════════════════════════════════════
-# Step 6: Create systemd units and set permissions
+# Step 6: SSH hardening
 # ═══════════════════════════════════════════════════════════
 
-step 6 "Creating systemd units and setting permissions..."
+step 6 "Hardening SSH and installing fail2ban..."
+
+# --- SSH daemon hardening ---
+SSHD_HARDENING="/etc/ssh/sshd_config.d/90-codered-hardening.conf"
+cat > "$SSHD_HARDENING" << 'SSHD'
+# CodeRed NDR — SSH hardening
+# Applied by install.sh — do not edit manually
+
+# Disable root login entirely
+PermitRootLogin no
+
+# Key-based auth only for production; password auth for initial customer setup
+PasswordAuthentication yes
+PubkeyAuthentication yes
+
+# Harden authentication
+MaxAuthTries 4
+MaxStartups 10:30:60
+LoginGraceTime 30
+
+# Disable dangerous features
+PermitEmptyPasswords no
+X11Forwarding no
+AllowAgentForwarding no
+AllowTcpForwarding no
+GatewayPorts no
+PermitUserEnvironment no
+
+# Idle timeout: disconnect after 15 min of inactivity
+ClientAliveInterval 300
+ClientAliveCountMax 3
+
+# Restrict to secure algorithms only
+KexAlgorithms curve25519-sha256,curve25519-sha256@libssh.org,diffie-hellman-group14-sha256,diffie-hellman-group16-sha512
+Ciphers chacha20-poly1305@openssh.com,aes256-gcm@openssh.com,aes128-gcm@openssh.com
+MACs hmac-sha2-512-etm@openssh.com,hmac-sha2-256-etm@openssh.com
+
+# Log verbosity for audit
+LogLevel VERBOSE
+
+# Login banner
+Banner /etc/issue.net
+SSHD
+chmod 644 "$SSHD_HARDENING"
+
+# Apply SSH banner
+cat > /etc/issue.net << 'BANNER'
+
+  ══════════════════════════════════════════════════════
+       CodeRed NDR Sensor — Authorized Access Only
+       Unauthorized access is prohibited and logged.
+  ══════════════════════════════════════════════════════
+
+BANNER
+
+# Reload SSH to apply hardening
+systemctl reload sshd 2>/dev/null || systemctl reload ssh 2>/dev/null || true
+log "SSH hardened: MaxAuthTries=4, root login disabled, idle timeout 15min"
+
+# --- Install and configure fail2ban ---
+if apt-get install -y -qq fail2ban 2>/dev/null; then
+    cat > /etc/fail2ban/jail.d/codered-sshd.conf << 'F2B'
+[sshd]
+enabled   = true
+port      = ssh
+logpath   = %(sshd_log)s
+backend   = %(sshd_backend)s
+maxretry  = 4
+findtime  = 300
+bantime   = 1800
+F2B
+    systemctl enable fail2ban 2>/dev/null || true
+    systemctl restart fail2ban 2>/dev/null || true
+    log "fail2ban configured: 4 attempts / 5 min → 30 min ban"
+else
+    warn "fail2ban install failed — SSH brute force protection not active"
+fi
+
+# ═══════════════════════════════════════════════════════════
+# Step 7: Create systemd units and set permissions
+# ═══════════════════════════════════════════════════════════
+
+step 7 "Creating systemd units and setting permissions..."
 
 # --- codered-zeek.service ---
 cat > /etc/systemd/system/codered-zeek.service << 'EOF'
@@ -636,8 +718,12 @@ touch /var/log/codered/cli.log /var/log/codered/audit.log
 chmod 664 /var/log/codered/cli.log /var/log/codered/audit.log
 
 # /nsm
-chown -R root:root /nsm
-chmod -R 755 /nsm
+chown -R root:adm /nsm
+chmod 750 /nsm
+chmod -R 750 /nsm/zeek /nsm/suricata /nsm/pcap
+# NSM logs: zeek/suricata write as their service users
+chown -R zeek:adm /nsm/zeek       2>/dev/null || true
+chown -R suricata:adm /nsm/suricata 2>/dev/null || true
 
 log "Permissions set."
 

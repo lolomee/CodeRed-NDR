@@ -12,6 +12,19 @@ HEADER="#fields\tindicator\tindicator_type\tmeta.source\tmeta.desc\tmeta.url"
 log()  { echo "[+] $(date '+%Y-%m-%d %H:%M:%S') $*"; }
 warn() { echo "[!] $(date '+%Y-%m-%d %H:%M:%S') $*"; }
 
+# Secure curl wrapper — always verify TLS, set timeout, fail on HTTP errors
+# Never use --insecure or --no-check-certificate in this script.
+secure_curl() {
+    curl --silent --show-error \
+         --fail \
+         --max-time 120 \
+         --retry 2 \
+         --retry-delay 5 \
+         --tlsv1.2 \
+         --proto '=https' \
+         "$@"
+}
+
 cleanup() { rm -rf "$TMP_DIR"; }
 trap cleanup EXIT
 
@@ -19,7 +32,7 @@ mkdir -p "$INTEL_DIR"
 
 # ─── URLhaus (recent URLs) ───
 log "Downloading URLhaus feed..."
-if curl -sSL --max-time 120 -o "$TMP_DIR/urlhaus.csv" \
+if secure_curl -o "$TMP_DIR/urlhaus.csv" \
     "https://urlhaus.abuse.ch/downloads/csv_recent/" 2>/dev/null; then
     {
         printf '%b\n' "$HEADER"
@@ -40,7 +53,7 @@ fi
 
 # ─── Feodo Tracker (C2 IPs) ───
 log "Downloading Feodo Tracker feed..."
-if curl -sSL --max-time 120 -o "$TMP_DIR/feodo.csv" \
+if secure_curl -o "$TMP_DIR/feodo.csv" \
     "https://feodotracker.abuse.ch/downloads/ipblocklist.csv" 2>/dev/null; then
     {
         printf '%b\n' "$HEADER"
@@ -62,7 +75,7 @@ fi
 
 # ─── SSL Blacklist (malicious SSL IPs) ───
 log "Downloading SSL Blacklist feed..."
-if curl -sSL --max-time 120 -o "$TMP_DIR/sslbl.csv" \
+if secure_curl -o "$TMP_DIR/sslbl.csv" \
     "https://sslbl.abuse.ch/blacklist/sslipblacklist.csv" 2>/dev/null; then
     {
         printf '%b\n' "$HEADER"

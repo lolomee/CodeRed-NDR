@@ -441,7 +441,8 @@ interface=af_packet::{iface}
         f.write(content)
         tmp = f.name
     run_cmd(['cp', tmp, node_cfg], sudo=True)
-    run_cmd(['chmod', '644', node_cfg], sudo=True)
+    run_cmd(['chmod', '640', node_cfg], sudo=True)
+    run_cmd(['chown', 'root:zeek', node_cfg], sudo=True)
     os.unlink(tmp)
 
     # Tune each monitor interface
@@ -508,7 +509,8 @@ outputs:
         tmp = f.name
     run_cmd(['mkdir', '-p', '/etc/suricata'], sudo=True)
     run_cmd(['cp', tmp, override], sudo=True)
-    run_cmd(['chmod', '644', override], sudo=True)
+    run_cmd(['chmod', '640', override], sudo=True)
+    run_cmd(['chown', 'root:suricata', override], sudo=True)
     os.unlink(tmp)
 
 
@@ -1143,15 +1145,14 @@ def run_diagnostics():
         rc, _ = run_cmd(['ping', '-c', '1', '-W', '3', gw], sudo=False)
         print_line('Gateway reachable:', 'OK' if rc == 0 else 'FAIL')
 
-    # SIEM connectivity
+    # SIEM connectivity — use subprocess list args, never interpolate into bash -c
     endpoint = get_val(config, 'forwarding', 'siem_host')
     if not endpoint:
         endpoint = get_val(config, 'forwarding', 'siem_endpoint')
     port = get_val(config, 'forwarding', 'siem_port', '9200')
-    if endpoint:
-        rc, _ = run_cmd(['bash', '-c', f'echo | timeout 5 openssl s_client -connect {endpoint}:{port} 2>/dev/null'])
-        if rc != 0:
-            rc, _ = run_cmd(['bash', '-c', f'echo > /dev/tcp/{endpoint}/{port}'], timeout=5)
+    if endpoint and is_valid_host(endpoint) and is_valid_port(port):
+        # Use nc (netcat) with list args — no shell interpolation
+        rc, _ = run_cmd(['nc', '-z', '-w', '5', endpoint, port], timeout=8)
         print_line(f'SIEM ({endpoint}:{port}):', 'OK' if rc == 0 else 'UNREACHABLE')
 
     # NTP sync
@@ -1275,11 +1276,25 @@ def change_password():
     print('  Change the login password for this sensor.\n')
 
     import getpass
+    import pam
+
+    current_user = os.environ.get('SUDO_USER', os.environ.get('USER', 'coderedndr'))
+
     try:
         current = getpass.getpass('  Current password: ')
-        new_pw = getpass.getpass('  New password: ')
+        new_pw  = getpass.getpass('  New password: ')
         confirm_pw = getpass.getpass('  Confirm new password: ')
     except EOFError:
+        return
+
+    # ── Verify current password via PAM before allowing change ──
+    # This prevents anyone who walks up to an unlocked session from
+    # silently changing the password without knowing the current one.
+    p = pam.pam()
+    if not p.authenticate(current_user, current):
+        print('\n  Incorrect current password.')
+        audit('change-password:rejected:wrong-current-password')
+        pause()
         return
 
     if new_pw != confirm_pw:
@@ -1287,28 +1302,43 @@ def change_password():
         pause()
         return
 
-    if len(new_pw) < 8:
-        print('\n  Password must be at least 8 characters.')
+    if len(new_pw) < 12:
+        print('\n  Password must be at least 12 characters.')
         pause()
         return
 
-    # Use chpasswd via sudo with dynamic user detection
-    current_user = os.environ.get('SUDO_USER', os.environ.get('USER', 'coderedndr'))
-    with tempfile.NamedTemporaryFile(mode='w', suffix='.pw', delete=False) as f:
-        f.write(f'{current_user}:{new_pw}')
-        tmp = f.name
-    os.chmod(tmp, 0o600)
-    rc, out = run_cmd(['bash', '-c', f'cat {tmp} | chpasswd && rm -f {tmp}'], sudo=True)
+    # ── Check complexity: require at least one digit and one symbol ──
+    has_digit  = any(c.isdigit()      for c in new_pw)
+    has_upper  = any(c.isupper()      for c in new_pw)
+    has_symbol = any(not c.isalnum()  for c in new_pw)
+    if not (has_digit and has_upper and has_symbol):
+        print('\n  Password must contain uppercase, a digit, and a symbol.')
+        pause()
+        return
+
+    # ── Use chpasswd via subprocess pipe — never write password to disk ──
+    # Passing the password through a tempfile creates a race-condition window
+    # where it exists as plaintext in /tmp. Pipe via stdin instead.
     try:
-        os.unlink(tmp)
-    except OSError:
-        pass
-    if rc == 0:
-        print('\n  Password changed successfully.')
-        audit('change-password:success')
-    else:
-        print(f'\n  Failed to change password: {out}')
-        audit('change-password:failed')
+        proc = subprocess.run(
+            ['sudo', 'chpasswd'],
+            input=f'{current_user}:{new_pw}\n',
+            capture_output=True,
+            text=True,
+            timeout=10
+        )
+        if proc.returncode == 0:
+            print('\n  Password changed successfully.')
+            audit('change-password:success')
+        else:
+            print(f'\n  Failed to change password.')
+            audit('change-password:failed')
+    except subprocess.TimeoutExpired:
+        print('\n  Password change timed out.')
+    finally:
+        # Explicitly clear password strings from memory
+        new_pw = confirm_pw = current = ''
+
     pause()
 
 
