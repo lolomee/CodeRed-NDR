@@ -13,3 +13,11 @@
 @load ./lateral-smb
 @load ./lateral-rdp
 @load ./lateral-wmi
+
+# Advanced threat detections
+@load ./ja3-fingerprint
+@load ./kerberos-attacks
+@load ./cryptomining
+@load ./ransomware
+@load ./ot-anomaly
+@load ./cloud-threats
