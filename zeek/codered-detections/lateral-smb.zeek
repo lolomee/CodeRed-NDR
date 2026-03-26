@@ -56,33 +56,9 @@ export {
 # Note: smb1_tree_connect_andx_request signature varies by Zeek version.
 # Using smb_mapping event which is stable across Zeek 4.x and 5.x.
 
-event smb1_tree_connect_andx_request(c: connection, hdr: SMB1::Header, path: string,
-                                      service: string, extra_parameters: string)
-    {
-    # Normalise: strip \\SERVER\SHARE to just SHARE, uppercase
-    local parts = split_string(path, /\\/);
-    local share = to_upper(parts[|parts| - 1]);
-
-    if ( share !in smb_admin_shares )
-        return;
-
-    if ( c$id$orig_h == c$id$resp_h )
-        return;
-
-    if ( ! Site::is_local_addr(c$id$orig_h) )
-        return;
-
-    local msg = fmt("SMB admin share access: %s -> %s (share=%s) [MITRE ATT&CK: T1021.002]",
-                    c$id$orig_h, c$id$resp_h, share);
-    NOTICE([$note=SMB_AdminShare_Access,
-            $conn=c,
-            $src=c$id$orig_h,
-            $dst=c$id$resp_h,
-            $msg=msg,
-            $sub=fmt("share=%s", share),
-            $identifier=cat(c$id$orig_h, c$id$resp_h, share),
-            $suppress_for=smb_suppress_interval]);
-    }
+# smb1_tree_connect_andx_request: signature varies significantly between Zeek versions
+# and SMB1 is largely deprecated. Admin share detection is handled via smb2_tree_connect_request
+# and the smb_files event below.
 
 event smb2_tree_connect_request(c: connection, hdr: SMB2::Header, path: string)
     {
@@ -123,9 +99,9 @@ event smb_files(f: fa_file)
 
     # Check if this is a named pipe access
     local pipe_lower = src_str;
-    local clean = gsub(pipe_lower, /^(\\\\[^\\]+\\|\\pipe\\|pipe\\)/, "");
+    local pipe_name = gsub(pipe_lower, /^(\\\\[^\\]+\\|\\pipe\\|pipe\\)/, "");
 
-    if ( clean !in smb_lateral_pipes )
+    if ( pipe_name !in smb_lateral_pipes )
         return;
 
     # Get connection info if available
@@ -138,7 +114,7 @@ event smb_files(f: fa_file)
         if ( ! Site::is_local_addr(c$id$orig_h) )
             next;
 
-        local is_service_pipe = ( clean == "svcctl" || clean == "atsvc" );
+        local is_service_pipe = ( pipe_name == "svcctl" || pipe_name == "atsvc" );
         local note_type = is_service_pipe ? SMB_RemoteService_Install : SMB_AdminShare_Access;
         local tactic    = is_service_pipe ? "T1543.003" : "T1021.002";
 
@@ -149,8 +125,8 @@ event smb_files(f: fa_file)
                 $src=c$id$orig_h,
                 $dst=c$id$resp_h,
                 $msg=msg,
-                $sub=fmt("pipe=%s", clean),
-                $identifier=cat(c$id$orig_h, c$id$resp_h, clean),
+                $sub=fmt("pipe=%s", pipe_name),
+                $identifier=cat(c$id$orig_h, c$id$resp_h, pipe_name),
                 $suppress_for=smb_suppress_interval]);
         }
     }

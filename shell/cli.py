@@ -667,7 +667,17 @@ processors:
 
 """
     # Add output section based on type
-    if siem_output == 'logstash':
+    if not endpoint:
+        # No SIEM configured — buffer to file, Filebeat 8.x has no output.console
+        content += """output.file:
+  enabled: true
+  path: /var/log/codered
+  filename: filebeat-buffer
+  rotate_every_kb: 10240
+  number_of_files: 3
+# NOTE: Configure SIEM via menu option 8 to forward alerts
+"""
+    elif siem_output == 'logstash':
         content += f"""output.logstash:
   enabled: true
   hosts: ["{endpoint}:{port}"]

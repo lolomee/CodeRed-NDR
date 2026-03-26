@@ -186,13 +186,13 @@ event smb_files(f: fa_file)
         return;
 
     local pipe_lower = to_lower(f$source);
-    local clean = gsub(pipe_lower, /^(\\\\[^\\]+\\|\\pipe\\|pipe\\)/, "");
+    local pipe_name = gsub(pipe_lower, /^(\\\\[^\\]+\\|\\pipe\\|pipe\\)/, "");
 
     local matched = F;
     local match_name = "";
     for ( p in remote_exec_pipes )
         {
-        if ( |clean| >= |p| && clean[0:|p|] == p )
+        if ( |pipe_name| >= |p| && pipe_name[0:|p|] == p )
             {
             matched = T;
             match_name = p;

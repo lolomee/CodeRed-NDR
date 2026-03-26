@@ -485,10 +485,14 @@ ESEOF
     log "Filebeat configured: ${SIEM_OUTPUT:-elasticsearch} -> $SIEM_HOST:${SIEM_PORT}"
 else
     cat >> "$FILEBEAT_CFG" << NOEOF
-# No SIEM configured — output disabled
+# No SIEM configured — logging to file only until SIEM is set
 # Configure via: sudo coderedndr -> option 8
-output.console:
-  enabled: false
+output.file:
+  enabled: true
+  path: /var/log/codered
+  filename: filebeat-buffer
+  rotate_every_kb: 10240
+  number_of_files: 3
 NOEOF
     warn "No SIEM address set — Filebeat output not configured."
     warn "Configure later: sudo coderedndr -> option 8 (SIEM destination)"

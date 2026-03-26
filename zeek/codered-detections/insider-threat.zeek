@@ -267,18 +267,8 @@ event smb2_tree_connect_request(c: connection, hdr: SMB2::Header, path: string)
                       SumStats::Observation($str=to_lower(path)));
     }
 
-event smb1_tree_connect_andx_request(c: connection, hdr: SMB1::Header, path: string,
-                                      service: string, extra_parameters: string)
-    {
-    local src = c$id$orig_h;
-
-    if ( ! Site::is_local_addr(src) )
-        return;
-
-    SumStats::observe("codered.insider.shares",
-                      SumStats::Key($host=src),
-                      SumStats::Observation($str=to_lower(path)));
-    }
+# smb1_tree_connect_andx_request removed — signature varies by Zeek version.
+# SMB share tracking handled via smb2_tree_connect_request above.
 
 # ─── Bulk email sending / email exfil ────────────────────────────────────
 
