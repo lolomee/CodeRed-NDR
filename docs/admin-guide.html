@@ -327,6 +327,7 @@ details .details-body { padding: 1rem 1.25rem; }
     <li><a href="#installation-pipeline">3. Installation Pipeline</a></li>
     <li><a href="#ova-build">4. OVA Build Process</a></li>
     <li><a href="#user-accounts">5. User Account Model</a></li>
+    <li class="toc-h3"><a href="#admin-login">Admin login (option 17)</a></li>
     <li><a href="#cli-architecture">6. CLI Architecture</a></li>
     <li><a href="#detection-engine">7. Detection Engine</a></li>
     <li><a href="#service-management">8. Service Management</a></li>
@@ -577,12 +578,15 @@ dialog ethtool net-tools jq git tcpdump open-vm-tools logrotate</code></pre>
 
 <h4>Step 1b: Create cradmin User (Vendor Admin)</h4>
 <ul>
-  <li>Creates <code>cradmin</code> user with full bash shell</li>
-  <li>No password set &mdash; account is locked, SSH key-only</li>
-  <li>Full sudo access (<code>cradmin ALL=(ALL:ALL) ALL</code>)</li>
-  <li>Prepares <code>/home/cradmin/.ssh/authorized_keys</code></li>
-  <li>Custom <code>.bashrc</code> with aliases: <code>ndr</code>, <code>health</code>, <code>logs-suri</code>, <code>logs-zeek</code>, <code>status</code></li>
-  <li>Red-colored prompt: <code>[admin] codered-ndr:~$</code></li>
+  <li>Creates <code>cradmin</code> user with full bash shell (no CLI auto-launch)</li>
+  <li>Sets default password <code>CRAdmin@NDR2025!</code> via <code>chpasswd</code></li>
+  <li>Forces password change on first login via <code>chage -d 0</code></li>
+  <li>Creates <code>codered-admin</code> OS group and adds <code>cradmin</code> as the sole member</li>
+  <li>Full NOPASSWD sudo (<code>cradmin ALL=(ALL:ALL) NOPASSWD: ALL</code>)</li>
+  <li>Prepares <code>/home/cradmin/.ssh/authorized_keys</code> (empty — optionally add SSH keys for key-based auth)</li>
+  <li>Custom <code>.bashrc</code> with aliases: <code>ndr</code>, <code>health</code>, <code>status</code>, <code>logs-suri</code>, <code>logs-zeek</code>, <code>logs-notice</code>, <code>logs-ml</code>, <code>logs-audit</code>, <code>conf</code>, <code>zeek-conf</code></li>
+  <li>Red-colored prompt: <code>[cradmin] codered-ndr:~$</code></li>
+  <li>Also adds to <code>coderedndr</code> sudoers: <code>sudo -u cradmin /bin/bash</code> (NOPASSWD) — used by CLI option 17 after PAM + group verification passes</li>
 </ul>
 
 <h4>Step 2: Lock Down Root</h4>
@@ -590,8 +594,8 @@ dialog ethtool net-tools jq git tcpdump open-vm-tools logrotate</code></pre>
   <li>Locks root password (<code>passwd -l root</code>)</li>
   <li>Sets <code>PermitRootLogin no</code> in SSH config</li>
   <li>Restricts <code>su</code> to sudo group via <code>pam_wheel.so</code></li>
-  <li>SSH AllowUsers: <code>coderedndr cradmin</code></li>
-  <li>cradmin: key-only auth (<code>PasswordAuthentication no</code>, <code>AuthenticationMethods publickey</code>)</li>
+  <li>SSH AllowUsers: <code>coderedndr cradmin</code> (only these two accounts can SSH in)</li>
+  <li><code>cradmin</code>: supports both password and SSH key authentication (no key-only restriction — password is the primary method, SSH key is optional)</li>
 </ul>
 
 <h4>Step 3: Remove Unnecessary Packages</h4>
@@ -659,10 +663,10 @@ dialog ethtool net-tools jq git tcpdump open-vm-tools logrotate</code></pre>
   </tr>
   <tr>
     <td><code>cradmin</code></td>
-    <td>Vendor support</td>
-    <td>Full bash</td>
-    <td>SSH key only (no password)</td>
-    <td>Full (<code>ALL=(ALL:ALL) ALL</code>)</td>
+    <td>Vendor/admin support</td>
+    <td>Full bash (no CLI auto-launch)</td>
+    <td>Password <strong>or</strong> SSH key (both supported). Default: <code>CRAdmin@NDR2025!</code> — forced change on first login.</td>
+    <td>Full NOPASSWD (<code>ALL=(ALL:ALL) NOPASSWD: ALL</code>)</td>
   </tr>
   <tr>
     <td><code>root</code></td>
@@ -679,6 +683,16 @@ dialog ethtool net-tools jq git tcpdump open-vm-tools logrotate</code></pre>
     <td>Removed</td>
   </tr>
 </table>
+
+<h3>codered-admin Group</h3>
+<p>A dedicated OS group gates access to the <strong>Admin login</strong> feature (CLI option 17). Only members can authenticate via the CLI admin prompt, regardless of whether they know a valid system password.</p>
+<table>
+  <tr><th>User</th><th>In codered-admin group?</th><th>Can use option 17?</th></tr>
+  <tr><td><code>cradmin</code></td><td>Yes (added by <code>prepare-ova.sh</code>)</td><td>Yes</td></tr>
+  <tr><td><code>coderedndr</code></td><td>No</td><td>No — blocked at group check before PAM runs</td></tr>
+  <tr><td>Any new admin account</td><td>Yes (if you run <code>usermod -aG codered-admin &lt;user&gt;</code>)</td><td>Yes</td></tr>
+</table>
+<p>To add a new admin staff member, create their account and add them to <code>codered-admin</code> — see <a href="#admin-login">Admin Login section</a> below.</p>
 
 <h3>Customer Account (coderedndr) Sudoers Breakdown</h3>
 <p>Defined in <code>/etc/sudoers.d/codered-ndr</code>. All entries are <code>NOPASSWD</code>:</p>
@@ -720,21 +734,65 @@ dialog ethtool net-tools jq git tcpdump open-vm-tools logrotate</code></pre>
   The sudoers configuration uses explicit command paths with no wildcards on sensitive commands. The <code>--no-pager</code> flag on <code>journalctl</code> prevents shell escape via pager programs. However, some entries use <code>*</code> wildcards on arguments (e.g., <code>hostnamectl set-hostname *</code>, <code>ip link set * up</code>). Review these for potential abuse vectors in high-security environments.
 </div>
 
-<h3>Adding Your SSH Key to cradmin</h3>
-<p>During OVA prep, the <code>/home/cradmin/.ssh/authorized_keys</code> file is created empty. To enable vendor support access:</p>
-<pre><code># On the sensor (as cradmin or root):
-echo "ssh-rsa AAAA... your-key" &gt;&gt; /home/cradmin/.ssh/authorized_keys
+<h3 id="admin-login">Admin Login — Two Access Paths</h3>
 
-# Or remotely via the coderedndr account:
-ssh coderedndr@sensor-ip
-# Then from the CLI shell:
-# (Exit CLI to get a shell, then)
-sudo bash -c 'echo "ssh-rsa AAAA... your-key" &gt;&gt; /home/cradmin/.ssh/authorized_keys'</code></pre>
+<h4>Path 1: Direct SSH (fastest)</h4>
+<p>SSH directly as <code>cradmin</code> — drops straight into full bash with sudo, no CLI menu.</p>
+<pre><code>ssh cradmin@&lt;sensor-ip&gt;
+# Password: CRAdmin@NDR2025!  (forced change on first login)
+# Drops to full bash shell immediately
 
+[cradmin] codered-ndr:~$ sudo systemctl status codered-zeek
+[cradmin] codered-ndr:~$ health          # alias for health-check.sh
+[cradmin] codered-ndr:~$ ndr            # launches the customer CLI menu</code></pre>
+
+<h4>Path 2: CLI Admin Login (option 17)</h4>
+<p>From the customer CLI menu, option 17 provides an authenticated admin shell. No second SSH session required — useful when you already have the CLI open or are accessing remotely via a customer's shared screen.</p>
+<pre><code>codered&gt; 17
+
+  ADMIN LOGIN
+  Requires valid credentials for an account in the codered-admin group.
+
+  Username (1/3): cradmin
+  Password:
+
+  Authenticated as cradmin.
+  Launching admin shell — type "exit" to disconnect.
+
+[cradmin] codered-ndr:~$
+# Full bash + sudo — exit returns to main menu or disconnects</code></pre>
+
+<h4>How option 17 works internally</h4>
+<ol>
+  <li>Checks <code>codered-admin</code> OS group membership via <code>grp.getgrnam()</code> — fails immediately with generic "Invalid credentials" if user is not a member</li>
+  <li>Authenticates via PAM (<code>pam.authenticate(username, password)</code>) — checks against real <code>/etc/shadow</code></li>
+  <li>On success: <code>os.execvp('sudo', ['sudo', '-u', username, '-i'])</code> — replaces CLI process with admin login shell</li>
+  <li>On shell exit: SSH session ends</li>
+</ol>
+<p>Max 3 attempts before lockout. All events audit-logged: <code>admin-login:attempt</code>, <code>admin-login:success:cradmin</code>, <code>admin-login:rejected:*</code>, <code>admin-login:lockout</code>.</p>
+
+<h4>Adding optional SSH key for cradmin</h4>
+<p>Password is primary — SSH key is optional for passwordless login:</p>
+<pre><code># Log in with password first, then add your key:
+ssh cradmin@&lt;sensor-ip&gt;
+echo "ssh-rsa AAAA... your-key" &gt;&gt; ~/.ssh/authorized_keys</code></pre>
 <div class="callout callout-info">
   <div class="callout-title">Tip</div>
-  For production OVAs, add your team's SSH public keys to the <code>prepare-ova.sh</code> script before running it, so every shipped OVA has vendor access pre-configured.
+  For production OVAs, add SSH keys directly in <code>prepare-ova.sh</code> before running it — every shipped OVA will have key-based access pre-configured without needing the password first.
 </div>
+
+<h4>Adding additional admin accounts</h4>
+<p>Multiple admins with separate credentials can each use option 17:</p>
+<pre><code># On the sensor as cradmin:
+sudo useradd -m -s /bin/bash -c "Admin - Jane" janeadmin
+echo "janeadmin:TempPass@2025!" | sudo chpasswd
+sudo chage -d 0 janeadmin                           # force change on first login
+sudo usermod -aG codered-admin janeadmin            # grant CLI option 17 access
+sudo usermod -aG sudo janeadmin                     # grant sudo
+
+# Add to coderedndr sudoers so option 17 can exec into this user's shell:
+echo "coderedndr ALL=(janeadmin) NOPASSWD: /bin/bash" | sudo tee -a /etc/sudoers.d/codered-ndr
+sudo visudo -cf /etc/sudoers.d/codered-ndr          # validate before applying</code></pre>
 
 
 <!-- ────────────────────────────────────────────────────── -->
@@ -792,6 +850,7 @@ sudo bash -c 'echo "ssh-rsa AAAA... your-key" &gt;&gt; /home/cradmin/.ssh/author
   <tr><td>13</td><td>Shutdown</td><td><code>do_shutdown()</code></td></tr>
   <tr><td>14</td><td>User guide</td><td><code>show_user_guide()</code></td></tr>
   <tr><td>15</td><td>Re-run setup wizard</td><td><code>run_setup()</code></td></tr>
+  <tr><td>16</td><td>Admin login</td><td><code>admin_login()</code></td></tr>
   <tr><td>0</td><td>Logout</td><td><code>sys.exit(0)</code></td></tr>
 </table>
 
@@ -1522,8 +1581,9 @@ outputs:
 <ul>
   <li>Root account locked, SSH access disabled</li>
   <li><code>su</code> restricted to sudo group via <code>pam_wheel.so</code></li>
-  <li>SSH: <code>AllowUsers coderedndr cradmin</code>, <code>PermitRootLogin no</code></li>
-  <li>SSH key-only auth for cradmin (<code>PasswordAuthentication no</code>)</li>
+  <li>SSH: <code>AllowUsers coderedndr cradmin</code> only — no other users can log in</li>
+  <li><code>PermitRootLogin no</code> — root SSH login disabled completely</li>
+  <li><code>cradmin</code>: password + SSH key both enabled (password set, key optional)</li>
   <li>Login banner on SSH (<code>/etc/issue.net</code>)</li>
   <li>Removed unnecessary services (snapd, avahi, cups, bluetooth, modemmanager, etc.)</li>
   <li>Cloud-init and AWS artifacts removed</li>
@@ -1543,7 +1603,7 @@ outputs:
   <tr>
     <td><code>/etc/sudoers.d/codered-admin</code></td>
     <td>cradmin</td>
-    <td>Full: <code>ALL=(ALL:ALL) ALL</code></td>
+    <td>Full NOPASSWD: <code>ALL=(ALL:ALL) NOPASSWD: ALL</code></td>
   </tr>
 </table>
 
