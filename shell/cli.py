@@ -865,7 +865,7 @@ def run_setup():
     apply_filebeat_config(config)
     if mon_ifaces:
         # Enable and start services only if monitor interface is set
-        for svc in ['codered-zeek', 'codered-suricata', 'filebeat']:
+        for svc in ['codered-zeek', 'codered-suricata', 'filebeat', 'codered-ml']:
             run_cmd(['systemctl', 'enable', svc], sudo=True)
             run_cmd(['systemctl', 'start', svc], sudo=True)
         # Update Suricata rules

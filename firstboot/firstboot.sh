@@ -536,15 +536,15 @@ fi
 # [7/7] Start services if monitor interface is configured
 echo "  [7/7] Starting NDR services..."
 if [ -n "${MONITOR_IF:-}" ]; then
-    mkdir -p /nsm/zeek/logs/current /nsm/zeek/spool /nsm/suricata/log /var/log/codered
-    for svc in codered-zeek codered-suricata filebeat; do
+    mkdir -p /nsm/zeek/logs/current /nsm/zeek/spool /nsm/suricata/log /var/log/codered                /nsm/codered /var/lib/codered
+    for svc in codered-zeek codered-suricata filebeat codered-ml; do
         systemctl enable "$svc" &>/dev/null || true
         systemctl restart "$svc" &>/dev/null || true
     done
     # Brief wait then check
     sleep 3
     ALL_OK=true
-    for svc in codered-zeek codered-suricata filebeat; do
+    for svc in codered-zeek codered-suricata filebeat codered-ml; do
         if systemctl is-active "$svc" &>/dev/null; then
             log "$svc: RUNNING"
         else

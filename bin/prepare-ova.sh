@@ -738,6 +738,23 @@ else
     warn "Re-run: GITHUB_TOKEN=ghp_xxx sudo bash prepare-ova.sh"
 fi
 
+# Re-clone the update repo (step 6 deleted it to clean build artifacts)
+# This repo is what codered-update.sh pulls from on every deployed sensor
+CODERED_REPO="https://github.com/lolomee/CodeRed-NDR.git"
+if [ -n "${GITHUB_TOKEN:-}" ]; then
+    CLONE_URL="https://${GITHUB_TOKEN}@github.com/lolomee/CodeRed-NDR.git"
+else
+    CLONE_URL="$CODERED_REPO"
+fi
+mkdir -p /opt/codered
+rm -rf /opt/codered/repo
+if git clone --depth 1 "$CLONE_URL" /opt/codered/repo 2>/dev/null; then
+    log "Update repo cloned to /opt/codered/repo"
+else
+    warn "Could not clone update repo — auto-updates disabled on deployed sensors"
+    warn "Fix: ssh cradmin@<sensor> and run: git clone $CODERED_REPO /opt/codered/repo"
+fi
+
 # Make the first-boot wizard also trigger from CLI if sensor.conf missing
 # Remove the marker so first boot will run
 rm -f /var/lib/codered/.firstboot-complete 2>/dev/null || true
@@ -850,7 +867,7 @@ echo "    ✓ User 'coderedndr' created (default password: CodeRed@NDR!)"
 echo "    ✓ Password change enforced on first login"
 echo "    ✓ CLI auto-launches on SSH login"
 echo "    ✓ Root login disabled completely"
-echo "    ✓ SSH restricted to coderedndr user only"
+echo "    ✓ SSH restricted to coderedndr + cradmin only"
 echo "    ✓ Builder account (coderedai) scheduled for removal"
 echo "    ✓ Cloud-init and AWS artifacts removed"
 echo "    ✓ Unnecessary packages purged"

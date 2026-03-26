@@ -809,6 +809,8 @@ systemctl daemon-reload
 systemctl enable codered-rule-update.timer 2>/dev/null || true
 systemctl enable codered-update.timer 2>/dev/null || true
 systemctl enable codered-firstboot.service 2>/dev/null || true
+# Enable ML engine — it starts automatically with Zeek (Wants=codered-zeek.service)
+systemctl enable codered-ml 2>/dev/null || true
 
 log "Systemd units created."
 
