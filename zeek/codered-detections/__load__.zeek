@@ -8,3 +8,8 @@
 @load ./long-connections
 @load ./cert-anomaly
 @load ./scan-detect
+
+# Lateral movement detections
+@load ./lateral-smb
+@load ./lateral-rdp
+@load ./lateral-wmi
