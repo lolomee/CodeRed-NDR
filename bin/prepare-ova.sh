@@ -109,14 +109,6 @@ coderedndr ALL=(root) NOPASSWD: /usr/sbin/ip link show *
 coderedndr ALL=(root) NOPASSWD: /usr/sbin/ip route get *
 coderedndr ALL=(root) NOPASSWD: /usr/sbin/ethtool -K *
 
-# Admin access — bash shell gated by Python password check in CLI
-# The CLI verifies the admin password before exec-ing this command.
-# Without the CLI password check this entry alone is not exploitable
-# because coderedndr's .bash_profile auto-launches the CLI, which
-# restricts all input to the numbered menu.
-coderedndr ALL=(root) NOPASSWD: /bin/bash
-coderedndr ALL=(root) NOPASSWD: /bin/bash -l
-
 # ZeekControl (restricted to specific subcommands)
 coderedndr ALL=(root) NOPASSWD: /opt/zeek/bin/zeekctl deploy
 coderedndr ALL=(root) NOPASSWD: /opt/zeek/bin/zeekctl start
@@ -140,7 +132,7 @@ visudo -cf /etc/sudoers.d/codered-ndr || err "Sudoers syntax error — aborting"
 log "Sudoers configured: coderedndr has restricted NOPASSWD access for NDR management only"
 
 ###############################################################################
-# Step 1b: Create CodeRed admin user (vendor support access)
+# Step 1b: Create CodeRed admin user (vendor/admin access — NOT for customers)
 ###############################################################################
 log "Setting up CodeRed admin account..."
 
@@ -152,43 +144,70 @@ if ! id "$ADMINUSR" &>/dev/null; then
     log "Created admin user: $ADMINUSR"
 fi
 
-# No password set — account is locked by default (SSH key only)
-# Admin should add their public key to /home/cradmin/.ssh/authorized_keys
-log "Admin account locked (no password) — SSH key-based auth only"
+# Set a default admin password — CHANGE THIS before distributing the OVA
+# The password is forced to change on first login (chage -d 0)
+# Customers never see this account — it is not shown in the customer CLI
+ADMIN_DEFAULT_PW="CRAdmin@NDR2025!"
+echo "${ADMINUSR}:${ADMIN_DEFAULT_PW}" | chpasswd
+chage -d 0 "$ADMINUSR"
+log "Admin default password set — forced change on first login"
+log "IMPORTANT: Change this password immediately after first login"
+unset ADMIN_DEFAULT_PW
 
-# Full sudo access for admin
+# Full sudo access for admin (ALL commands, no password prompt)
 usermod -aG sudo "$ADMINUSR" 2>/dev/null || true
 cat > /etc/sudoers.d/codered-admin << 'ADMINSUDOERS'
 # CodeRed NDR - Admin/vendor support account
 # Full root access for remote support and troubleshooting
-cradmin ALL=(ALL:ALL) ALL
+# This account is separate from the customer coderedndr account
+cradmin ALL=(ALL:ALL) NOPASSWD: ALL
 ADMINSUDOERS
 chmod 440 /etc/sudoers.d/codered-admin
 visudo -cf /etc/sudoers.d/codered-admin || err "Admin sudoers syntax error"
 
-# Admin gets a normal shell (no CLI auto-launch) — full bash access
+# Admin gets full bash shell — no CLI auto-launch
+# SSH directly as cradmin, get bash immediately, use sudo freely
 cat > "$ADMINHOME/.bashrc" << 'ADMINRC'
 # CodeRed NDR - Admin shell
+# Full bash access with sudo — for vendor/admin use only
+
 export PATH="/opt/zeek/bin:/usr/local/bin:$PATH"
+
+# NDR management shortcuts
 alias ndr='sudo /usr/local/bin/coderedndr'
 alias health='sudo /opt/codered/bin/health-check.sh'
-alias logs-suri='sudo tail -f /nsm/suricata/log/eve.json'
+alias status='sudo systemctl status codered-zeek codered-suricata filebeat codered-ml --no-pager'
+alias logs-suri='sudo tail -f /nsm/suricata/log/eve.json | jq .'
 alias logs-zeek='sudo tail -f /nsm/zeek/logs/current/conn.log'
-alias status='sudo systemctl status codered-suricata codered-zeek filebeat --no-pager'
+alias logs-notice='sudo tail -f /nsm/zeek/logs/current/notice.log'
+alias logs-ml='sudo tail -f /var/log/codered/ml-engine.log'
+alias logs-audit='sudo tail -f /var/log/codered/audit.log'
+alias conf='sudo cat /etc/codered/sensor.conf'
+alias zeek-conf='sudo cat /opt/zeek/share/zeek/site/local.zeek'
 
-PS1='\[\033[0;31m\][admin]\[\033[0m\] \[\033[0;32m\]codered-ndr\[\033[0m\]:\[\033[0;34m\]\w\[\033[0m\]\$ '
+PS1='\[[0;31m\][cradmin]\[[0m\] \[[0;33m\]codered-ndr\[[0m\]:\[[0;34m\]\w\[[0m\]\$ '
+
+echo ""
+echo "  CodeRed NDR — Admin Shell"
+echo "  Type 'status' for service status, 'health' for full health check"
+echo "  Type 'ndr' to launch the customer management CLI"
+echo ""
 ADMINRC
 chown "$ADMINUSR:$ADMINUSR" "$ADMINHOME/.bashrc"
 
-# Prepare .ssh directory for key-based access
+# Prepare .ssh directory — admin can also add SSH keys for key-based auth
+# Both password and key auth are enabled for this account
 mkdir -p "$ADMINHOME/.ssh"
 chmod 700 "$ADMINHOME/.ssh"
 touch "$ADMINHOME/.ssh/authorized_keys"
 chmod 600 "$ADMINHOME/.ssh/authorized_keys"
 chown -R "$ADMINUSR:$ADMINUSR" "$ADMINHOME/.ssh"
-log "Admin SSH key directory ready — add your public key to $ADMINHOME/.ssh/authorized_keys"
+log "Admin SSH directory ready — optionally add SSH keys for key-based auth"
 
-log "Admin account configured: $ADMINUSR (full sudo, normal bash shell)"
+log "Admin account configured: $ADMINUSR"
+log "  Login:    ssh cradmin@<sensor-ip>"
+log "  Password: CRAdmin@NDR2025!  (forced change on first login)"
+log "  Access:   full bash + sudo, no customer CLI"
 
 # Auto-launch CLI on login for coderedndr user
 cat > "$NDRHOME/.bash_profile" << 'BASHPROFILE'
@@ -263,17 +282,19 @@ if ! grep -q "AllowUsers" /etc/ssh/sshd_config.d/90-codered-hardening.conf 2>/de
     echo "AllowUsers coderedndr cradmin" >> /etc/ssh/sshd_config.d/90-codered-hardening.conf
 fi
 
-# Enforce key-only authentication for cradmin (no password login)
-if ! grep -q "Match User cradmin" /etc/ssh/sshd_config.d/90-codered-hardening.conf 2>/dev/null; then
-    cat >> /etc/ssh/sshd_config.d/90-codered-hardening.conf << 'MATCHBLOCK'
+# cradmin supports both password and SSH key authentication
+# Password is set above (forced change on first login)
+# Admin can optionally add SSH keys for key-based auth
+# Do NOT add a Match User cradmin block here — that would lock to key-only
 
-# cradmin: SSH key only — no password authentication
-Match User cradmin
-    PasswordAuthentication no
-    AuthenticationMethods publickey
-MATCHBLOCK
+# Ensure AllowUsers includes cradmin
+if grep -q "AllowUsers" /etc/ssh/sshd_config.d/90-codered-hardening.conf 2>/dev/null; then
+    # Already has AllowUsers line — make sure cradmin is in it
+    if ! grep "AllowUsers" /etc/ssh/sshd_config.d/90-codered-hardening.conf | grep -q "cradmin"; then
+        sed -i "s/^AllowUsers .*/& cradmin/" /etc/ssh/sshd_config.d/90-codered-hardening.conf
+    fi
 fi
-log "SSH restricted to coderedndr user only (cradmin: key-only)"
+log "SSH: coderedndr (customer) + cradmin (admin) — both password and key auth"
 
 # Reload SSH
 systemctl reload sshd 2>/dev/null || systemctl reload ssh 2>/dev/null || true
@@ -808,9 +829,17 @@ echo "    ✓ Machine ID cleared (regenerate on boot)"
 echo "    ✓ All logs and history cleaned"
 echo "    ✓ Disk zeroed for OVA compression"
 echo ""
-echo "  Login credentials for customers:"
-echo "    User:      coderedndr"
-echo "    Password:  CodeRed@NDR!  (must change on first login)"
+echo "  Login credentials:"
+echo ""
+echo "    CUSTOMER access:"
+echo "      ssh coderedndr@<sensor-ip>"
+echo "      Password: CodeRed@NDR!  (must change on first login)"
+echo "      Access:   CLI menu only"
+echo ""
+echo "    ADMIN access (do NOT share with customers):"
+echo "      ssh cradmin@<sensor-ip>"
+echo "      Password: CRAdmin@NDR2025!  (must change on first login)"
+echo "      Access:   full bash + sudo, no customer CLI"
 echo ""
 echo "  The VM is now ready for OVA export."
 echo "  Shut down the VM and export from your hypervisor."
@@ -818,5 +847,5 @@ echo ""
 echo -e "  ${YELLOW}NOTE: Next boot will:${NC}"
 echo "    1. Remove builder account (coderedai)"
 echo "    2. Regenerate SSH host keys"
-echo "    3. Launch first-boot wizard for coderedndr user"
+echo "    3. Launch first-boot wizard on coderedndr login"
 echo ""

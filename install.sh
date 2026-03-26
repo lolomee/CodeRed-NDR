@@ -815,10 +815,7 @@ chmod 644 "${CODERED_DIR}/VERSION"
 chown -R root:root /etc/codered
 chmod 755 /etc/codered
 chmod 644 /etc/codered/codered.defaults
-# Admin secret — created empty; CLI populates on first admin access
-touch /etc/codered/.admin-secret
-chmod 600 /etc/codered/.admin-secret
-chown root:root /etc/codered/.admin-secret
+
 
 # /var/log/codered
 chown -R root:adm /var/log/codered
