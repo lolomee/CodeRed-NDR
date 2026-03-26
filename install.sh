@@ -334,23 +334,23 @@ mkdir -p /nsm/zeek/logs
 mkdir -p /nsm/zeek/spool
 
 # Configure zeekctl to write logs to /nsm/zeek/
-# Default zeekctl.cfg is at /opt/zeek/etc/zeekctl.cfg
+# zeekctl manages the /nsm/zeek/spool/zeek -> /nsm/zeek/logs/current symlink itself.
+# We must NOT pre-create /nsm/zeek/logs/current as a directory or zeekctl will fail.
 ZEEKCTL_CFG="/opt/zeek/etc/zeekctl.cfg"
 if [ -f "$ZEEKCTL_CFG" ]; then
-    # Set LogDir so zeekctl rotates logs to /nsm/zeek/logs/
     sed -i 's|^LogDir.*|LogDir = /nsm/zeek/logs|' "$ZEEKCTL_CFG"
     grep -q "^LogDir" "$ZEEKCTL_CFG" || echo "LogDir = /nsm/zeek/logs" >> "$ZEEKCTL_CFG"
-    # Set SpoolDir so live logs go to /nsm/zeek/spool/
     sed -i 's|^SpoolDir.*|SpoolDir = /nsm/zeek/spool|' "$ZEEKCTL_CFG"
     grep -q "^SpoolDir" "$ZEEKCTL_CFG" || echo "SpoolDir = /nsm/zeek/spool" >> "$ZEEKCTL_CFG"
     log "Zeek log directory configured to /nsm/zeek/"
 fi
 
-# Create the current symlink pointing to the live spool dir
-# (zeekctl creates <SpoolDir>/zeek as the active log directory)
-mkdir -p /nsm/zeek/spool/zeek
-ln -sfn /nsm/zeek/spool/zeek /nsm/zeek/logs/current
-log "Created /nsm/zeek/logs/current -> /nsm/zeek/spool/zeek"
+# Remove any pre-existing /nsm/zeek/logs/current directory so zeekctl
+# can create it as a symlink (zeekctl manages this path itself)
+if [ -d /nsm/zeek/logs/current ] && [ ! -L /nsm/zeek/logs/current ]; then
+    rm -rf /nsm/zeek/logs/current
+    log "Removed /nsm/zeek/logs/current directory — zeekctl will create symlink"
+fi
 mkdir -p /nsm/suricata/log
 mkdir -p /nsm/suricata/rules
 mkdir -p /nsm/pcap
