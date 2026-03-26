@@ -1,0 +1,16 @@
+[Unit]
+Description=CodeRed NDR — Syslog TCP/UDP Forwarder
+After=network-online.target codered-zeek.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=root
+ExecStart=/usr/bin/python3 /opt/codered/bin/codered-syslog-forwarder.py
+Restart=on-failure
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

@@ -282,6 +282,7 @@ siem_output = $SIEM_OUTPUT
 siem_host = ${SIEM_HOST:-}
 siem_port = ${SIEM_PORT:-9200}
 siem_tls = $SIEM_TLS
+siem_proto = ${SIEM_PROTO:-tcp}
 SENSORCONF
 chmod 640 "$CONF"
 log "Configuration saved to $CONF"

@@ -1214,14 +1214,32 @@ def reconfigure_forwarding():
     if confirm('Apply forwarding changes?'):
         save_config(config)
         print('\n  Applying forwarding configuration...')
-        apply_filebeat_config(config)
-        run_cmd(['systemctl', 'restart', 'filebeat'], sudo=True)
-        # Show connection status
-        import time
-        time.sleep(2)
-        rc, out = run_cmd(['journalctl', '-u', 'filebeat', '--no-pager', '-n', '5'], sudo=True)
+
+        if siem_output in ('syslog-tcp', 'syslog-udp'):
+            # Use native syslog forwarder instead of Filebeat
+            apply_filebeat_config(config)  # sets output.file as buffer
+            # Stop filebeat, start syslog forwarder
+            run_cmd(['systemctl', 'stop', 'filebeat'], sudo=True)
+            run_cmd(['systemctl', 'disable', 'filebeat'], sudo=True)
+            run_cmd(['systemctl', 'enable', 'codered-syslog'], sudo=True)
+            run_cmd(['systemctl', 'restart', 'codered-syslog'], sudo=True)
+            import time; time.sleep(2)
+            rc, out = run_cmd(['journalctl', '-u', 'codered-syslog',
+                               '--no-pager', '-n', '5'], sudo=True)
+            print('\n  Syslog forwarder status:')
+        else:
+            # Use Filebeat for Elasticsearch/Logstash
+            run_cmd(['systemctl', 'stop', 'codered-syslog'], sudo=True)
+            run_cmd(['systemctl', 'disable', 'codered-syslog'], sudo=True)
+            apply_filebeat_config(config)
+            run_cmd(['systemctl', 'enable', 'filebeat'], sudo=True)
+            run_cmd(['systemctl', 'restart', 'filebeat'], sudo=True)
+            import time; time.sleep(2)
+            rc, out = run_cmd(['journalctl', '-u', 'filebeat',
+                               '--no-pager', '-n', '5'], sudo=True)
+            print('\n  Filebeat status:')
+
         if out:
-            print()
             for line in out.strip().splitlines()[-5:]:
                 print(f'  {line}')
         print('\n  Done.')

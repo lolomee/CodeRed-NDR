@@ -890,6 +890,30 @@ systemctl enable codered-ml 2>/dev/null || true
 
 log "Systemd units created."
 
+# --- codered-syslog.service (raw syslog TCP/UDP forwarder) ---
+if [ -f "${CODERED_SRC}/bin/codered-syslog-forwarder.py" ]; then
+    cp "${CODERED_SRC}/bin/codered-syslog-forwarder.py" /opt/codered/bin/
+    chmod 750 /opt/codered/bin/codered-syslog-forwarder.py
+fi
+cat > /etc/systemd/system/codered-syslog.service << 'EOF'
+[Unit]
+Description=CodeRed NDR — Syslog TCP/UDP Forwarder
+After=network-online.target codered-zeek.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=root
+ExecStart=/usr/bin/python3 /opt/codered/bin/codered-syslog-forwarder.py
+Restart=on-failure
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
 # --- Permissions ---
 
 # /opt/codered
