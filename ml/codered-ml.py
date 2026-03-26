@@ -36,9 +36,14 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional
 
-import numpy as np
-from sklearn.ensemble import IsolationForest
-from sklearn.preprocessing import StandardScaler
+try:
+    import numpy as np
+    from sklearn.ensemble import IsolationForest
+    from sklearn.preprocessing import StandardScaler
+except ImportError as e:
+    print(f"[FATAL] Missing ML dependency: {e}", flush=True)
+    print("[FATAL] Fix: sudo pip3 install scikit-learn numpy --break-system-packages", flush=True)
+    sys.exit(1)
 
 # ─── Configuration ────────────────────────────────────────────────────────
 

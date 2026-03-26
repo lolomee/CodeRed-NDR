@@ -619,11 +619,42 @@ fi
 
 step 7 "Installing ML behavioral engine..."
 
-# Install Python ML dependencies
-pip3 install --quiet --break-system-packages \
-    scikit-learn numpy 2>/dev/null || \
-pip3 install --quiet \
-    scikit-learn numpy 2>/dev/null || true
+# Install Python ML dependencies (scikit-learn + numpy required by codered-ml.py)
+# Try multiple methods in order to handle different Ubuntu configurations
+ML_DEPS="scikit-learn numpy"
+
+install_ml_deps() {
+    # Method 1: pip3 with --break-system-packages (Ubuntu 24.04 default)
+    if pip3 install --quiet --break-system-packages $ML_DEPS 2>/dev/null; then
+        return 0
+    fi
+    # Method 2: pip3 without flag (Ubuntu 22.04 / older configs)
+    if pip3 install --quiet $ML_DEPS 2>/dev/null; then
+        return 0
+    fi
+    # Method 3: python3 -m pip (pip3 binary may not be on PATH yet)
+    if python3 -m pip install --quiet --break-system-packages $ML_DEPS 2>/dev/null; then
+        return 0
+    fi
+    # Method 4: apt packages as last resort
+    if apt-get install -y -qq python3-sklearn python3-numpy 2>/dev/null; then
+        return 0
+    fi
+    return 1
+}
+
+if install_ml_deps; then
+    # Verify the imports actually work before declaring success
+    if python3 -c "import numpy; from sklearn.ensemble import IsolationForest" 2>/dev/null; then
+        log "ML dependencies installed and verified: scikit-learn + numpy"
+    else
+        warn "ML packages installed but import test failed — ML engine may not start"
+        warn "Fix: sudo pip3 install scikit-learn numpy --break-system-packages"
+    fi
+else
+    warn "ML dependency install failed — codered-ml engine will be disabled"
+    warn "Fix manually: sudo pip3 install scikit-learn numpy --break-system-packages"
+fi
 
 # Deploy ML engine from source repo
 mkdir -p /opt/codered/ml
