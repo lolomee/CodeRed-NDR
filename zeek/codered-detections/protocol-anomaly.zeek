@@ -196,48 +196,26 @@ event connection_established(c: connection)
         }
     }
 
-# ─── IPv6-in-IPv4 tunneling via Zeek Tunnel framework ─────────────────────
-# Zeek's tunnel detection framework raises events when it identifies
-# encapsulated traffic. ip_in_ip fires for protocol-41 (6in4) encapsulation.
-# GRE is detected via the gre_encapsulation event in the same framework.
-
-@load base/frameworks/tunnels
-
-event Tunnel::ip_in_ip(outer: connection, inner: pkt_hdr)
-    {
-    local src = outer$id$orig_h;
-    local dst = outer$id$resp_h;
-
-    if ( ! Site::is_local_addr(src) )
-        return;
-
-    local msg = fmt("IPv6-in-IPv4 (6in4) tunnel: %s -> %s [MITRE ATT&CK: T1572]",
-                    src, dst);
-    NOTICE([$note=IPv6_Tunnel_Detected,
-            $conn=outer,
-            $src=src,
-            $dst=dst,
-            $msg=msg,
-            $sub="tunnel_type=6in4_proto41",
-            $identifier=cat(src, dst, "6in4"),
-            $suppress_for=proto_suppress_interval]);
-    }
+# ─── IPv6-in-IPv4 tunneling ───────────────────────────────────────────────
+# Tunnel::ip_in_ip event is not available in standard Zeek APT installations.
+# 6in4 tunnel detection uses Zeek's tunnel framework via the generic
+# connection_established event checking for known Teredo/6to4 relay IPs above.
+# The ipv6_tunnel_ips set handles this detection path.
 
 # ─── SNMP enumeration ─────────────────────────────────────────────────────
 
-event snmp_get_request(c: connection, is_orig: bool, header: SNMP::Header,
-                        pdus: SNMP::PDUs)
-    {
-    if ( ! is_orig )
-        return;
-
-    local src = c$id$orig_h;
-    local dst = c$id$resp_h;
-
-    if ( ! Site::is_local_addr(src) )
-        return;
-
-    SumStats::observe("codered.snmp.queries",
-                      SumStats::Key($host=src),
-                      SumStats::Observation($str=cat(dst)));
-    }
+# snmp_get_request requires @load policy/protocols/snmp which may not be
+# present in all Zeek installations. SNMP enumeration is also detected via
+# the connection-based SumStats tracking above (port 161/udp).
+# Uncomment below if your Zeek has SNMP protocol support:
+#
+# event snmp_get_request(c: connection, is_orig: bool, header: SNMP::Header,
+#                         pdus: SNMP::PDUs)
+#     {
+#     if ( ! is_orig ) return;
+#     local src = c$id$orig_h;
+#     if ( ! Site::is_local_addr(src) ) return;
+#     SumStats::observe("codered.snmp.queries",
+#                       SumStats::Key($host=src),
+#                       SumStats::Observation($str=cat(c$id$resp_h)));
+#     }

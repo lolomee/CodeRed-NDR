@@ -57,11 +57,13 @@ event connection_state_remove(c: connection)
         return;
 
     # Compute intervals between consecutive connections
+    # All locals declared before loops (Zeek 5.x/6.x scope requirement)
     local intervals: vector of double = vector();
     local i: count = 1;
+    local delta: double = 0.0;
     while ( i < |timestamps| )
         {
-        local delta = interval_to_double(timestamps[i] - timestamps[i - 1]);
+        delta = interval_to_double(timestamps[i] - timestamps[i - 1]);
         if ( delta > 0.0 )
             intervals += delta;
         ++i;
@@ -74,7 +76,7 @@ event connection_state_remove(c: connection)
     local sum: double = 0.0;
     for ( idx in intervals )
         sum += intervals[idx];
-    local mean = sum / |intervals|;
+    local mean: double = sum / |intervals|;
 
     # Skip if mean is essentially zero (burst traffic, not beaconing)
     if ( mean < 1.0 )
@@ -82,15 +84,16 @@ event connection_state_remove(c: connection)
 
     # Compute standard deviation
     local var_sum: double = 0.0;
+    local diff: double = 0.0;
     for ( idx in intervals )
         {
-        local diff = intervals[idx] - mean;
+        diff = intervals[idx] - mean;
         var_sum += diff * diff;
         }
-    local stddev = sqrt(var_sum / |intervals|);
+    local stddev: double = sqrt(var_sum / |intervals|);
 
     # Jitter ratio = coefficient of variation
-    local jitter_ratio = stddev / mean;
+    local jitter_ratio: double = stddev / mean;
 
     if ( jitter_ratio < beaconing_max_jitter )
         {
