@@ -666,6 +666,13 @@ WantedBy=multi-user.target
 EOF
 
 # --- codered-suricata.service ---
+# Suricata is started via start-suricata.sh which:
+#   1. Reads monitor interface from sensor.conf
+#   2. Passes --af-packet=<iface> so traffic capture works
+#   3. Sets EVE output to /nsm/suricata/log/eve.json
+#   4. Enables community-id and JA3 fingerprinting
+# The codered-override.yaml written by apply_suricata_config() is
+# included via --set flags and the --config override flag below.
 cat > /etc/systemd/system/codered-suricata.service << 'EOF'
 [Unit]
 Description=CodeRed NDR - Suricata IDS/IPS
@@ -674,9 +681,9 @@ Wants=network-online.target
 Documentation=https://github.com/lolomee/CodeRed-NDR
 
 [Service]
-Type=simple
-ExecStartPre=/usr/bin/suricata -T -c /etc/suricata/suricata.yaml
-ExecStart=/usr/bin/suricata -c /etc/suricata/suricata.yaml --pidfile /run/suricata.pid
+Type=forking
+ExecStartPre=/opt/codered/bin/start-suricata.sh --test
+ExecStart=/opt/codered/bin/start-suricata.sh
 ExecReload=/bin/kill -USR2 $MAINPID
 Restart=on-failure
 RestartSec=10

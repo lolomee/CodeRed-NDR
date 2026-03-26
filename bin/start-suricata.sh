@@ -40,9 +40,23 @@ for offload in rx tx sg tso ufo gso gro lro; do
     ethtool -K "$MONITOR_IF" "$offload" off 2>/dev/null || true
 done
 
+# Load CodeRed override config if it exists (sets af-packet, VXLAN decoder, EVE output)
+OVERRIDE_YAML="/etc/suricata/codered-override.yaml"
+EXTRA_ARGS=""
+if [ -f "$OVERRIDE_YAML" ]; then
+    # Suricata 6+ supports multiple -c flags; second overrides first where keys conflict
+    EXTRA_ARGS="-c $OVERRIDE_YAML"
+fi
+
+# Test mode: just validate config
+if [ "${1:-}" = "--test" ]; then
+    exec /usr/bin/suricata -T -c "$SURICATA_YAML" $EXTRA_ARGS
+fi
+
 echo "[+] Starting Suricata on interface: $MONITOR_IF"
 exec /usr/bin/suricata \
     -c "$SURICATA_YAML" \
+    $EXTRA_ARGS \
     --af-packet="$MONITOR_IF" \
     --pidfile "$PID_FILE" \
     -D \
