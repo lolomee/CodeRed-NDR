@@ -668,7 +668,7 @@ processors:
 """
     # Add output section based on type
     if not endpoint:
-        # No SIEM configured — buffer to file, Filebeat 8.x has no output.console
+        # No SIEM configured — buffer to file
         content += """output.file:
   enabled: true
   path: /var/log/codered
@@ -681,6 +681,24 @@ processors:
         content += f"""output.logstash:
   enabled: true
   hosts: ["{endpoint}:{port}"]
+"""
+        if siem_tls == 'true':
+            content += """  ssl:
+    enabled: true
+    verification_mode: certificate
+"""
+    elif siem_output in ('syslog-tcp', 'syslog-udp'):
+        # Filebeat 8.x uses output.logstash (Beats protocol) for TCP/UDP forwarding
+        # Most SIEMs (QRadar, ArcSight, Graylog, Wazuh) can receive Beats protocol
+        # Set up your SIEM to listen for Beats/Logstash input on this port
+        content += f"""output.logstash:
+  enabled: true
+  hosts: ["{endpoint}:{port}"]
+  # Beats protocol over TCP — configure your SIEM to accept Beats/Logstash input
+  # QRadar:    Universal DSM with Syslog listener or Beats input
+  # Graylog:   Beats input plugin on this port
+  # Wazuh:     Logstash input with Beats codec
+  # ArcSight:  Smart Connector with Syslog listener
 """
         if siem_tls == 'true':
             content += """  ssl:
@@ -1141,24 +1159,72 @@ def reconfigure_forwarding():
     if not current_host:
         current_host = get_val(config, 'forwarding', 'siem_endpoint')
     current_port = get_val(config, 'forwarding', 'siem_port', '9200')
+    current_output = get_val(config, 'forwarding', 'siem_output', 'elasticsearch')
+    current_tls = get_val(config, 'forwarding', 'siem_tls', 'false')
+
     print('  Current settings:')
+    print_line('Output type:', current_output)
     print_line('SIEM Address:', current_host or 'not configured')
     print_line('SIEM Port:', current_port)
+    print_line('TLS:', current_tls)
     print()
+
+    print('  Output types:')
+    print('    1. Elasticsearch  (HTTP/HTTPS JSON — Elastic, OpenSearch, Splunk HEC)')
+    print('    2. Logstash       (Beats protocol TCP — Logstash, most SIEMs)')
+    print('    3. Syslog TCP     (raw TCP syslog — QRadar, ArcSight, Graylog)')
+    print('    4. Syslog UDP     (raw UDP syslog — legacy SIEM / network gear)')
+    print()
+
+    output_map = {
+        '1': ('elasticsearch', '9200'),
+        '2': ('logstash',      '5044'),
+        '3': ('syslog-tcp',    '514'),
+        '4': ('syslog-udp',    '514'),
+    }
+    current_num = {'elasticsearch': '1', 'logstash': '2',
+                   'syslog-tcp': '3', 'syslog-udp': '4'}.get(current_output, '1')
+
+    try:
+        out_choice = input(f'  Output type [{current_num}]: ').strip() or current_num
+    except EOFError:
+        return
+
+    if out_choice not in output_map:
+        print('  Invalid choice.')
+        pause()
+        return
+
+    siem_output, default_port = output_map[out_choice]
+    config.set('forwarding', 'siem_output', siem_output)
 
     endpoint = prompt('SIEM address (IP or FQDN)', current_host, is_valid_host, required=False)
     config.set('forwarding', 'siem_host', endpoint)
 
     if endpoint:
-        port = prompt('SIEM port', current_port, is_valid_port)
+        port = prompt('SIEM port', current_port or default_port, is_valid_port)
         config.set('forwarding', 'siem_port', port)
+
+        # TLS option for elasticsearch and logstash
+        if siem_output in ('elasticsearch', 'logstash'):
+            tls = prompt_choice('TLS/HTTPS', ['yes', 'no'],
+                                'yes' if current_tls == 'true' else 'no')
+            config.set('forwarding', 'siem_tls', 'true' if tls == 'yes' else 'false')
 
     if confirm('Apply forwarding changes?'):
         save_config(config)
         print('\n  Applying forwarding configuration...')
         apply_filebeat_config(config)
         run_cmd(['systemctl', 'restart', 'filebeat'], sudo=True)
-        print('  Done.')
+        # Show connection status
+        import time
+        time.sleep(2)
+        rc, out = run_cmd(['journalctl', '-u', 'filebeat', '--no-pager', '-n', '5'], sudo=True)
+        if out:
+            print()
+            for line in out.strip().splitlines()[-5:]:
+                print(f'  {line}')
+        print('\n  Done.')
         pause()
 
 
