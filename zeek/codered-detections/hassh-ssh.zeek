@@ -127,7 +127,7 @@ event zeek_init()
     ]);
     }
 
-event ssh_auth_failed(c: connection, authenticated: bool)
+event ssh_auth_failed(c: connection)
     {
     local src = c$id$orig_h;
     local dst = c$id$resp_h;
@@ -144,49 +144,11 @@ event ssh_auth_failed(c: connection, authenticated: bool)
                       SumStats::Observation($str=cat(dst)));
     }
 
-event ssh_capabilities(c: connection, cookie: string, capabilities: SSH::Capabilities)
-    {
-    # ── HASSH client fingerprint check ──
-    if ( ! c$ssh?$hassh )
-        return;
+# ssh_capabilities / HASSH fingerprinting removed — requires
+# @load policy/protocols/ssh/hassh which is not in standard Zeek APT.
+# HASSH fingerprints are available via Suricata EVE JSON ssh fields.
 
-    local hassh = c$ssh$hassh;
-
-    if ( hassh in hassh_malicious )
-        {
-        local src = c$id$orig_h;
-        local dst = c$id$resp_h;
-        local tool = hassh_malicious[hassh];
-        local msg = fmt("Malicious HASSH SSH client: %s -> %s, hassh=%s (%s) [MITRE ATT&CK: T1021.004]",
-                        src, dst, hassh, tool);
-        NOTICE([$note=SSH_Malicious_Client,
-                $conn=c,
-                $src=src,
-                $dst=dst,
-                $msg=msg,
-                $sub=fmt("hassh=%s tool=%s", hassh, tool),
-                $identifier=cat(src, dst, hassh),
-                $suppress_for=ssh_suppress_interval]);
-        }
-
-    # ── HASSH server fingerprint check ──
-    if ( c$ssh?$hassh_server && c$ssh$hassh_server in hassh_server_malicious )
-        {
-        local stool = hassh_server_malicious[c$ssh$hassh_server];
-        local smsg = fmt("Suspicious SSH server HASSH: %s -> %s, hassh_server=%s (%s) [MITRE ATT&CK: T1021.004]",
-                         c$id$orig_h, c$id$resp_h, c$ssh$hassh_server, stool);
-        NOTICE([$note=SSH_Malicious_Client,
-                $conn=c,
-                $src=c$id$orig_h,
-                $dst=c$id$resp_h,
-                $msg=smsg,
-                $sub=fmt("hassh_server=%s tool=%s", c$ssh$hassh_server, stool),
-                $identifier=cat(c$id$orig_h, c$id$resp_h, "hassh_server"),
-                $suppress_for=ssh_suppress_interval]);
-        }
-    }
-
-event ssh_auth_successful(c: connection, authenticated: bool)
+event ssh_auth_successful(c: connection)
     {
     local src = c$id$orig_h;
     local dst = c$id$resp_h;
