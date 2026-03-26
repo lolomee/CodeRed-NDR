@@ -950,13 +950,25 @@ def show_status():
     # Services
     print()
     print('  Services:')
-    for display_name, svc in [('Zeek', 'codered-zeek'), ('Suricata', 'codered-suricata'), ('Filebeat', 'filebeat'), ('ML Engine', 'codered-ml')]:
+    siem_output = get_val(config, 'forwarding', 'siem_output', 'elasticsearch')
+    # Show the right forwarder based on configured output type
+    if siem_output in ('syslog-tcp', 'syslog-udp'):
+        forwarder_svc = ('Syslog Forwarder', 'codered-syslog')
+    else:
+        forwarder_svc = ('Filebeat', 'filebeat')
+
+    for display_name, svc in [
+        ('Zeek',          'codered-zeek'),
+        ('Suricata',      'codered-suricata'),
+        forwarder_svc,
+        ('ML Engine',     'codered-ml'),
+    ]:
         rc, out = run_cmd(['systemctl', 'is-active', svc], sudo=True)
         status = out.strip()
         if status == 'active':
-            print_line(f'    {display_name}:', 'RUNNING', 20)
+            print_line(f'    {display_name}:', 'RUNNING', 22)
         else:
-            print_line(f'    {display_name}:', status, 20)
+            print_line(f'    {display_name}:', status.upper(), 22)
 
     # Monitor interfaces + deployment mode
     print()
@@ -982,14 +994,34 @@ def show_status():
         print_line('Rules Updated:', 'pending first update')
 
     # Forwarding
+    print()
     endpoint = get_val(config, 'forwarding', 'siem_host')
     if not endpoint:
         endpoint = get_val(config, 'forwarding', 'siem_endpoint')
-    port = get_val(config, 'forwarding', 'siem_port', '9200')
+    port     = get_val(config, 'forwarding', 'siem_port', '9200')
+    siem_out = get_val(config, 'forwarding', 'siem_output', 'elasticsearch')
     if endpoint:
         print_line('SIEM Destination:', f'{endpoint}:{port}')
+        print_line('Output Type:', siem_out)
+        # Show last forwarder log line for quick health check
+        if siem_out in ('syslog-tcp', 'syslog-udp'):
+            log_file = '/var/log/codered/syslog-forwarder.log'
+        else:
+            log_file = '/var/log/filebeat/filebeat'
+        import os
+        if os.path.exists(log_file):
+            try:
+                with open(log_file) as lf:
+                    lines = lf.readlines()
+                    last = lines[-1].strip() if lines else ''
+                    # Trim long JSON lines
+                    if len(last) > 80:
+                        last = last[:80] + '...'
+                    print_line('Forwarder Log:', last)
+            except Exception:
+                pass
     else:
-        print_line('SIEM Destination:', 'not configured')
+        print_line('SIEM Destination:', 'not configured (menu option 8)')
 
     pause()
 
@@ -1052,10 +1084,10 @@ def restart_services():
     """Restart sensor services."""
     header('RESTART SERVICES')
     services = {
-        '1': ('All NDR services', ['codered-zeek', 'codered-suricata', 'filebeat', 'codered-ml']),
+        '1': ('All NDR services', ['codered-zeek', 'codered-suricata', 'filebeat', 'codered-syslog', 'codered-ml']),
         '2': ('Zeek', ['codered-zeek']),
         '3': ('Suricata', ['codered-suricata']),
-        '4': ('Filebeat', ['filebeat']),
+        '4': ('Filebeat / Syslog Forwarder', ['filebeat', 'codered-syslog']),
         '5': ('ML engine', ['codered-ml']),
     }
     for k, (name, _) in services.items():
