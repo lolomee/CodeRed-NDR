@@ -109,6 +109,12 @@ coderedndr ALL=(root) NOPASSWD: /usr/sbin/ip link show *
 coderedndr ALL=(root) NOPASSWD: /usr/sbin/ip route get *
 coderedndr ALL=(root) NOPASSWD: /usr/sbin/ethtool -K *
 
+# Admin login via CLI option 17 — PAM and group-check gated in Python
+# The CLI verifies credentials and codered-admin group membership before
+# reaching this exec. coderedndr cannot escalate without passing both checks.
+coderedndr ALL=(cradmin) NOPASSWD: /bin/bash
+coderedndr ALL=(cradmin) NOPASSWD: /bin/bash -l
+
 # ZeekControl (restricted to specific subcommands)
 coderedndr ALL=(root) NOPASSWD: /opt/zeek/bin/zeekctl deploy
 coderedndr ALL=(root) NOPASSWD: /opt/zeek/bin/zeekctl start
@@ -153,6 +159,12 @@ chage -d 0 "$ADMINUSR"
 log "Admin default password set — forced change on first login"
 log "IMPORTANT: Change this password immediately after first login"
 unset ADMIN_DEFAULT_PW
+
+# Create codered-admin group — used by CLI option 17 to gate admin login
+# Only members of this group can authenticate via the CLI admin login prompt
+groupadd -f codered-admin
+usermod -aG codered-admin "$ADMINUSR"
+log "Created codered-admin group and added $ADMINUSR as member"
 
 # Full sudo access for admin (ALL commands, no password prompt)
 usermod -aG sudo "$ADMINUSR" 2>/dev/null || true

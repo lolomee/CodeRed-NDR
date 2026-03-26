@@ -1529,6 +1529,100 @@ def change_password():
 
 
 
+def admin_login():
+    """Option 17 — Admin login. Prompts for credentials, verifies via PAM,
+    checks codered-admin group membership, then exec-s into admin shell."""
+    audit('admin-login:attempt')
+    header('ADMIN LOGIN')
+
+    import getpass
+    import grp
+    import pam
+
+    print('  This grants full admin shell access to this sensor.')
+    print('  Requires valid credentials for an account in the codered-admin group.')
+    print()
+
+    # ── Collect credentials ───────────────────────────────────────────────────
+    MAX_ATTEMPTS = 3
+    for attempt in range(1, MAX_ATTEMPTS + 1):
+        try:
+            username = input(f'  Username ({attempt}/{MAX_ATTEMPTS}): ').strip()
+            password = getpass.getpass('  Password: ')
+        except (EOFError, KeyboardInterrupt):
+            print()
+            audit('admin-login:cancelled')
+            return
+
+        if not username or not password:
+            password = ''
+            print('  Username and password are required.')
+            continue
+
+        # ── Check user exists and is in codered-admin group ───────────────────
+        try:
+            grp_info = grp.getgrnam('codered-admin')
+            members  = grp_info.gr_mem
+        except KeyError:
+            # Group does not exist on this system
+            print('\n  Admin access is not configured on this sensor.')
+            print('  The codered-admin group does not exist.')
+            audit('admin-login:failed:group-missing')
+            password = ''
+            pause()
+            return
+
+        if username not in members:
+            # Deliberately generic message — don't reveal whether the
+            # username exists or just isn't authorised
+            print('  Invalid credentials.')
+            audit(f'admin-login:rejected:not-in-group:{username}')
+            password = ''
+            if attempt < MAX_ATTEMPTS:
+                continue
+            else:
+                print()
+                audit('admin-login:lockout')
+                pause()
+                return
+
+        # ── PAM authentication ────────────────────────────────────────────────
+        p = pam.pam()
+        if not p.authenticate(username, password):
+            password = ''
+            print('  Invalid credentials.')
+            audit(f'admin-login:rejected:pam-failed:{username}')
+            if attempt < MAX_ATTEMPTS:
+                continue
+            else:
+                print()
+                audit('admin-login:lockout')
+                pause()
+                return
+
+        # ── Authenticated ─────────────────────────────────────────────────────
+        password = ''
+        audit(f'admin-login:success:{username}')
+        print()
+        print(f'  Authenticated as {username}.')
+        print('  Launching admin shell — type "exit" to disconnect.')
+        print()
+
+        # exec into admin shell via sudo -u <username> -i
+        # This replaces the current CLI process; on exit the SSH session ends.
+        # coderedndr sudoers has NOPASSWD for this exact command.
+        try:
+            os.execvp('sudo', ['sudo', '-u', username, '-i'])
+        except OSError as e:
+            print(f'  Failed to launch admin shell: {e}')
+            print('  Ensure "sudo -u <username> -i" is in the sudoers file.')
+            pause()
+        return
+
+    # Exceeded MAX_ATTEMPTS (loop fell through)
+    pause()
+
+
 def show_user_guide():
     """Display the user guide with paging."""
     audit('view:user-guide')
@@ -1851,6 +1945,11 @@ def show_user_guide():
   14  Shutdown            Power off the sensor
   15  User guide          This guide
   16  Re-run setup wizard Reconfigure everything from scratch
+  17  Admin login         Prompts for username and password.
+                          Verifies credentials via PAM and checks
+                          that the user is in the codered-admin
+                          group. On success, exec-s into the admin
+                          user's login shell. Session is audited.
 
 
   10. LOG FILES & DATA PATHS
@@ -2129,6 +2228,9 @@ def main_menu():
         print('  15. User guide')
         print('  16. Re-run setup wizard')
 
+        print('\n  -- Admin ----------------------------------------')
+        print('  17. Admin login')
+
 
         print('\n   0. Logout')
         print()
@@ -2156,6 +2258,7 @@ def main_menu():
             '14': do_shutdown,
             '15': show_user_guide,
             '16': run_setup,
+            '17': admin_login,
         }
 
         if choice == '0':
