@@ -2219,6 +2219,216 @@ def show_user_guide():
                 break
 
 
+def packet_capture_monitor():
+    """Live packet capture monitor — shows traffic on the monitor interface."""
+    import subprocess, threading, time, collections
+
+    config = load_config()
+    iface = get_val(config, 'sensor', 'monitor_interface', '')
+    if not iface:
+        # Try monitor_interfaces (multi)
+        iface = get_val(config, 'sensor', 'monitor_interfaces', '')
+        if iface:
+            iface = iface.split(',')[0].strip()
+
+    if not iface:
+        print('\n  [!] No monitor interface configured.')
+        print('      Configure via menu option 7.')
+        pause()
+        return
+
+    clear()
+    header('Packet Capture Monitor')
+    print(f'  Interface : {iface}')
+    print(f'  Press Ctrl+C to stop\n')
+
+    sub_menu = {
+        '1': ('Live traffic summary (top talkers)',   'summary'),
+        '2': ('Raw packet stream (tcpdump)',           'raw'),
+        '3': ('Protocol breakdown',                    'protocols'),
+        '4': ('Zeek capture stats (netstats)',         'netstats'),
+        '5': ('Zeek conn.log tail (live connections)', 'connlog'),
+        '6': ('Alert stream (Suricata EVE)',            'alerts'),
+    }
+
+    print('  What to monitor:\n')
+    for k, (label, _) in sub_menu.items():
+        print(f'    {k}. {label}')
+    print()
+
+    try:
+        choice = input('  codered> ').strip()
+    except (EOFError, KeyboardInterrupt):
+        return
+
+    if choice not in sub_menu:
+        return
+
+    label, mode = sub_menu[choice]
+    clear()
+    header(f'Capture Monitor — {label}')
+    print(f'  Interface: {iface}    Press Ctrl+C to stop\n')
+
+    try:
+        if mode == 'summary':
+            # Top talkers using tcpdump + awk
+            print('  Sampling 200 packets to build summary...\n')
+            cmd = ['tcpdump', '-i', iface, '-nn', '-c', '200', '--immediate-mode',
+                   '-q', '2>/dev/null']
+            rc, out = run_cmd(['tcpdump', '-i', iface, '-nn', '-c', '200',
+                               '--immediate-mode', '-q'], sudo=True, timeout=30)
+            if not out.strip():
+                print('  No packets captured. Check SPAN port configuration.')
+            else:
+                # Count source IPs
+                counter: dict = {}
+                for line in out.splitlines():
+                    parts = line.split()
+                    if len(parts) >= 3:
+                        src = parts[2].rsplit('.', 1)[0] if '.' in parts[2] else parts[2]
+                        counter[src] = counter.get(src, 0) + 1
+                top = sorted(counter.items(), key=lambda x: x[1], reverse=True)[:15]
+                print(f'  {"Source":<30} {"Packets":>8}')
+                print(f'  {"-"*30} {"-"*8}')
+                for src, count in top:
+                    print(f'  {src:<30} {count:>8}')
+                print(f'\n  Total unique sources: {len(counter)}')
+            pause()
+
+        elif mode == 'raw':
+            # Raw tcpdump stream
+            print('  Starting live capture (Ctrl+C to stop)...\n')
+            try:
+                proc = subprocess.Popen(
+                    ['tcpdump', '-i', iface, '-nn', '-l', '--immediate-mode',
+                     '-c', '500'],
+                    stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                    text=True
+                )
+                for line in proc.stdout:
+                    print(f'  {line}', end='')
+            except KeyboardInterrupt:
+                proc.terminate()
+
+        elif mode == 'protocols':
+            # Protocol breakdown
+            print('  Sampling 300 packets for protocol breakdown...\n')
+            rc, out = run_cmd(['tcpdump', '-i', iface, '-nn', '-c', '300',
+                               '--immediate-mode'], sudo=True, timeout=45)
+            protos: dict = {}
+            ports: dict = {}
+            for line in out.splitlines():
+                # Count protocol keywords
+                for proto in ['TCP', 'UDP', 'ICMP', 'ARP', 'IP6', 'DNS',
+                               'HTTP', 'TLS', 'SSH', 'SMB']:
+                    if proto in line.upper():
+                        protos[proto] = protos.get(proto, 0) + 1
+                        break
+                # Count destination ports
+                import re
+                m = re.search(r'\.(\d+)[\s:]', line)
+                if m:
+                    port = m.group(1)
+                    ports[port] = ports.get(port, 0) + 1
+
+            print(f'  {"Protocol":<12} {"Count":>8}')
+            print(f'  {"-"*12} {"-"*8}')
+            for proto, cnt in sorted(protos.items(), key=lambda x: x[1], reverse=True):
+                print(f'  {proto:<12} {cnt:>8}')
+            top_ports = sorted(ports.items(), key=lambda x: x[1], reverse=True)[:10]
+            print(f'\n  {"Top Port":<12} {"Count":>8}')
+            print(f'  {"-"*12} {"-"*8}')
+            for port, cnt in top_ports:
+                print(f'  {port:<12} {cnt:>8}')
+            if not protos:
+                print('  No packets captured. Check SPAN port configuration.')
+            pause()
+
+        elif mode == 'netstats':
+            # Zeek capture stats — refreshes every 3 seconds
+            print('  Zeek capture stats (refreshes every 3s, Ctrl+C to stop)\n')
+            import time
+            try:
+                while True:
+                    rc, out = run_cmd(['/opt/zeek/bin/zeekctl', 'netstats'], sudo=True)
+                    # Clear previous output and reprint
+                    lines = out.strip().splitlines()
+                    for line in lines:
+                        print(f'  {line}')
+                    print()
+                    time.sleep(3)
+                    # Move cursor up to overwrite
+                    print(f'\033[{len(lines)+1}A', end='')
+            except KeyboardInterrupt:
+                print('\n')
+
+        elif mode == 'connlog':
+            # Tail Zeek conn.log
+            conn_log = '/nsm/zeek/logs/current/conn.log'
+            import os
+            if not os.path.exists(conn_log):
+                print(f'  conn.log not found at {conn_log}')
+                print('  Zeek may still be starting up.')
+                pause()
+                return
+            print('  Tailing conn.log (Ctrl+C to stop)...\n')
+            print(f'  {"Time":<10} {"Src IP":<18} {"Dst IP":<18} {"Port":<7} {"Proto":<6} {"Dur":<8} {"State"}')
+            print(f'  {"-"*80}')
+            try:
+                proc = subprocess.Popen(['tail', '-f', conn_log],
+                                        stdout=subprocess.PIPE, text=True)
+                for line in proc.stdout:
+                    if line.startswith('#'):
+                        continue
+                    parts = line.split('\t')  # Zeek uses tab separators
+                    if len(parts) >= 10:
+                        ts   = parts[0][:10] if parts[0] else '-'
+                        src  = parts[2][:17] if len(parts) > 2 else '-'
+                        dst  = parts[4][:17] if len(parts) > 4 else '-'
+                        port = parts[5][:6]  if len(parts) > 5 else '-'
+                        proto= parts[6][:5]  if len(parts) > 6 else '-'
+                        dur  = parts[8][:7]  if len(parts) > 8 else '-'
+                        state= parts[11][:8] if len(parts) > 11 else '-'
+                        print(f'  {ts:<10} {src:<18} {dst:<18} {port:<7} {proto:<6} {dur:<8} {state}')
+                    else:
+                        print(f'  {line}', end='')
+            except KeyboardInterrupt:
+                proc.terminate()
+
+        elif mode == 'alerts':
+            # Suricata EVE alert stream
+            eve = '/nsm/suricata/log/eve.json'
+            import os, json
+            if not os.path.exists(eve):
+                print(f'  EVE log not found at {eve}')
+                pause()
+                return
+            print('  Tailing Suricata alerts (Ctrl+C to stop)...\n')
+            print(f'  {"Time":<10} {"Src":<20} {"Dst":<20} {"Signature"}')
+            print(f'  {"-"*80}')
+            try:
+                proc = subprocess.Popen(['tail', '-f', eve],
+                                        stdout=subprocess.PIPE, text=True)
+                for line in proc.stdout:
+                    try:
+                        ev = json.loads(line)
+                        if ev.get('event_type') == 'alert':
+                            ts  = ev.get('timestamp', '')[:10]
+                            src = f"{ev.get('src_ip','-')}:{ev.get('src_port','-')}"
+                            dst = f"{ev.get('dest_ip','-')}:{ev.get('dest_port','-')}"
+                            sig = ev.get('alert', {}).get('signature', '-')
+                            print(f'  {ts:<10} {src:<20} {dst:<20} {sig}')
+                    except json.JSONDecodeError:
+                        pass
+            except KeyboardInterrupt:
+                proc.terminate()
+
+    except KeyboardInterrupt:
+        print('\n  Stopped.')
+
+    pause()
+
+
 def main_menu():
     """Main management menu loop."""
     while True:
@@ -2261,6 +2471,8 @@ def main_menu():
         print('\n  -- Admin ----------------------------------------')
         print('  17. Admin login')
 
+        print('\n  -- Capture Monitor ------------------------------')
+        print('  18. Packet capture monitor')
 
         print('\n   0. Logout')
         print()
@@ -2289,6 +2501,7 @@ def main_menu():
             '15': show_user_guide,
             '16': run_setup,
             '17': admin_login,
+            '18': packet_capture_monitor,
         }
 
         if choice == '0':
