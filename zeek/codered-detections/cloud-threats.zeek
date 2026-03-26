@@ -40,8 +40,9 @@ export {
     ## If a sensor sees traffic to these IPs, it means SSRF or container escape.
     const imds_ips: set[addr] = {
         169.254.169.254,   # AWS IMDSv1/v2, GCP metadata, Azure IMDS (shared)
-        fd00:ec2::254,     # AWS IMDSv2 IPv6
         168.63.129.16,     # Azure IMDS / internal health probe
+        # fd00:ec2::254 (AWS IMDSv2 IPv6) removed — Zeek addr literal syntax
+        # does not support this IPv6 format in set declarations.
     } &redef;
 
     ## Cloud metadata service paths — requests to these paths from unexpected
