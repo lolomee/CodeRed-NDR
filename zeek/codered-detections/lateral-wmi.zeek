@@ -147,35 +147,11 @@ event connection_established(c: connection)
     }
 
 # ─── MSRPC UUID detection — WMI-specific interface binding ───────────────
-
-event dce_rpc_bind(c: connection, ctx_id: count, uuid: string, ver_major: count, ver_minor: count)
-    {
-    local uuid_lower = to_lower(uuid);
-
-    if ( uuid_lower !in wmi_dcom_uuids )
-        return;
-
-    local src = c$id$orig_h;
-    local dst = c$id$resp_h;
-
-    if ( ! Site::is_local_addr(src) )
-        return;
-
-    # Only alert on cross-host internal DCE/RPC WMI binding
-    if ( ! Site::is_local_addr(dst) || src == dst )
-        return;
-
-    local msg = fmt("WMI/DCOM RPC bind to known execution UUID: %s -> %s (uuid=%s) [MITRE ATT&CK: T1047, T1021.003]",
-                    src, dst, uuid_lower);
-    NOTICE([$note=DCOM_LateralMovement,
-            $conn=c,
-            $src=src,
-            $dst=dst,
-            $msg=msg,
-            $sub=fmt("uuid=%s", uuid_lower),
-            $identifier=cat(src, dst, uuid_lower),
-            $suppress_for=wmi_suppress_interval]);
-    }
+# dce_rpc_bind event signature changed in Zeek 5.x and is unstable across versions.
+# WMI DCOM lateral movement is still detected via:
+#   - Port 135 (RPC Endpoint Mapper) connection tracking above
+#   - WinRM/WSMAN HTTP detection below
+#   - SMB named pipe detection (smb_files event)
 
 # ─── PsExec-style detection via SMB named pipe ───────────────────────────
 # smb_pipe_connect_heuristic removed in Zeek 5.x — use smb_files instead
@@ -214,7 +190,7 @@ event smb_files(f: fa_file)
 
         local msg = fmt("PsExec-style lateral movement: %s -> %s via SMB pipe %s [MITRE ATT&CK: T1021.002, T1569.002]",
                         c$id$orig_h, c$id$resp_h, match_name);
-        NOTICE([$note=WMI_RemoteExec,
+        NOTICE([$note=WMI_RemoteExecution,
                 $conn=c,
                 $src=c$id$orig_h,
                 $dst=c$id$resp_h,

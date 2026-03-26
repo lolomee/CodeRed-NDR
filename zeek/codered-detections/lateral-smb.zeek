@@ -119,7 +119,7 @@ event smb_files(f: fa_file)
         local tactic    = is_service_pipe ? "T1543.003" : "T1021.002";
 
         local msg = fmt("SMB lateral pipe: %s -> %s (pipe=%s) [MITRE ATT&CK: %s]",
-                        c$id$orig_h, c$id$resp_h, clean, tactic);
+                        c$id$orig_h, c$id$resp_h, pipe_name, tactic);
         NOTICE([$note=note_type,
                 $conn=c,
                 $src=c$id$orig_h,
