@@ -123,12 +123,12 @@ details .details-body { padding: 1rem 1.25rem; }
   <main class="content">
 
     <h2 id="overview">1. Overview</h2>
-    <p>CodeRed NDR is a <strong>passive network detection and response sensor</strong>. It receives a copy of your network traffic via a SPAN or TAP port, analyses it in real time using Zeek and Suricata, and forwards alerts to your SIEM via Filebeat. A machine learning engine builds per-host behavioral baselines and alerts on deviation.</p>
+    <p>CodeRed NDR is a <strong>passive network detection and response sensor</strong>. It receives a copy of your network traffic via a SPAN or TAP port, analyses it in real time using CodeRed-UEBA and CodeRed-IDS, and forwards alerts to your SIEM via Filebeat. A machine learning engine builds per-host behavioral baselines and alerts on deviation.</p>
     <table>
       <thead><tr><th>Component</th><th>Role</th></tr></thead>
       <tbody>
-        <tr><td><code>Zeek</code></td><td>Protocol parser &mdash; runs all 20 behavioral detection scripts</td></tr>
-        <tr><td><code>Suricata</code></td><td>Signature-based IDS, JA3/JA4 TLS fingerprinting</td></tr>
+        <tr><td><code>CodeRed-UEBA</code></td><td>Protocol parser &mdash; runs all 20 behavioral detection scripts</td></tr>
+        <tr><td><code>CodeRed-IDS</code></td><td>Signature-based IDS, JA3/JA4 TLS fingerprinting</td></tr>
         <tr><td><code>Filebeat</code></td><td>Ships all alerts and logs to your SIEM</td></tr>
         <tr><td><code>codered-ml</code></td><td>ML behavioral engine &mdash; per-host anomaly detection via Isolation Forest</td></tr>
       </tbody>
@@ -215,7 +215,7 @@ set switch1 mirror-source=ether1 mirror-target=ether24</pre></div>
 
     <div class="callout callout-danger">
       <div class="callout-title">Cloud mode must be enabled or detections will not work</div>
-      AWS, Alibaba Cloud, and Azure all deliver mirrored traffic wrapped in a VXLAN header (UDP/4789). If the sensor is set to on-prem mode, it receives the encapsulated packets but cannot parse the inner traffic &mdash; all Zeek detection scripts and Suricata signatures are blind. Always set <strong>Deployment mode &rarr; cloud</strong> in the wizard or via Menu &rarr; 9 when deploying in a cloud environment.
+      AWS, Alibaba Cloud, and Azure all deliver mirrored traffic wrapped in a VXLAN header (UDP/4789). If the sensor is set to on-prem mode, it receives the encapsulated packets but cannot parse the inner traffic &mdash; all CodeRed-UEBA detection scripts and CodeRed-IDS signatures are blind. Always set <strong>Deployment mode &rarr; cloud</strong> in the wizard or via Menu &rarr; 9 when deploying in a cloud environment.
     </div>
 
     <h3>VMware ESXi / vSphere &mdash; on-prem mode</h3>
@@ -257,18 +257,18 @@ set switch1 mirror-source=ether1 mirror-target=ether24</pre></div>
     <p>Use a <strong>Packet Mirroring</strong> policy to mirror subnet traffic to the sensor internal IP. Set wizard to <strong>cloud</strong> mode, VXLAN port <code>4789</code>.</p>
 
     <h3>Toggling cloud mode after deployment</h3>
-    <p>Use <strong>Menu &rarr; 9 (Deployment mode)</strong> to switch between on-prem and cloud at any time. The sensor saves the setting, reconfigures Zeek and Suricata, and restarts both services automatically.</p>
+    <p>Use <strong>Menu &rarr; 9 (Deployment mode)</strong> to switch between on-prem and cloud at any time. The sensor saves the setting, reconfigures CodeRed-UEBA and CodeRed-IDS, and restarts both services automatically.</p>
     <pre>codered> 9
   Current mode: ON-PREM
   Deployment mode (on-prem/cloud): cloud
   VXLAN port [4789]: 4789
-  Apply cloud mode? Restart Zeek and Suricata. [Y/n]: Y
-  Zeek: OK
-  Suricata: OK
+  Apply cloud mode? Restart CodeRed-UEBA and CodeRed-IDS. [Y/n]: Y
+  CodeRed-UEBA: OK
+  CodeRed-IDS: OK
   VXLAN decapsulation is now active.</pre>
 
     <h2 id="detection">5. Detection capabilities</h2>
-    <p>CodeRed NDR covers <strong>~75 MITRE ATT&amp;CK techniques</strong> across 20 Zeek behavioral detection scripts plus Suricata signatures. All rule-based detections are immediate &mdash; no warm-up required.</p>
+    <p>CodeRed NDR covers <strong>~75 MITRE ATT&amp;CK techniques</strong> across 20 CodeRed-UEBA behavioral detection scripts plus CodeRed-IDS signatures. All rule-based detections are immediate &mdash; no warm-up required.</p>
 
     <h3 id="c2">C2 &amp; covert channels</h3>
     <div class="detection-grid">
@@ -374,7 +374,7 @@ set switch1 mirror-source=ether1 mirror-target=ether24</pre></div>
       <li>Reads <code>conn.log</code>, <code>dns.log</code>, and <code>http.log</code> every 60 seconds.</li>
       <li>Aggregates 9 features per host per hour into a SQLite baseline database.</li>
       <li>After <strong>50 hours of data</strong>, trains an <strong>Isolation Forest</strong> model using each host&rsquo;s own 7-day history.</li>
-      <li>Each new hour is scored against the host&rsquo;s model. Anomalies are written to <code>/nsm/codered/ml-alerts.json</code> and shipped to SIEM alongside Zeek and Suricata alerts.</li>
+      <li>Each new hour is scored against the host&rsquo;s model. Anomalies are written to <code>/nsm/codered/ml-alerts.json</code> and shipped to SIEM alongside CodeRed-UEBA and CodeRed-IDS alerts.</li>
     </ol>
 
     <h3>Features tracked per host</h3>
@@ -408,7 +408,7 @@ set switch1 mirror-source=ether1 mirror-target=ether24</pre></div>
 
     <div class="callout callout-info">
       <div class="callout-title">Resource limits</div>
-      The ML engine is bounded to 25% CPU and 512 MB RAM at Nice=10, so it never starves Zeek or Suricata. Typical usage is ~150&ndash;200 MB RAM.
+      The ML engine is bounded to 25% CPU and 512 MB RAM at Nice=10, so it never starves CodeRed-UEBA or CodeRed-IDS. Typical usage is ~150&ndash;200 MB RAM.
     </div>
 
     <h3>Checking ML status</h3>
@@ -420,7 +420,7 @@ sqlite3 /var/lib/codered/ml-baseline.db \
   "SELECT host, COUNT(*) AS hours FROM host_features GROUP BY host ORDER BY 2 DESC LIMIT 20;"</pre>
 
     <h2 id="ot">7. OT / ICS monitoring</h2>
-    <p>The <code>ot-anomaly</code> script covers industrial control system protocols. Zeek ships with Modbus and DNP3 analyzers built in &mdash; CodeRed&rsquo;s detection layer runs on top.</p>
+    <p>The <code>ot-anomaly</code> script covers industrial control system protocols. CodeRed-UEBA ships with Modbus and DNP3 analyzers built in &mdash; CodeRed&rsquo;s detection layer runs on top.</p>
     <table>
       <thead><tr><th>Protocol</th><th>Port</th><th>Coverage</th></tr></thead>
       <tbody>
@@ -468,16 +468,16 @@ redef CodeRed::it_subnets += { 10.0.0.0/8 };</pre>
     <table>
       <thead><tr><th>#</th><th>Option</th><th>What it does</th></tr></thead>
       <tbody>
-        <tr><td>1</td><td>Sensor status</td><td>Services (Zeek, Suricata, Filebeat, codered-ml), disk, CPU, uptime, SIEM destination, rules age</td></tr>
+        <tr><td>1</td><td>Sensor status</td><td>Services (CodeRed-UEBA, CodeRed-IDS, Filebeat, codered-ml), disk, CPU, uptime, SIEM destination, rules age</td></tr>
         <tr><td>2</td><td>Network interfaces</td><td>All NICs with IP and promiscuous mode status</td></tr>
-        <tr><td>3</td><td>View logs</td><td>Suricata alerts, Zeek conn/dns/http, ML anomaly alerts, system log, audit log</td></tr>
+        <tr><td>3</td><td>View logs</td><td>CodeRed-IDS alerts, CodeRed-UEBA conn/dns/http, ML anomaly alerts, system log, audit log</td></tr>
         <tr><td>4</td><td>Diagnostics</td><td>DNS, gateway ping, SIEM connectivity, NTP sync, disk, monitor interface promisc, packet drop rate, log freshness, Filebeat errors</td></tr>
         <tr><td>5</td><td>Network settings</td><td>Change management IP, gateway, DNS</td></tr>
         <tr><td>6</td><td>Hostname</td><td>Rename the sensor (updates hostname and sensor.conf)</td></tr>
         <tr><td>7</td><td>Monitor interfaces</td><td>Add, replace, or remove SPAN/TAP interfaces. Supports multiple interfaces for multi-zone monitoring.</td></tr>
         <tr><td>8</td><td>SIEM destination</td><td>Change SIEM address, port, TLS, and output type (Elasticsearch / Logstash / Syslog)</td></tr>
-        <tr><td>9</td><td>Deployment mode</td><td>Switch between <strong>on-prem</strong> (raw SPAN/TAP) and <strong>cloud</strong> (VXLAN decapsulation for AWS, Alibaba Cloud, Azure). Applies config and restarts Zeek and Suricata automatically.</td></tr>
-        <tr><td>10</td><td>Restart services</td><td>Restart Zeek, Suricata, Filebeat, codered-ml, or all at once</td></tr>
+        <tr><td>9</td><td>Deployment mode</td><td>Switch between <strong>on-prem</strong> (raw SPAN/TAP) and <strong>cloud</strong> (VXLAN decapsulation for AWS, Alibaba Cloud, Azure). Applies config and restarts CodeRed-UEBA and CodeRed-IDS automatically.</td></tr>
+        <tr><td>10</td><td>Restart services</td><td>Restart CodeRed-UEBA, CodeRed-IDS, Filebeat, codered-ml, or all at once</td></tr>
         <tr><td>11</td><td>Support bundle</td><td>Generates <code>/tmp/codered-diag-&lt;timestamp&gt;.tar.gz</code> with logs and config (tokens redacted)</td></tr>
         <tr><td>12</td><td>Change password</td><td>Current password verified via PAM. Min 12 chars, requires uppercase + digit + symbol.</td></tr>
         <tr><td>13</td><td>Reboot</td><td>Restart the sensor VM</td></tr>
@@ -521,7 +521,7 @@ redef CodeRed::it_subnets += { 10.0.0.0/8 };</pre>
         <tr><td>514</td><td>TCP/UDP</td><td>SIEM &mdash; Syslog / CEF</td></tr>
         <tr><td>53</td><td>UDP</td><td>DNS resolution</td></tr>
         <tr><td>123</td><td>UDP</td><td>NTP time sync (alert timestamps depend on this)</td></tr>
-        <tr><td>443</td><td>TCP</td><td>Suricata rule updates &amp; threat intel feed downloads</td></tr>
+        <tr><td>443</td><td>TCP</td><td>CodeRed-IDS rule updates &amp; threat intel feed downloads</td></tr>
       </tbody>
     </table>
     <h3>Inbound to sensor</h3>
@@ -628,7 +628,7 @@ redef CodeRed::business_hours_end   = 19;</pre>
 systemctl restart codered-ml</pre>
 
     <h3>Manual operations</h3>
-    <pre>sudo /opt/codered/bin/update-rules.sh    # Update Suricata rules
+    <pre>sudo /opt/codered/bin/update-rules.sh    # Update CodeRed-IDS rules
 sudo /opt/codered/bin/update-intel.sh    # Update threat intel feeds
 sudo /opt/codered/bin/health-check.sh    # Full sensor health check
 sudo /opt/codered/bin/disk-cleanup.sh    # Manual disk cleanup</pre>
@@ -657,7 +657,7 @@ sudo /opt/codered/bin/disk-cleanup.sh    # Manual disk cleanup</pre>
       <li><code>sudo journalctl -u codered-zeek -n 50 --no-pager</code></li>
     </ol>
 
-    <h3>High Suricata packet drop rate</h3>
+    <h3>High CodeRed-IDS packet drop rate</h3>
     <ol>
       <li>Menu &rarr; 4 shows drop percentage.</li>
       <li>Increase vCPU count in hypervisor.</li>
@@ -708,7 +708,7 @@ sudo /opt/codered/bin/disk-cleanup.sh    # Manual disk cleanup</pre>
         <tr><td>SSH hardening</td><td><code>/etc/ssh/sshd_config.d/90-codered-hardening.conf</code></td></tr>
         <tr><td>Health check</td><td><code>sudo /opt/codered/bin/health-check.sh</code></td></tr>
         <tr><td>Update intel feeds</td><td><code>sudo /opt/codered/bin/update-intel.sh</code></td></tr>
-        <tr><td>Update Suricata rules</td><td><code>sudo /opt/codered/bin/update-rules.sh</code></td></tr>
+        <tr><td>Update CodeRed-IDS rules</td><td><code>sudo /opt/codered/bin/update-rules.sh</code></td></tr>
       </tbody>
     </table>
 

@@ -363,7 +363,7 @@ details .details-body { padding: 1rem 1.25rem; }
         |
         v
   +--------------+     +---------------+
-  |    Zeek      |     |  Suricata     |
+  |    CodeRed-UEBA      |     |  CodeRed-IDS     |
   | (protocol    |     | (signature    |
   |  analysis,   |     |  detection,   |
   |  behavioral  |     |  EVE JSON)    |
@@ -401,8 +401,8 @@ details .details-body { padding: 1rem 1.25rem; }
 |   +-- prepare-ova.sh      # OVA prep (user lockdown, cleanup)
 |   +-- health-check.sh     # Comprehensive health checker
 |   +-- codered-update.sh   # Auto-update from GitHub
-|   +-- update-rules.sh     # Suricata rule updater
-|   +-- update-intel.sh     # Zeek threat intel feed updater
+|   +-- update-rules.sh     # CodeRed-IDS rule updater
+|   +-- update-intel.sh     # CodeRed-UEBA threat intel feed updater
 |   +-- backup-config.sh    # Configuration backup
 |   +-- factory-reset.sh    # Factory reset
 |   +-- disk-cleanup.sh     # Disk space management
@@ -413,7 +413,7 @@ details .details-body { padding: 1rem 1.25rem; }
 +-- conf/
 |   +-- codered.defaults    # Default configuration
 +-- zeek/
-|   +-- codered-detections/ # Custom Zeek detection scripts
+|   +-- codered-detections/ # Custom CodeRed-UEBA detection scripts
 |       +-- __load__.zeek
 |       +-- beaconing.zeek
 |       +-- dns-anomaly.zeek
@@ -421,8 +421,8 @@ details .details-body { padding: 1rem 1.25rem; }
 |       +-- cert-anomaly.zeek
 |       +-- scan-detect.zeek
 +-- filebeat/
-|   +-- zeek.yml            # Filebeat Zeek module config
-|   +-- suricata.yml        # Filebeat Suricata module config
+|   +-- zeek.yml            # Filebeat CodeRed-UEBA module config
+|   +-- suricata.yml        # Filebeat CodeRed-IDS module config
 +-- docs/
     +-- user-guide.html     # Customer-facing guide
     +-- admin-guide.html    # This document</code></pre>
@@ -487,16 +487,16 @@ curl -sSL https://raw.githubusercontent.com/lolomee/CodeRed-NDR/main/install.sh 
 ca-certificates lsb-release python3 python3-configparser
 dialog ethtool net-tools jq git tcpdump open-vm-tools logrotate</code></pre>
 
-<h4>Step 2: Install Zeek</h4>
+<h4>Step 2: Install CodeRed-UEBA</h4>
 <ul>
-  <li>Adds OpenSUSE OBS APT repository for Zeek (<code>security:/zeek/xUbuntu_&lt;version&gt;</code>)</li>
+  <li>Adds OpenSUSE OBS APT repository for CodeRed-UEBA (<code>security:/zeek/xUbuntu_&lt;version&gt;</code>)</li>
   <li>Installs the <code>zeek</code> package (installs to <code>/opt/zeek/</code>)</li>
   <li>Falls back to 22.04 repo on 24.04 if primary fails</li>
   <li>Adds <code>/opt/zeek/bin</code> to PATH via <code>/etc/profile.d/zeek-path.sh</code></li>
   <li>Disables the stock <code>zeek</code> systemd service (CodeRed manages its own)</li>
 </ul>
 
-<h4>Step 3: Install Suricata and Filebeat</h4>
+<h4>Step 3: Install CodeRed-IDS and Filebeat</h4>
 <ul>
   <li><strong>Suricata:</strong> Adds <code>ppa:oisf/suricata-stable</code>, installs <code>suricata</code> + <code>suricata-update</code>. Enables <code>community-id</code> in <code>suricata.yaml</code>. Disables stock service.</li>
   <li><strong>Filebeat:</strong> Adds Elastic 8.x APT repo (<code>artifacts.elastic.co/packages/8.x/apt</code>), installs <code>filebeat</code>. Disables stock service.</li>
@@ -521,7 +521,7 @@ dialog ethtool net-tools jq git tcpdump open-vm-tools logrotate</code></pre>
 
 <p>Also creates an inline <code>update-rules.sh</code> script (uses <code>suricata-update</code>) and an inline <code>codered-update.sh</code> if not present in the repo.</p>
 
-<h4>Step 5: Download Suricata Rules and GeoIP</h4>
+<h4>Step 5: Download CodeRed-IDS Rules and GeoIP</h4>
 <ul>
   <li>Enables <code>et/open</code> and <code>oisf/trafficid</code> rule sources via <code>suricata-update</code></li>
   <li>Downloads GeoLite2-City.mmdb to <code>/usr/share/GeoIP/</code></li>
@@ -627,7 +627,7 @@ dialog ethtool net-tools jq git tcpdump open-vm-tools logrotate</code></pre>
 <p>Disables default Ubuntu MOTD. Creates <code>/etc/update-motd.d/00-codered-banner</code> that shows version, hostname, uptime, and service status on SSH login. Sets <code>/etc/issue.net</code> as SSH pre-authentication banner.</p>
 
 <h4>Step 8: Reset First-Boot State</h4>
-<p>Removes <code>sensor.conf</code>, <code>.setup-complete</code>, and <code>.firstboot-complete</code> markers. Resets Zeek <code>node.cfg</code> and Filebeat config to placeholder values. Stops and disables all NDR services so the customer starts fresh.</p>
+<p>Removes <code>sensor.conf</code>, <code>.setup-complete</code>, and <code>.firstboot-complete</code> markers. Resets CodeRed-UEBA <code>node.cfg</code> and Filebeat config to placeholder values. Stops and disables all NDR services so the customer starts fresh.</p>
 
 <h4>Step 9: Remove Builder Account</h4>
 <p>Removes <code>coderedai</code> from sudoers, revokes sudo group membership, schedules <code>userdel -r</code> on next boot.</p>
@@ -720,12 +720,12 @@ dialog ethtool net-tools jq git tcpdump open-vm-tools logrotate</code></pre>
     <td><code>zeekctl deploy|start|stop|restart|status</code></td>
   </tr>
   <tr>
-    <td>Suricata rules</td>
+    <td>CodeRed-IDS rules</td>
     <td><code>suricata-update</code>, <code>suricata -T</code></td>
   </tr>
   <tr>
     <td>Log access</td>
-    <td><code>tail -f</code> on EVE and Zeek logs,<br><code>journalctl -u codered-* --no-pager</code></td>
+    <td><code>tail -f</code> on EVE and CodeRed-UEBA logs,<br><code>journalctl -u codered-* --no-pager</code></td>
   </tr>
 </table>
 
@@ -830,7 +830,7 @@ sudo visudo -cf /etc/sudoers.d/codered-ndr          # validate before applying</
   <li>Optional features (IPS mode)</li>
   <li>Confirmation and apply</li>
 </ol>
-<p>Apply steps: save config, set hostname, configure management network, configure monitor interfaces, generate Zeek/Suricata/Filebeat configs, start services, update Suricata rules.</p>
+<p>Apply steps: save config, set hostname, configure management network, configure monitor interfaces, generate CodeRed-UEBA/CodeRed-IDS/Filebeat configs, start services, update CodeRed-IDS rules.</p>
 
 <h3>Main Menu (15 Options)</h3>
 <table>
@@ -867,7 +867,7 @@ sudo visudo -cf /etc/sudoers.d/codered-ndr          # validate before applying</
   <tr><th>Function</th><th>What it generates</th></tr>
   <tr><td><code>apply_zeek_config()</code></td><td>Writes <code>/opt/zeek/etc/node.cfg</code> with monitor interface, runs <code>tune-interface.sh</code></td></tr>
   <tr><td><code>apply_suricata_config()</code></td><td>Writes <code>/etc/suricata/codered-override.yaml</code> with AF_PACKET, community-id, EVE output config</td></tr>
-  <tr><td><code>apply_filebeat_config()</code></td><td>Writes <code>/etc/filebeat/filebeat.yml</code> with Zeek + Suricata inputs, ECS processor, output (Elasticsearch or Logstash)</td></tr>
+  <tr><td><code>apply_filebeat_config()</code></td><td>Writes <code>/etc/filebeat/filebeat.yml</code> with CodeRed-UEBA + CodeRed-IDS inputs, ECS processor, output (Elasticsearch or Logstash)</td></tr>
 </table>
 
 <h3>Audit Logging</h3>
@@ -882,7 +882,7 @@ sudo visudo -cf /etc/sudoers.d/codered-ndr          # validate before applying</
 <!-- ────────────────────────────────────────────────────── -->
 
 <h3>Overview</h3>
-<p>CodeRed NDR includes custom Zeek detection scripts that provide behavioral detection beyond signature matching. These use Zeek's <code>Notice</code> and <code>SumStats</code> frameworks.</p>
+<p>CodeRed NDR includes custom CodeRed-UEBA detection scripts that provide behavioral detection beyond signature matching. These use CodeRed-UEBA's <code>Notice</code> and <code>SumStats</code> frameworks.</p>
 <p>Scripts are installed to <code>/opt/zeek/share/zeek/site/codered-detections/</code> and loaded via <code>__load__.zeek</code>.</p>
 
 <h3>Detection Scripts</h3>
@@ -1011,8 +1011,8 @@ redef CodeRed::sweep_host_threshold = 25.0;</code></pre>
   <tr><td>Network Sweep</td><td><code>Network_Sweep</code></td><td>T1046</td><td>Discovery</td></tr>
 </table>
 
-<h3>Zeek Intel Framework</h3>
-<p>The <code>update-intel.sh</code> script downloads threat intelligence feeds from abuse.ch and converts them to Zeek Intel format:</p>
+<h3>CodeRed-UEBA Intel Framework</h3>
+<p>The <code>update-intel.sh</code> script downloads threat intelligence feeds from abuse.ch and converts them to CodeRed-UEBA Intel format:</p>
 <table>
   <tr><th>Feed</th><th>Indicator Type</th><th>File</th></tr>
   <tr><td>URLhaus (malware URLs)</td><td><code>Intel::URL</code></td><td><code>abuse-ch-urlhaus.intel</code></td></tr>
@@ -1039,7 +1039,7 @@ redef CodeRed::sweep_host_threshold = 25.0;</code></pre>
   <tr>
     <td><code>codered-suricata.service</code></td>
     <td>simple</td>
-    <td>Suricata with config test pre-check (<code>suricata -T</code>)</td>
+    <td>CodeRed-IDS with config test pre-check (<code>suricata -T</code>)</td>
     <td>on-failure (10s)</td>
   </tr>
   <tr>
@@ -1100,7 +1100,7 @@ redef CodeRed::sweep_host_threshold = 25.0;</code></pre>
     <td><code>codered-intel-update.timer</code></td>
     <td>Periodic</td>
     <td><code>codered-intel-update.service</code></td>
-    <td>Zeek threat intel feed update (abuse.ch)</td>
+    <td>CodeRed-UEBA threat intel feed update (abuse.ch)</td>
   </tr>
   <tr>
     <td><code>codered-disk-cleanup.timer</code></td>
@@ -1132,10 +1132,10 @@ sudo journalctl -u codered-suricata --no-pager -n 50
 # Check if config exists (services won't start without it)
 ls -la /etc/codered/sensor.conf
 
-# Validate Suricata config
+# Validate CodeRed-IDS config
 sudo suricata -T -c /etc/suricata/suricata.yaml
 
-# Check Zeek status
+# Check CodeRed-UEBA status
 sudo /opt/zeek/bin/zeekctl status</code></pre>
 
 
@@ -1154,7 +1154,7 @@ sudo /opt/zeek/bin/zeekctl status</code></pre>
     |
     +--&gt; tcpdump --&gt; /nsm/pcap/*.pcap (rolling, optional)</code></pre>
 
-<h3>Zeek Log Types and Paths</h3>
+<h3>CodeRed-UEBA Log Types and Paths</h3>
 <p>All Zeek logs are written to <code>/nsm/zeek/logs/current/</code>:</p>
 <table>
   <tr><th>Log File</th><th>Content</th></tr>
@@ -1163,7 +1163,7 @@ sudo /opt/zeek/bin/zeekctl status</code></pre>
   <tr><td><code>http.log</code></td><td>HTTP requests/responses</td></tr>
   <tr><td><code>ssl.log</code></td><td>TLS/SSL handshakes</td></tr>
   <tr><td><code>files.log</code></td><td>File transfers</td></tr>
-  <tr><td><code>notice.log</code></td><td>CodeRed detections and Zeek notices</td></tr>
+  <tr><td><code>notice.log</code></td><td>CodeRed detections and CodeRed-UEBA notices</td></tr>
   <tr><td><code>smtp.log</code></td><td>SMTP sessions</td></tr>
   <tr><td><code>ssh.log</code></td><td>SSH connections</td></tr>
   <tr><td><code>dhcp.log</code></td><td>DHCP transactions</td></tr>
@@ -1174,10 +1174,10 @@ sudo /opt/zeek/bin/zeekctl status</code></pre>
   <tr><td><code>x509.log</code></td><td>X.509 certificates</td></tr>
   <tr><td><code>pe.log</code></td><td>Portable Executable analysis</td></tr>
   <tr><td><code>capture_loss.log</code></td><td>Packet loss statistics</td></tr>
-  <tr><td><code>reporter.log</code></td><td>Zeek internal errors</td></tr>
+  <tr><td><code>reporter.log</code></td><td>CodeRed-UEBA internal errors</td></tr>
 </table>
 
-<h3>Suricata EVE JSON Output</h3>
+<h3>CodeRed-IDS EVE JSON Output</h3>
 <p>Suricata writes to <code>/nsm/suricata/log/eve.json</code> with these event types (configured in <code>codered-override.yaml</code>):</p>
 <ul>
   <li><code>alert</code> &mdash; IDS alerts with metadata and tagged packets</li>
@@ -1218,7 +1218,7 @@ sudo /opt/zeek/bin/zeekctl status</code></pre>
 
 <p>Additionally, Filebeat module configs exist in the repo:</p>
 <ul>
-  <li><code>filebeat/zeek.yml</code> &mdash; Zeek module with specific log paths for each log type (conn, dns, http, files, ssl, notice, smtp, ssh, ntp, dhcp, rdp, pe, x509, smb_files, smb_mapping)</li>
+  <li><code>filebeat/zeek.yml</code> &mdash; CodeRed-UEBA module with specific log paths for each log type (conn, dns, http, files, ssl, notice, smtp, ssh, ntp, dhcp, rdp, pe, x509, smb_files, smb_mapping)</li>
   <li><code>filebeat/suricata.yml</code> &mdash; Suricata module reading <code>/nsm/suricata/log/eve.json</code></li>
 </ul>
 
@@ -1272,7 +1272,7 @@ sudo /opt/zeek/bin/zeekctl status</code></pre>
 
 <div class="callout callout-warning">
   <div class="callout-title">Known Limitation</div>
-  <strong>What does NOT get updated:</strong> Zeek detection scripts (<code>codered-detections/</code>), Zeek intel feeds, Suricata rules, Filebeat module configs, systemd unit files, and <code>sensor.conf</code> are not updated by the auto-update mechanism. These must be updated manually or through their own update paths (rule timers, intel timers).
+  <strong>What does NOT get updated:</strong> CodeRed-UEBA detection scripts (<code>codered-detections/</code>), CodeRed-UEBA intel feeds, CodeRed-IDS rules, Filebeat module configs, systemd unit files, and <code>sensor.conf</code> are not updated by the auto-update mechanism. These must be updated manually or through their own update paths (rule timers, intel timers).
 </div>
 
 <h3>Update Interval</h3>
@@ -1370,14 +1370,14 @@ sudo tcpdump -i &lt;interface&gt; -c 10</code></pre>
     <ul>
       <li>Check CPU per process: <code>ps aux | grep -E 'zeek|suricata|filebeat'</code></li>
       <li>Increase VM CPU cores</li>
-      <li>For Zeek: increase worker count in <code>node.cfg</code> (cluster mode for multi-core)</li>
-      <li>For Suricata: adjust <code>threads</code> setting</li>
+      <li>For CodeRed-UEBA: increase worker count in <code>node.cfg</code> (cluster mode for multi-core)</li>
+      <li>For CodeRed-IDS: adjust <code>threads</code> setting</li>
     </ul>
   </div>
 </details>
 
 <details>
-  <summary>Zeek crashes or restarts frequently</summary>
+  <summary>CodeRed-UEBA crashes or restarts frequently</summary>
   <div class="details-body">
     <p><strong>Check:</strong></p>
     <pre><code># Check capture loss
@@ -1396,14 +1396,14 @@ sudo journalctl -u codered-zeek --no-pager -n 100</code></pre>
 </details>
 
 <details>
-  <summary>Suricata dropping packets</summary>
+  <summary>CodeRed-IDS dropping packets</summary>
   <div class="details-body">
     <pre><code># Check AF_PACKET stats
 sudo suricatasc -c "iface-stat &lt;monitor-interface&gt;"
 
 # Check suricata stats
 sudo tail -100 /nsm/suricata/log/eve.json | jq 'select(.event_type=="stats")' | tail -1</code></pre>
-    <p>Fix: increase VM resources, or tune Suricata AF_PACKET settings (ring-size, cluster-type).</p>
+    <p>Fix: increase VM resources, or tune CodeRed-IDS AF_PACKET settings (ring-size, cluster-type).</p>
   </div>
 </details>
 
@@ -1413,7 +1413,7 @@ sudo tail -100 /nsm/suricata/log/eve.json | jq 'select(.event_type=="stats")' | 
   <tr><td>CLI log</td><td><code>/var/log/codered/cli.log</code></td><td>CLI Python logging</td></tr>
   <tr><td>Audit log</td><td><code>/var/log/codered/audit.log</code></td><td>All user actions with timestamps and source IPs</td></tr>
   <tr><td>Update log</td><td><code>/var/log/codered/update.log</code></td><td>Auto-update activity</td></tr>
-  <tr><td>Rule update log</td><td><code>/var/log/codered/rule-update.log</code></td><td>Suricata rule update history</td></tr>
+  <tr><td>Rule update log</td><td><code>/var/log/codered/rule-update.log</code></td><td>CodeRed-IDS rule update history</td></tr>
   <tr><td>Disk cleanup log</td><td><code>/var/log/codered/disk-cleanup.log</code></td><td>Disk cleanup actions</td></tr>
   <tr><td>Disk resize log</td><td><code>/var/log/codered/disk-resize.log</code></td><td>Boot-time disk expansion</td></tr>
   <tr><td>Filebeat log</td><td><code>/var/log/filebeat/filebeat</code></td><td>Filebeat operational log</td></tr>
@@ -1430,9 +1430,9 @@ sudo tail -100 /nsm/suricata/log/eve.json | jq 'select(.event_type=="stats")' | 
   <li><strong>Performance:</strong> Per-process CPU/memory, system load, memory usage</li>
   <li><strong>Disk space:</strong> <code>/</code> and <code>/nsm</code> usage with thresholds (75%/85%/95%)</li>
   <li><strong>Packet capture:</strong> Monitor interface promisc mode, Suricata AF_PACKET drops, Zeek capture_loss</li>
-  <li><strong>Log freshness:</strong> Suricata EVE, Zeek conn.log and dns.log (stale if &gt;10 min)</li>
+  <li><strong>Log freshness:</strong> CodeRed-IDS EVE, CodeRed-UEBA conn.log and dns.log (stale if &gt;10 min)</li>
   <li><strong>SIEM connectivity:</strong> TCP connection test to configured SIEM endpoint</li>
-  <li><strong>Threat intel:</strong> Suricata rule freshness, Zeek intel feed freshness</li>
+  <li><strong>Threat intel:</strong> CodeRed-IDS rule freshness, CodeRed-UEBA intel feed freshness</li>
   <li><strong>Other:</strong> GeoIP database, NTP sync</li>
 </ul>
 <p>Exit codes: <code>0</code> = healthy, <code>1</code> = degraded (warnings), <code>2</code> = critical.</p>
@@ -1478,13 +1478,13 @@ siem_endpoint =                    # SIEM address (IP or FQDN)
 siem_port = 9200                   # SIEM port
 
 [zeek]
-workers = auto                     # Number of Zeek workers (auto = CPU count)
+workers = auto                     # Number of CodeRed-UEBA workers (auto = CPU count)
 protocols = dns,http,ssl,smtp,ssh,ftp,dhcp,ntp,smb,rdp,modbus,dnp3
 community_id = yes                 # Enable community ID for correlation
 
 [suricata]
 ips_mode = no                      # IDS mode (no) or IPS mode (yes)
-threads = auto                     # Suricata threads (auto = CPU count)
+threads = auto                     # CodeRed-IDS threads (auto = CPU count)
 rule_sources = et/open             # Enabled rule sources
 community_id = yes                 # Enable community ID
 eve_types = alert,anomaly,dns,http,tls,files,smtp,ssh,flow,netflow
@@ -1522,14 +1522,14 @@ interval = 6h                      # Update check interval</code></pre>
   <tr><td><code>siem_tls</code></td><td><code>true</code> or <code>false</code></td></tr>
 </table>
 
-<h3>Zeek node.cfg</h3>
+<h3>CodeRed-UEBA node.cfg</h3>
 <p>Path: <code>/opt/zeek/etc/node.cfg</code>. Auto-generated by <code>apply_zeek_config()</code>:</p>
 <pre><code>[zeek]
 type=standalone
 host=localhost
 interface=af_packet::ens34</code></pre>
 
-<h3>Suricata Override Config</h3>
+<h3>CodeRed-IDS Override Config</h3>
 <p>Path: <code>/etc/suricata/codered-override.yaml</code>. Auto-generated by <code>apply_suricata_config()</code>:</p>
 <pre><code>%YAML 1.1
 ---
@@ -1657,7 +1657,7 @@ outputs:
 <table>
   <tr><th>Task</th><th>Frequency</th><th>Method</th></tr>
   <tr><td>Health check</td><td>Daily / ad-hoc</td><td><code>sudo /opt/codered/bin/health-check.sh</code></td></tr>
-  <tr><td>Suricata rule update</td><td>Daily (automatic)</td><td><code>codered-rule-update.timer</code></td></tr>
+  <tr><td>CodeRed-IDS rule update</td><td>Daily (automatic)</td><td><code>codered-rule-update.timer</code></td></tr>
   <tr><td>Threat intel update</td><td>Periodic (automatic)</td><td><code>codered-intel-update.timer</code></td></tr>
   <tr><td>Software update</td><td>Every 6h (automatic)</td><td><code>codered-update.timer</code></td></tr>
   <tr><td>Disk usage check</td><td>Weekly</td><td><code>df -h /nsm</code> or health check</td></tr>
@@ -1697,7 +1697,7 @@ sudo systemctl restart codered-zeek codered-suricata filebeat</code></pre>
 <ul>
   <li>Stop and disable all NDR services</li>
   <li>Delete <code>sensor.conf</code>, <code>.setup-complete</code>, <code>.firstboot-complete</code></li>
-  <li>Reset Zeek <code>node.cfg</code> to placeholder</li>
+  <li>Reset CodeRed-UEBA <code>node.cfg</code> to placeholder</li>
   <li>Clear all data in <code>/nsm/</code> (logs, spool, extracted, pcap)</li>
   <li>Truncate all CodeRed log files</li>
   <li>Remove Filebeat config</li>
@@ -1713,7 +1713,7 @@ sudo systemctl restart codered-zeek codered-suricata filebeat</code></pre>
   <li>Verify services: <code>sudo /opt/codered/bin/health-check.sh</code></li>
 </ol>
 
-<h3>Adding New Suricata Rule Sources</h3>
+<h3>Adding New CodeRed-IDS Rule Sources</h3>
 <pre><code># List available sources
 sudo suricata-update list-sources
 
@@ -1726,7 +1726,7 @@ sudo suricata-update
 # Reload rules (live)
 sudo suricatasc -c reload-rules</code></pre>
 
-<h3>Adding New Zeek Packages</h3>
+<h3>Adding New CodeRed-UEBA Packages</h3>
 <pre><code># Install via zeek package manager (zkg)
 sudo /opt/zeek/bin/zkg install &lt;package-name&gt;
 
@@ -1734,7 +1734,7 @@ sudo /opt/zeek/bin/zkg install &lt;package-name&gt;
 sudo /opt/zeek/bin/zeekctl deploy</code></pre>
 
 <h3>Adding New Threat Intel Feeds</h3>
-<p>Edit <code>/opt/codered/bin/update-intel.sh</code> and add a new download section. The feed must be converted to Zeek Intel format with tab-separated fields:</p>
+<p>Edit <code>/opt/codered/bin/update-intel.sh</code> and add a new download section. The feed must be converted to CodeRed-UEBA Intel format with tab-separated fields:</p>
 <pre><code>#fields	indicator	indicator_type	meta.source	meta.desc	meta.url</code></pre>
 <p>Supported indicator types: <code>Intel::ADDR</code>, <code>Intel::URL</code>, <code>Intel::DOMAIN</code>, <code>Intel::FILE_HASH</code>, <code>Intel::EMAIL</code>.</p>
 
@@ -1778,21 +1778,21 @@ sudo /opt/zeek/bin/zeekctl deploy</code></pre>
   <tr><td><code>/var/log/codered/audit.log</code></td><td>CLI audit trail</td></tr>
   <tr><td><code>/var/log/codered/cli.log</code></td><td>CLI debug log</td></tr>
   <tr><td><code>/var/log/codered/update.log</code></td><td>Auto-update log</td></tr>
-  <tr><td><code>/var/log/codered/rule-update.log</code></td><td>Suricata rule update log</td></tr>
+  <tr><td><code>/var/log/codered/rule-update.log</code></td><td>CodeRed-IDS rule update log</td></tr>
   <tr><td><code>/var/log/codered/disk-cleanup.log</code></td><td>Disk cleanup log</td></tr>
   <tr><td><code>/var/log/codered/disk-resize.log</code></td><td>Disk auto-resize log</td></tr>
   <tr><td><code>/var/lib/codered/</code></td><td>State directory</td></tr>
   <tr><td><code>/var/lib/codered/.firstboot-complete</code></td><td>Firstboot marker</td></tr>
   <tr><td><code>/var/lib/codered/backups/</code></td><td>Configuration backups</td></tr>
-  <tr><td><code>/var/lib/suricata/rules/</code></td><td>Suricata rule files</td></tr>
+  <tr><td><code>/var/lib/suricata/rules/</code></td><td>CodeRed-IDS rule files</td></tr>
   <tr><td><code>/opt/zeek/share/zeek/site/codered-detections/</code></td><td>Custom Zeek detection scripts</td></tr>
   <tr><td><code>/opt/zeek/share/zeek/site/intel/</code></td><td>Zeek threat intel feed files</td></tr>
   <tr><td><code>/opt/zeek/etc/node.cfg</code></td><td>Zeek node configuration</td></tr>
   <tr><td><code>/opt/zeek/share/zeek/site/local.zeek</code></td><td>Zeek local policy (tuning overrides)</td></tr>
   <tr><td><code>/etc/suricata/codered-override.yaml</code></td><td>Suricata override config</td></tr>
   <tr><td><code>/etc/filebeat/filebeat.yml</code></td><td>Filebeat main configuration</td></tr>
-  <tr><td><code>/etc/filebeat/modules.d/zeek.yml</code></td><td>Filebeat Zeek module</td></tr>
-  <tr><td><code>/etc/filebeat/modules.d/suricata.yml</code></td><td>Filebeat Suricata module</td></tr>
+  <tr><td><code>/etc/filebeat/modules.d/zeek.yml</code></td><td>Filebeat CodeRed-UEBA module</td></tr>
+  <tr><td><code>/etc/filebeat/modules.d/suricata.yml</code></td><td>Filebeat CodeRed-IDS module</td></tr>
   <tr><td><code>/usr/local/bin/coderedndr</code></td><td>CLI entry point wrapper</td></tr>
   <tr><td><code>/usr/share/GeoIP/GeoLite2-City.mmdb</code></td><td>GeoIP database</td></tr>
 </table>
@@ -1808,11 +1808,11 @@ sudo /opt/zeek/bin/zeekctl deploy</code></pre>
   <tr><td><code>codered-disk-resize.service</code></td><td>Oneshot</td><td>Auto-resize disk on boot</td></tr>
   <tr><td><code>codered-remove-builder.service</code></td><td>Oneshot</td><td>Remove coderedai user (first boot after OVA prep)</td></tr>
   <tr><td><code>regenerate-ssh-keys.service</code></td><td>Oneshot</td><td>Regenerate SSH host keys (first boot)</td></tr>
-  <tr><td><code>codered-rule-update.service</code></td><td>Oneshot</td><td>Suricata rule update</td></tr>
+  <tr><td><code>codered-rule-update.service</code></td><td>Oneshot</td><td>CodeRed-IDS rule update</td></tr>
   <tr><td><code>codered-rule-update.timer</code></td><td>Timer</td><td>Daily at 03:00 UTC</td></tr>
   <tr><td><code>codered-update.service</code></td><td>Oneshot</td><td>Auto-update from GitHub</td></tr>
   <tr><td><code>codered-update.timer</code></td><td>Timer</td><td>Every 6 hours</td></tr>
-  <tr><td><code>codered-intel-update.service</code></td><td>Oneshot</td><td>Zeek threat intel feed update</td></tr>
+  <tr><td><code>codered-intel-update.service</code></td><td>Oneshot</td><td>CodeRed-UEBA threat intel feed update</td></tr>
   <tr><td><code>codered-intel-update.timer</code></td><td>Timer</td><td>Periodic</td></tr>
   <tr><td><code>codered-disk-cleanup.service</code></td><td>Oneshot</td><td>Disk space cleanup</td></tr>
   <tr><td><code>codered-disk-cleanup.timer</code></td><td>Timer</td><td>Periodic</td></tr>
@@ -1824,7 +1824,7 @@ sudo /opt/zeek/bin/zeekctl deploy</code></pre>
   <tr><td><code>health-check.sh</code></td><td>Comprehensive health check (exits 0/1/2)</td></tr>
   <tr><td><code>codered-update.sh</code></td><td>Auto-update from GitHub repo</td></tr>
   <tr><td><code>update-rules.sh</code></td><td>Suricata rule update via suricata-update</td></tr>
-  <tr><td><code>update-intel.sh</code></td><td>Zeek threat intel feed updater (abuse.ch)</td></tr>
+  <tr><td><code>update-intel.sh</code></td><td>CodeRed-UEBA threat intel feed updater (abuse.ch)</td></tr>
   <tr><td><code>backup-config.sh</code></td><td>Configuration backup (keeps last 10)</td></tr>
   <tr><td><code>factory-reset.sh</code></td><td>Factory reset (erases config and data)</td></tr>
   <tr><td><code>disk-cleanup.sh</code></td><td>Disk space cleanup (85% threshold)</td></tr>
@@ -1842,7 +1842,7 @@ sudo /opt/zeek/bin/zeekctl deploy</code></pre>
   <tr><td>5044</td><td>Outbound</td><td>TCP</td><td>Logstash SIEM forwarding (alternate)</td></tr>
   <tr><td>53</td><td>Outbound</td><td>TCP/UDP</td><td>DNS resolution</td></tr>
   <tr><td>123</td><td>Outbound</td><td>UDP</td><td>NTP time synchronization</td></tr>
-  <tr><td>443</td><td>Outbound</td><td>TCP</td><td>GitHub (auto-update), abuse.ch (threat intel), Suricata rules</td></tr>
+  <tr><td>443</td><td>Outbound</td><td>TCP</td><td>GitHub (auto-update), abuse.ch (threat intel), CodeRed-IDS rules</td></tr>
   <tr><td>80</td><td>Outbound</td><td>TCP</td><td>APT repositories, rule downloads</td></tr>
 </table>
 
@@ -1856,8 +1856,8 @@ sudo /opt/zeek/bin/zeekctl deploy</code></pre>
   <tr><td>Command &amp; Control</td><td>Dynamic Resolution: DGA</td><td>T1568.002</td><td>dns-anomaly.zeek (DGA_Domain)</td></tr>
   <tr><td>Exfiltration</td><td>Exfiltration Over C2 Channel</td><td>T1041</td><td>long-connections.zeek (Long_Connection, Potential_Exfil)</td></tr>
   <tr><td>Resource Development</td><td>Obtain Capabilities: Digital Certificates</td><td>T1587.003</td><td>cert-anomaly.zeek (Suspicious_Certificate)</td></tr>
-  <tr><td>Various</td><td>Threat Intel Matches</td><td>Various</td><td>Zeek Intel framework (URLhaus, Feodo, SSLBL)</td></tr>
-  <tr><td>Various</td><td>Signature-based Detection</td><td>Various</td><td>Suricata ET/Open rules (30,000+ signatures)</td></tr>
+  <tr><td>Various</td><td>Threat Intel Matches</td><td>Various</td><td>CodeRed-UEBA Intel framework (URLhaus, Feodo, SSLBL)</td></tr>
+  <tr><td>Various</td><td>Signature-based Detection</td><td>Various</td><td>CodeRed-IDS ET/Open rules (30,000+ signatures)</td></tr>
 </table>
 
 <h3>F. Changelog (v1.0.0 to v2.0.0)</h3>
@@ -1865,7 +1865,7 @@ sudo /opt/zeek/bin/zeekctl deploy</code></pre>
   <tr><th>Feature</th><th>v1.0.0</th><th>v2.0.0</th></tr>
   <tr><td>CLI</td><td>Shell-based wizard + separate menu</td><td>Unified Python CLI (setup + management)</td></tr>
   <tr><td>Monitor interfaces</td><td>Single interface</td><td>Multi-interface support</td></tr>
-  <tr><td>Detections</td><td>Suricata only</td><td>Suricata + custom Zeek behavioral detections (5 scripts)</td></tr>
+  <tr><td>Detections</td><td>CodeRed-IDS only</td><td>CodeRed-IDS + custom CodeRed-UEBA behavioral detections (5 scripts)</td></tr>
   <tr><td>Threat intel</td><td>None</td><td>abuse.ch feeds (URLhaus, Feodo, SSLBL)</td></tr>
   <tr><td>Auto-update</td><td>Manual</td><td>Automatic from GitHub (6h interval)</td></tr>
   <tr><td>Disk management</td><td>Manual</td><td>Auto-resize on boot + periodic cleanup</td></tr>
