@@ -110,20 +110,21 @@ details .details-body { padding: 1rem 1.25rem; }
       <li><a href="#ml">6. ML behavioral engine</a></li>
       <li><a href="#ot">7. OT / ICS monitoring</a></li>
       <li><a href="#cloud">8. Cloud threat detection</a></li>
-      <li><a href="#cli">9. CLI menu reference</a></li>
-      <li><a href="#logs">10. Log files &amp; paths</a></li>
-      <li><a href="#network">11. Network requirements</a></li>
-      <li><a href="#hardening">12. Security hardening</a></li>
-      <li><a href="#tuning">13. Tuning &amp; customisation</a></li>
-      <li><a href="#troubleshooting">14. Troubleshooting</a></li>
-      <li><a href="#quickref">15. Quick reference</a></li>
+      <li><a href="#forwarding">9. SIEM log forwarding</a></li>
+      <li><a href="#cli">10. CLI menu reference</a></li>
+      <li><a href="#logs">11. Log files &amp; paths</a></li>
+      <li><a href="#network">12. Network requirements</a></li>
+      <li><a href="#hardening">13. Security hardening</a></li>
+      <li><a href="#tuning">14. Tuning &amp; customisation</a></li>
+      <li><a href="#troubleshooting">15. Troubleshooting</a></li>
+      <li><a href="#quickref">16. Quick reference</a></li>
     </ol>
   </nav>
 
   <main class="content">
 
     <h2 id="overview">1. Overview</h2>
-    <p>CodeRed NDR is a <strong>passive network detection and response sensor</strong>. It receives a copy of your network traffic via a SPAN or TAP port, analyses it in real time using CodeRed-UEBA and CodeRed-IDS, and forwards alerts to your SIEM via Filebeat. A machine learning engine builds per-host behavioral baselines and alerts on deviation.</p>
+    <p>CodeRed NDR is a <strong>passive network detection and response sensor</strong>. It receives a copy of your network traffic via a SPAN or TAP port, analyses it in real time using CodeRed-UEBA and CodeRed-IDS, and forwards alerts to your SIEM via Filebeat (Elasticsearch/Logstash) or the built-in Syslog Forwarder (raw TCP/UDP syslog for Pre Security, QRadar, ArcSight, Graylog). A machine learning engine builds per-host behavioral baselines and alerts on deviation.</p>
     <table>
       <thead><tr><th>Component</th><th>Role</th></tr></thead>
       <tbody>
@@ -463,19 +464,66 @@ redef CodeRed::it_subnets += { 10.0.0.0/8 };</pre>
       </tbody>
     </table>
 
-    <h2 id="cli">9. CLI menu reference</h2>
+    <h2 id="forwarding">9. SIEM log forwarding</h2>
+    <p>CodeRed NDR supports two forwarding methods, selected via <strong>Menu &rarr; 8 (SIEM destination)</strong>:</p>
+
+    <table>
+      <thead><tr><th>Output Type</th><th>Protocol</th><th>Use for</th><th>Default Port</th></tr></thead>
+      <tbody>
+        <tr><td><strong>Elasticsearch</strong></td><td>HTTP/HTTPS JSON</td><td>Elastic Stack, OpenSearch, Splunk HEC</td><td>9200</td></tr>
+        <tr><td><strong>Logstash</strong></td><td>Beats protocol TCP</td><td>Logstash, Wazuh</td><td>5044</td></tr>
+        <tr><td><strong>Syslog TCP</strong></td><td>RFC5424 syslog over TCP</td><td>Pre Security, QRadar, ArcSight, Graylog</td><td>514</td></tr>
+        <tr><td><strong>Syslog UDP</strong></td><td>RFC5424 syslog over UDP</td><td>Legacy SIEM, network appliances</td><td>514</td></tr>
+      </tbody>
+    </table>
+
+    <h3>Filebeat (Elasticsearch &amp; Logstash)</h3>
+    <p>When output type is set to <strong>Elasticsearch</strong> or <strong>Logstash</strong>, CodeRed NDR uses <strong>Filebeat</strong> to ship logs.
+    Filebeat reads all CodeRed-UEBA log files and Suricata EVE JSON, enriches them with sensor metadata, and forwards using the Beats protocol or Elasticsearch HTTP API.</p>
+    <ul>
+      <li>Config: <code>/etc/filebeat/filebeat.yml</code> (auto-generated — do not edit manually)</li>
+      <li>Logs: <code>/var/log/filebeat/filebeat</code></li>
+      <li>Status: <code>sudo systemctl status filebeat</code></li>
+    </ul>
+    <p>Check Filebeat is shipping:</p>
+    <pre>sudo tail -50 /var/log/filebeat/filebeat | grep -E "publish|connect|error"</pre>
+
+    <h3>Syslog Forwarder (TCP/UDP)</h3>
+    <p>When output type is set to <strong>Syslog TCP</strong> or <strong>Syslog UDP</strong>, CodeRed NDR uses its built-in <strong>codered-syslog-forwarder</strong> instead of Filebeat.
+    This is a lightweight Python service that tails all CodeRed-UEBA logs and Suricata EVE, wraps each line as an RFC5424 syslog message (newline-delimited), and sends over TCP or UDP.
+    This is the correct method for SIEMs such as <strong>Pre Security</strong>, QRadar, ArcSight, and Graylog.</p>
+    <ul>
+      <li>Service: <code>codered-syslog</code></li>
+      <li>Log: <code>/var/log/codered/syslog-forwarder.log</code></li>
+      <li>Status: <code>sudo systemctl status codered-syslog</code></li>
+    </ul>
+    <p>Check the syslog forwarder is sending:</p>
+    <pre>sudo tail -20 /var/log/codered/syslog-forwarder.log</pre>
+    <p>Expected output:</p>
+    <pre>INFO TCP connected -&gt; 103.13.123.82:30082
+INFO Sent 133 events (total: 14919)</pre>
+
+    <h3>Testing connectivity</h3>
+    <p>Send a single test syslog message to verify the SIEM port is reachable:</p>
+    <pre>echo "CodeRed NDR test" | nc -w3 &lt;siem-ip&gt; &lt;port&gt; &amp;&amp; echo "OK" || echo "FAILED"</pre>
+
+    <h3>Changing SIEM destination</h3>
+    <p>Use <strong>Menu &rarr; 8</strong> to change the SIEM address, port, output type, or TLS setting at any time.
+    The sensor automatically stops the old forwarder and starts the correct one based on the selected output type.</p>
+
+    <h2 id="cli">10. CLI menu reference</h2>
     <p>SSH in as <code>coderedndr</code>, type a number, and press Enter.</p>
     <table>
       <thead><tr><th>#</th><th>Option</th><th>What it does</th></tr></thead>
       <tbody>
-        <tr><td>1</td><td>Sensor status</td><td>Services (CodeRed-UEBA, CodeRed-IDS, Filebeat, codered-ml), disk, CPU, uptime, SIEM destination, rules age</td></tr>
+        <tr><td>1</td><td>Sensor status</td><td>Services (CodeRed-UEBA, CodeRed-IDS, Filebeat or Syslog Forwarder, codered-ml), disk, CPU, uptime, SIEM destination, output type, forwarder health</td></tr>
         <tr><td>2</td><td>Network interfaces</td><td>All NICs with IP and promiscuous mode status</td></tr>
         <tr><td>3</td><td>View logs</td><td>CodeRed-IDS alerts, CodeRed-UEBA conn/dns/http, ML anomaly alerts, system log, audit log</td></tr>
         <tr><td>4</td><td>Diagnostics</td><td>DNS, gateway ping, SIEM connectivity, NTP sync, disk, monitor interface promisc, packet drop rate, log freshness, Filebeat errors</td></tr>
         <tr><td>5</td><td>Network settings</td><td>Change management IP, gateway, DNS</td></tr>
         <tr><td>6</td><td>Hostname</td><td>Rename the sensor (updates hostname and sensor.conf)</td></tr>
         <tr><td>7</td><td>Monitor interfaces</td><td>Add, replace, or remove SPAN/TAP interfaces. Supports multiple interfaces for multi-zone monitoring.</td></tr>
-        <tr><td>8</td><td>SIEM destination</td><td>Change SIEM address, port, TLS, and output type (Elasticsearch / Logstash / Syslog)</td></tr>
+        <tr><td>8</td><td>SIEM destination</td><td>Change SIEM address, port, TLS, and output type (Elasticsearch / Logstash / Syslog TCP / Syslog UDP). Automatically switches between Filebeat and the Syslog Forwarder.</td></tr>
         <tr><td>9</td><td>Deployment mode</td><td>Switch between <strong>on-prem</strong> (raw SPAN/TAP) and <strong>cloud</strong> (VXLAN decapsulation for AWS, Alibaba Cloud, Azure). Applies config and restarts CodeRed-UEBA and CodeRed-IDS automatically.</td></tr>
         <tr><td>10</td><td>Restart services</td><td>Restart CodeRed-UEBA, CodeRed-IDS, Filebeat, codered-ml, or all at once</td></tr>
         <tr><td>11</td><td>Support bundle</td><td>Generates <code>/tmp/codered-diag-&lt;timestamp&gt;.tar.gz</code> with logs and config (tokens redacted)</td></tr>
@@ -484,13 +532,14 @@ redef CodeRed::it_subnets += { 10.0.0.0/8 };</pre>
         <tr><td>14</td><td>Shutdown</td><td>Power off the sensor</td></tr>
         <tr><td>15</td><td>User guide</td><td>Paged text version of this guide (accessible without a browser)</td></tr>
         <tr><td>16</td><td>Re-run setup wizard</td><td>Reconfigure everything from scratch</td></tr>
+        <tr><td>18</td><td>Packet capture monitor</td><td>Live traffic visibility: top talkers, raw packet stream, protocol breakdown, interface RX/TX stats, CodeRed-UEBA conn.log tail, CodeRed-IDS alert stream</td></tr>
 
       </tbody>
     </table>
     <p>Download a support bundle:</p>
     <pre>scp coderedndr@&lt;sensor-ip&gt;:/tmp/codered-diag-*.tar.gz .</pre>
 
-    <h2 id="logs">10. Log files &amp; data paths</h2>
+    <h2 id="logs">11. Log files &amp; data paths</h2>
     <table>
       <thead><tr><th>Path</th><th>Contents</th></tr></thead>
       <tbody>
@@ -504,6 +553,8 @@ redef CodeRed::it_subnets += { 10.0.0.0/8 };</pre>
         <tr><td><code>/nsm/codered/ml-alerts.json</code></td><td><strong>ML behavioral anomaly alerts</strong> (JSON lines, shipped by Filebeat)</td></tr>
         <tr><td><code>/var/lib/codered/ml-baseline.db</code></td><td>SQLite &mdash; per-host ML baselines (7-day rolling window)</td></tr>
         <tr><td><code>/var/log/codered/audit.log</code></td><td>All CLI actions with timestamp, user, source IP</td></tr>
+        <tr><td><code>/var/log/codered/syslog-forwarder.log</code></td><td>Syslog forwarder activity &mdash; connections, events sent, errors</td></tr>
+        <tr><td><code>/var/log/filebeat/filebeat</code></td><td>Filebeat activity &mdash; events published, connection status</td></tr>
         <tr><td><code>/var/log/codered/ml-engine.log</code></td><td>ML engine activity and model training events</td></tr>
         <tr><td><code>/opt/codered/zeek/codered-detections/</code></td><td>All 20 Zeek detection scripts</td></tr>
         <tr><td><code>/opt/codered/ml/codered-ml.py</code></td><td>ML behavioral engine source</td></tr>
@@ -511,7 +562,7 @@ redef CodeRed::it_subnets += { 10.0.0.0/8 };</pre>
       </tbody>
     </table>
 
-    <h2 id="network">11. Network &amp; firewall requirements</h2>
+    <h2 id="network">12. Network &amp; firewall requirements</h2>
     <h3>Outbound from sensor</h3>
     <table>
       <thead><tr><th>Port</th><th>Protocol</th><th>Purpose</th></tr></thead>
@@ -542,7 +593,7 @@ redef CodeRed::it_subnets += { 10.0.0.0/8 };</pre>
       </tbody>
     </table>
 
-    <h2 id="hardening">12. Security hardening</h2>
+    <h2 id="hardening">13. Security hardening</h2>
     <p>All hardening is applied automatically by the installer. No manual steps required.</p>
     <h3>SSH (<code>/etc/ssh/sshd_config.d/90-codered-hardening.conf</code>)</h3>
     <ul>
@@ -578,7 +629,7 @@ AllowUsers coderedndr@10.0.1.0/24
 
 systemctl reload ssh</pre>
 
-    <h2 id="tuning">13. Tuning &amp; customisation</h2>
+    <h2 id="tuning">14. Tuning &amp; customisation</h2>
     <p>All detection thresholds can be overridden without editing detection scripts. Add <code>redef</code> statements to <code>/opt/zeek/share/zeek/site/local.zeek</code>, then restart Zeek via <strong>Menu &rarr; 9 &rarr; Restart Zeek</strong>.</p>
     <pre># ── Beaconing ─────────────────────────────────────────────────
 # Raise minimum connections threshold (fewer false positives)
@@ -633,7 +684,7 @@ sudo /opt/codered/bin/update-intel.sh    # Update threat intel feeds
 sudo /opt/codered/bin/health-check.sh    # Full sensor health check
 sudo /opt/codered/bin/disk-cleanup.sh    # Manual disk cleanup</pre>
 
-    <h2 id="troubleshooting">14. Troubleshooting</h2>
+    <h2 id="troubleshooting">15. Troubleshooting</h2>
 
     <h3>No traffic in conn.log after 60 seconds</h3>
     <ol>
@@ -688,7 +739,7 @@ sudo /opt/codered/bin/disk-cleanup.sh    # Manual disk cleanup</pre>
     <h3>Generate a support bundle</h3>
     <pre>scp coderedndr@&lt;sensor-ip&gt;:/tmp/codered-diag-*.tar.gz .</pre>
 
-    <h2 id="quickref">15. Quick reference</h2>
+    <h2 id="quickref">16. Quick reference</h2>
     <table>
       <thead><tr><th>Item</th><th>Value</th></tr></thead>
       <tbody>
