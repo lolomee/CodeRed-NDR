@@ -2418,9 +2418,10 @@ After=network-online.target
 Wants=network-online.target
 
 [Service]
-Type=simple
-ExecStart=/usr/sbin/softflowd -i {mon_iface} -n {host}:{port} -v {ver} -N
-Restart=on-failure
+Type=forking
+ExecStart=/usr/sbin/softflowd -i {mon_iface} -n {host}:{port} -v {ver}
+ExecStop=/usr/sbin/softflowctl shutdown
+Restart=always
 RestartSec=10
 
 [Install]
