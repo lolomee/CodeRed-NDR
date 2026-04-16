@@ -1247,11 +1247,47 @@ def reconfigure_forwarding():
                                 'yes' if current_tls == 'true' else 'no')
             config.set('forwarding', 'siem_tls', 'true' if tls == 'yes' else 'false')
 
+        if siem_output in ('syslog-tcp', 'syslog-udp'):
+            current_raw = get_val(config, 'forwarding', 'siem_raw', 'false')
+            print()
+            print('  Log format:')
+            print('    1. Raw JSON  — no syslog header, SIEM parses JSON directly (recommended for Pre Security)')
+            print('    2. Syslog    — RFC5424 wrapped, standard syslog format')
+            fmt_choice = input(f"  Select [{'1' if current_raw == 'true' else '2'}]: ").strip() or ('1' if current_raw == 'true' else '2')
+            config.set('forwarding', 'siem_raw', 'true' if fmt_choice == '1' else 'false')
+
     if confirm('Apply forwarding changes?'):
         save_config(config)
         print('\n  Applying forwarding configuration...')
 
         if siem_output in ('syslog-tcp', 'syslog-udp'):
+            # Rewrite service with correct flags
+            siem_raw = get_val(config, 'forwarding', 'siem_raw', 'false')
+            raw_flag = '--raw' if siem_raw == 'true' else ''
+            svc_txt = f"""[Unit]
+Description=CodeRed NDR — Syslog Forwarder
+After=network-online.target codered-zeek.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=root
+ExecStart=/usr/bin/python3 /opt/codered/bin/codered-syslog-forwarder.py {raw_flag}
+Restart=on-failure
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target
+"""
+            import tempfile, os as _os
+            with tempfile.NamedTemporaryFile(mode='w', suffix='.service', delete=False) as _tf:
+                _tf.write(svc_txt)
+                _tmp = _tf.name
+            run_cmd(['cp', _tmp, '/etc/systemd/system/codered-syslog.service'], sudo=True)
+            _os.unlink(_tmp)
+            run_cmd(['systemctl', 'daemon-reload'], sudo=True)
             # Use native syslog forwarder instead of Filebeat
             apply_filebeat_config(config)  # sets output.file as buffer
             # Stop filebeat, start syslog forwarder

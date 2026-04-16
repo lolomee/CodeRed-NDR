@@ -57,10 +57,14 @@ def save_state(state):
             f.write(f'{path}\t{pos}\n')
 
 # ─── Syslog framing ──────────────────────────────────────────────────────
-def make_syslog(hostname, app, msg):
-    """Build RFC5424 syslog message, newline delimited."""
+def make_syslog(hostname, app, msg, raw=False):
+    """Build syslog or raw message, newline delimited."""
+    if len(msg) > 65536:
+        msg = msg[:65536]
+    if raw:
+        # Raw mode: send the log line as-is with no syslog header
+        return (msg + '\n').encode('utf-8', errors='replace')
     ts = datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%S.%f')[:-3] + 'Z'
-    # Truncate msg to 8192 chars to avoid oversized packets
     if len(msg) > 8192:
         msg = msg[:8192]
     line = f'<{PRIORITY}>1 {ts} {hostname} {app} - - - {msg}'
@@ -109,7 +113,7 @@ class SyslogSender:
             return False
 
 # ─── Log tailing ─────────────────────────────────────────────────────────
-def tail_file(path, state, sender, hostname, app):
+def tail_file(path, state, sender, hostname, app, raw=False):
     pos = state.get(path, 0)
     try:
         size = os.path.getsize(path)
@@ -132,7 +136,7 @@ def tail_file(path, state, sender, hostname, app):
                 line = line.rstrip('\n\r')
                 if not line or line.startswith('#'):
                     continue
-                msg = make_syslog(hostname, app, line)
+                msg = make_syslog(hostname, app, line, raw=raw)
                 if sender.send(msg):
                     sent += 1
                 else:
@@ -150,6 +154,8 @@ def main():
     parser.add_argument('--host',  default='', help='SIEM host')
     parser.add_argument('--port',  default='514', help='SIEM port')
     parser.add_argument('--proto', default='tcp', choices=['tcp','udp'])
+    parser.add_argument('--raw',   action='store_true',
+                        help='Send raw log lines without RFC5424 syslog header')
     args = parser.parse_args()
 
     # Read from sensor.conf if not provided
@@ -163,6 +169,7 @@ def main():
         host  = cfg.get('forwarding', 'siem_host', fallback='')
         port  = cfg.get('forwarding', 'siem_port', fallback='514')
         proto = cfg.get('forwarding', 'siem_proto', fallback='tcp')
+        raw_mode = cfg.get('forwarding', 'siem_raw', fallback='false') == 'true' or args.raw
 
     if not host:
         print('ERROR: No SIEM host configured. Set via menu option 8 or --host')
@@ -194,12 +201,12 @@ def main():
         zeek_logs = glob.glob(f'{ZEEK_PATH}/*.log')
         for logpath in zeek_logs:
             app = 'zeek-' + os.path.basename(logpath).replace('.log', '')
-            n = tail_file(logpath, state, sender, hostname, app)
+            n = tail_file(logpath, state, sender, hostname, app, raw=raw_mode)
             batch_sent += n
 
         # Tail Suricata EVE
         if os.path.exists(SURICATA_PATH):
-            n = tail_file(SURICATA_PATH, state, sender, hostname, 'suricata')
+            n = tail_file(SURICATA_PATH, state, sender, hostname, 'suricata', raw=raw_mode)
             batch_sent += n
 
         if batch_sent > 0:
