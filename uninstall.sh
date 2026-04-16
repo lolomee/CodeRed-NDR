@@ -189,6 +189,7 @@ UNITS=(
     codered-suricata.service
     codered-pcap.service
     codered-ml.service
+    codered-netflow.service
     filebeat.service
     codered-rule-update.timer
     codered-rule-update.service

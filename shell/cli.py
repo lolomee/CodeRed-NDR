@@ -1003,6 +1003,11 @@ def show_status():
     if endpoint:
         print_line('SIEM Destination:', f'{endpoint}:{port}')
         print_line('Output Type:', siem_out)
+        if get_val(config, 'forwarding', 'netflow_enabled', 'false') == 'true':
+            _nf_h = get_val(config, 'forwarding', 'netflow_host', '')
+            _nf_p = get_val(config, 'forwarding', 'netflow_port', '2055')
+            if _nf_h:
+                print_line('Netflow Export:', f'{_nf_h}:{_nf_p}  (enabled)')
         # Show last forwarder log line for quick health check
         if siem_out in ('syslog-tcp', 'syslog-udp'):
             log_file = '/var/log/codered/syslog-forwarder.log'
@@ -1083,7 +1088,7 @@ def restart_services():
     """Restart sensor services."""
     header('RESTART SERVICES')
     services = {
-        '1': ('All NDR services', ['codered-zeek', 'codered-suricata', 'filebeat', 'codered-syslog', 'codered-ml']),
+        '1': ('All NDR services', ['codered-zeek', 'codered-suricata', 'filebeat', 'codered-syslog', 'codered-ml', 'codered-netflow']),
         '2': ('Zeek', ['codered-zeek']),
         '3': ('Suricata', ['codered-suricata']),
         '4': ('Filebeat / Syslog Forwarder', ['filebeat', 'codered-syslog']),
@@ -2334,6 +2339,147 @@ def show_user_guide():
                 break
 
 
+def netflow_export():
+    """Enable or disable Netflow export via softflowd."""
+    audit('netflow_export')
+    config = load_config()
+    clear()
+    header('NETFLOW EXPORT  (softflowd)')
+
+    rc, _ = run_cmd(['which', 'softflowd'], sudo=False)
+    softflowd_installed = (rc == 0)
+
+    nf_enabled = get_val(config, 'forwarding', 'netflow_enabled', 'false')
+    nf_host    = get_val(config, 'forwarding', 'netflow_host', '')
+    nf_port    = get_val(config, 'forwarding', 'netflow_port', '2055')
+    nf_version = get_val(config, 'forwarding', 'netflow_version', '9')
+    mon_iface  = get_val(config, 'network', 'monitor_interface', '')
+    if not mon_iface:
+        mon_iface = get_val(config, 'network', 'monitor_interfaces', '').split(',')[0].strip()
+
+    rc_svc, svc_out = run_cmd(['systemctl', 'is-active', 'codered-netflow'], sudo=True)
+    svc_status = svc_out.strip()
+
+    print()
+    print_line('softflowd installed:', 'YES' if softflowd_installed else 'NO  (will install on enable)')
+    print_line('Service status:', svc_status.upper() if svc_status else 'INACTIVE')
+    print_line('Netflow enabled:', nf_enabled.upper())
+    if nf_host:
+        print_line('Collector:', f'{nf_host}:{nf_port}  (Netflow v{nf_version})')
+    print_line('Monitor interface:', mon_iface or 'not configured')
+    print()
+    print('  Options:')
+    print('    1. Enable Netflow export')
+    print('    2. Disable Netflow export')
+    print('    3. View export statistics')
+    print('    0. Back')
+    print()
+
+    try:
+        choice = input('  codered> ').strip()
+    except (EOFError, KeyboardInterrupt):
+        return
+
+    if choice == '0':
+        return
+
+    elif choice == '1':
+        print()
+        if not mon_iface:
+            print('  [!] No monitor interface configured. Set via menu option 7 first.')
+            pause()
+            return
+
+        host = prompt('Netflow collector IP or FQDN',
+                      nf_host or get_val(config, 'forwarding', 'siem_host', ''),
+                      is_valid_host)
+        port = prompt('Netflow collector port', nf_port, is_valid_port)
+        ver  = prompt_choice('Netflow version', ['5', '9'], nf_version)
+
+        config.set('forwarding', 'netflow_enabled', 'true')
+        config.set('forwarding', 'netflow_host',    host)
+        config.set('forwarding', 'netflow_port',    port)
+        config.set('forwarding', 'netflow_version', ver)
+        save_config(config)
+
+        if not softflowd_installed:
+            print('\n  Installing softflowd...')
+            rc, out = run_cmd(['apt-get', 'install', '-y', '-qq', 'softflowd'],
+                              sudo=True, timeout=120)
+            if rc != 0:
+                print(f'  [!] Install failed: {out.strip()}')
+                pause()
+                return
+            print('  softflowd installed OK')
+
+        svc_content = f"""[Unit]
+Description=CodeRed NDR — Netflow Export (softflowd)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+ExecStart=/usr/sbin/softflowd -i {mon_iface} -n {host}:{port} -v {ver} -N
+Restart=on-failure
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target
+"""
+        import tempfile, os
+        with tempfile.NamedTemporaryFile(mode='w', suffix='.service', delete=False) as tf:
+            tf.write(svc_content)
+            tmp = tf.name
+        run_cmd(['cp', tmp, '/etc/systemd/system/codered-netflow.service'], sudo=True)
+        run_cmd(['chmod', '644', '/etc/systemd/system/codered-netflow.service'], sudo=True)
+        os.unlink(tmp)
+
+        run_cmd(['systemctl', 'daemon-reload'], sudo=True)
+        run_cmd(['systemctl', 'enable', 'codered-netflow'], sudo=True)
+        run_cmd(['systemctl', 'restart', 'codered-netflow'], sudo=True)
+
+        import time; time.sleep(2)
+        rc2, status = run_cmd(['systemctl', 'is-active', 'codered-netflow'], sudo=True)
+
+        print()
+        print(f'  Netflow export: {status.strip().upper()}')
+        print(f'  Sending Netflow v{ver} to {host}:{port}')
+        print(f'  Interface: {mon_iface}')
+        print()
+        print('  Syslog and Netflow are now running simultaneously.')
+        print(f'  Configure Pre Security NDR module to receive')
+        print(f'  Netflow v{ver} on UDP port {port} from this sensor.')
+        audit(f'netflow_export:enabled:{host}:{port}:v{ver}')
+        pause()
+
+    elif choice == '2':
+        if confirm('Disable Netflow export?'):
+            run_cmd(['systemctl', 'stop',    'codered-netflow'], sudo=True)
+            run_cmd(['systemctl', 'disable', 'codered-netflow'], sudo=True)
+            config.set('forwarding', 'netflow_enabled', 'false')
+            save_config(config)
+            print('\n  Netflow export disabled.')
+            print('  Syslog forwarding continues unchanged.')
+            audit('netflow_export:disabled')
+            pause()
+
+    elif choice == '3':
+        print()
+        rc, out = run_cmd(['softflowctl', 'statistics'], sudo=True)
+        if rc == 0 and out.strip():
+            for line in out.strip().splitlines():
+                print(f'  {line}')
+        else:
+            rc2, out2 = run_cmd(['journalctl', '-u', 'codered-netflow',
+                                 '--no-pager', '-n', '15'], sudo=True)
+            if out2.strip():
+                for line in out2.strip().splitlines():
+                    print(f'  {line}')
+            else:
+                print('  No statistics available. Is Netflow export enabled?')
+        pause()
+
+
 def packet_capture_monitor():
     """Live packet capture monitor — shows traffic on the monitor interface."""
     import subprocess, threading, time, collections
@@ -2614,6 +2760,7 @@ def main_menu():
 
         print('\n  -- Capture Monitor ------------------------------')
         print('  18. Packet capture monitor')
+        print('  19. Netflow export  (softflowd)')
 
         print('\n   0. Logout')
         print()
@@ -2643,6 +2790,7 @@ def main_menu():
             '16': run_setup,
             '17': admin_login,
             '18': packet_capture_monitor,
+            '19': netflow_export,
         }
 
         if choice == '0':
