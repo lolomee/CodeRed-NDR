@@ -110,7 +110,7 @@ details .details-body { padding: 1rem 1.25rem; }
       <li><a href="#ml">6. ML behavioral engine</a></li>
       <li><a href="#ot">7. OT / ICS monitoring</a></li>
       <li><a href="#cloud">8. Cloud threat detection</a></li>
-      <li><a href="#forwarding">9. SIEM log forwarding</a></li>
+      <li><a href="#forwarding">9. SIEM log forwarding &amp; Netflow export</a></li>
       <li><a href="#cli">10. CLI menu reference</a></li>
       <li><a href="#logs">11. Log files &amp; paths</a></li>
       <li><a href="#network">12. Network requirements</a></li>
@@ -464,7 +464,7 @@ redef CodeRed::it_subnets += { 10.0.0.0/8 };</pre>
       </tbody>
     </table>
 
-    <h2 id="forwarding">9. SIEM log forwarding</h2>
+    <h2 id="forwarding">9. SIEM log forwarding &amp; Netflow export</h2>
     <p>CodeRed NDR supports two forwarding methods, selected via <strong>Menu &rarr; 8 (SIEM destination)</strong>:</p>
 
     <table>
@@ -511,12 +511,50 @@ INFO Sent 133 events (total: 14919)</pre>
     <p>Use <strong>Menu &rarr; 8</strong> to change the SIEM address, port, output type, or TLS setting at any time.
     The sensor automatically stops the old forwarder and starts the correct one based on the selected output type.</p>
 
+    <h3>Netflow Export (Menu &rarr; 19)</h3>
+    <p>CodeRed NDR includes a built-in <strong>Netflow exporter</strong> (softflowd) that runs alongside the syslog forwarder.
+    Netflow is used to feed the <strong>NDR module</strong> of your SIEM with network flow metadata — traffic baselines,
+    network topology, and volumetric anomaly detection. It does not replace syslog; both run simultaneously.</p>
+
+    <table>
+      <thead><tr><th></th><th>Syslog Forwarder</th><th>Netflow Export</th></tr></thead>
+      <tbody>
+        <tr><td><strong>What it sends</strong></td><td>Full log detail — DNS, HTTP, TLS, IDS alerts, ML anomalies</td><td>Flow metadata — src/dst IP, port, bytes, protocol, duration</td></tr>
+        <tr><td><strong>Protocol</strong></td><td>TCP syslog (RFC5424)</td><td>UDP Netflow v5 or v9</td></tr>
+        <tr><td><strong>SIEM module</strong></td><td>Log search, SIEM alerts, SOCGPT</td><td>NDR module, traffic baseline, network map</td></tr>
+        <tr><td><strong>Default port</strong></td><td>514 / custom</td><td>2055 / custom</td></tr>
+        <tr><td><strong>Service</strong></td><td>codered-syslog</td><td>codered-netflow (softflowd)</td></tr>
+        <tr><td><strong>Run together?</strong></td><td colspan="2" style="text-align:center">✅ Yes — completely independent, no conflict</td></tr>
+      </tbody>
+    </table>
+
+    <p>Enable via <strong>Menu &rarr; 19</strong>. softflowd is installed automatically if not present.</p>
+    <ul>
+      <li>Collector IP — can be same or different host as syslog SIEM</li>
+      <li>Port — default 2055 (UDP), configure to match your SIEM NDR module</li>
+      <li>Version — Netflow v5 (simpler, fixed format) or v9 (template-based, more fields)</li>
+    </ul>
+
+    <p>Check Netflow export status:</p>
+    <pre>sudo systemctl status codered-netflow
+sudo softflowctl statistics</pre>
+
+    <p>Expected statistics output:</p>
+    <pre>Number of active flows: 2757
+Packets processed: 764850
+Flows exported: 6126 (12068 records) in 389 packets (0 failures)</pre>
+
+    <div class="callout callout-tip">
+      <div class="callout-title">Tip — Netflow vs Syslog for NDR</div>
+      <p>Syslog carries full application layer data (what happened inside connections). Netflow carries only flow metadata (who talked to who, how much). For a complete NDR deployment, use both: syslog for threat detection and forensics, Netflow for traffic visibility and behavioural baselining in your SIEM NDR module.</p>
+    </div>
+
     <h2 id="cli">10. CLI menu reference</h2>
     <p>SSH in as <code>coderedndr</code>, type a number, and press Enter.</p>
     <table>
       <thead><tr><th>#</th><th>Option</th><th>What it does</th></tr></thead>
       <tbody>
-        <tr><td>1</td><td>Sensor status</td><td>Services (CodeRed-UEBA, CodeRed-IDS, Filebeat or Syslog Forwarder, codered-ml), disk, CPU, uptime, SIEM destination, output type, forwarder health</td></tr>
+        <tr><td>1</td><td>Sensor status</td><td>Services (CodeRed-UEBA, CodeRed-IDS, Filebeat or Syslog Forwarder, codered-ml, Netflow Export if enabled), disk, CPU, uptime, SIEM destination, output type, forwarder health</td></tr>
         <tr><td>2</td><td>Network interfaces</td><td>All NICs with IP and promiscuous mode status</td></tr>
         <tr><td>3</td><td>View logs</td><td>CodeRed-IDS alerts, CodeRed-UEBA conn/dns/http, ML anomaly alerts, system log, audit log</td></tr>
         <tr><td>4</td><td>Diagnostics</td><td>DNS, gateway ping, SIEM connectivity, NTP sync, disk, monitor interface promisc, packet drop rate, log freshness, Filebeat errors</td></tr>
@@ -533,6 +571,7 @@ INFO Sent 133 events (total: 14919)</pre>
         <tr><td>15</td><td>User guide</td><td>Paged text version of this guide (accessible without a browser)</td></tr>
         <tr><td>16</td><td>Re-run setup wizard</td><td>Reconfigure everything from scratch</td></tr>
         <tr><td>18</td><td>Packet capture monitor</td><td>Live traffic visibility: top talkers, raw packet stream, protocol breakdown, interface RX/TX stats, CodeRed-UEBA conn.log tail, CodeRed-IDS alert stream</td></tr>
+        <tr><td>19</td><td>Netflow export</td><td>Enable or disable softflowd Netflow export to SIEM NDR module. Supports Netflow v5 and v9 over UDP. Runs alongside syslog forwarder — both active simultaneously. Shows export statistics (active flows, packets, bytes).</td></tr>
 
       </tbody>
     </table>
@@ -554,6 +593,7 @@ INFO Sent 133 events (total: 14919)</pre>
         <tr><td><code>/var/lib/codered/ml-baseline.db</code></td><td>SQLite &mdash; per-host ML baselines (7-day rolling window)</td></tr>
         <tr><td><code>/var/log/codered/audit.log</code></td><td>All CLI actions with timestamp, user, source IP</td></tr>
         <tr><td><code>/var/log/codered/syslog-forwarder.log</code></td><td>Syslog forwarder activity &mdash; connections, events sent, errors</td></tr>
+        <tr><td><code>/etc/systemd/system/codered-netflow.service</code></td><td>Netflow export service definition (softflowd config)</td></tr>
         <tr><td><code>/var/log/filebeat/filebeat</code></td><td>Filebeat activity &mdash; events published, connection status</td></tr>
         <tr><td><code>/var/log/codered/ml-engine.log</code></td><td>ML engine activity and model training events</td></tr>
         <tr><td><code>/opt/codered/zeek/codered-detections/</code></td><td>All 20 Zeek detection scripts</td></tr>
@@ -568,6 +608,7 @@ INFO Sent 133 events (total: 14919)</pre>
       <thead><tr><th>Port</th><th>Protocol</th><th>Purpose</th></tr></thead>
       <tbody>
         <tr><td>9200</td><td>TCP</td><td>SIEM &mdash; Elasticsearch (default)</td></tr>
+        <tr><td>2055</td><td>UDP</td><td>SIEM NDR module &mdash; Netflow export (softflowd, default)</td></tr>
         <tr><td>5044</td><td>TCP</td><td>SIEM &mdash; Logstash</td></tr>
         <tr><td>514</td><td>TCP/UDP</td><td>SIEM &mdash; Syslog / CEF</td></tr>
         <tr><td>53</td><td>UDP</td><td>DNS resolution</td></tr>
