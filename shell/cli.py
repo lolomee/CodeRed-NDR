@@ -225,6 +225,84 @@ def prompt(label: str, default: str = '', validator=None, required: bool = True)
             continue
         return val
 
+def prompt_pem(label: str, current_path: str, save_to: str,
+               is_key: bool = False) -> str:
+    """
+    Prompt for a TLS PEM (certificate or private key). Operator can:
+      - paste the PEM content inline (terminated by blank line); it is saved
+        to `save_to` with correct ownership/mode and the path is returned.
+      - type `file:<path>` to use an existing file on disk.
+      - type `clear` to remove the current value.
+      - press Enter to keep `current_path`.
+    `save_to` is the canonical on-sensor location (e.g. /etc/codered/siem-ca.crt).
+    Key files are written 0600 (refused by the forwarder otherwise); certs 0644.
+    """
+    kind = 'private key' if is_key else 'certificate'
+    end_marker = 'PRIVATE KEY-----' if is_key else 'CERTIFICATE-----'
+    while True:
+        print(f'  {label}')
+        if current_path:
+            print(f'    Current: {current_path}')
+        print(f'    Type "paste" to paste {kind} PEM, "file:<path>" to use an '
+              f'existing file, "clear" to remove, or press Enter to keep.')
+        try:
+            choice = input('  > ').strip()
+        except EOFError:
+            print()
+            continue
+
+        if not choice:
+            return current_path
+        low = choice.lower()
+        if low == 'clear':
+            return ''
+        if low.startswith('file:'):
+            path = choice[5:].strip()
+            if not os.path.isfile(path):
+                print(f'    * File not found: {path}')
+                continue
+            return path
+        if low == 'paste':
+            print(f'    Paste {kind} PEM below. Finish with an empty line.')
+            print(f'    (Expected: -----BEGIN ... {end_marker[:-5]}- ... -----END ... {end_marker})')
+            lines = []
+            while True:
+                try:
+                    ln = input()
+                except EOFError:
+                    break
+                if ln == '' and lines:
+                    break
+                if ln == '' and not lines:
+                    continue
+                lines.append(ln)
+            content = '\n'.join(lines).strip() + '\n'
+            if '-----BEGIN' not in content or end_marker not in content:
+                print(f'    * Pasted content does not look like a valid PEM '
+                      f'{kind} — missing BEGIN/END markers.')
+                continue
+            try:
+                os.makedirs(os.path.dirname(save_to), exist_ok=True)
+                tmp = save_to + '.tmp'
+                with open(tmp, 'w') as f:
+                    f.write(content)
+                os.chmod(tmp, 0o600 if is_key else 0o644)
+                try:
+                    os.chown(tmp, 0, 0)
+                except PermissionError:
+                    pass  # not root — leave as-is
+                os.rename(tmp, save_to)
+                print(f'    * Saved to {save_to} (mode {"0600" if is_key else "0644"})')
+                return save_to
+            except Exception as e:
+                print(f'    * Failed to save: {e}')
+                continue
+        # Fallback: treat input as a file path if it exists
+        if os.path.isfile(choice):
+            return choice
+        print(f'    * Unknown choice (or file not found): {choice}')
+
+
 def prompt_choice(label: str, options: list[str], default: str = '') -> str:
     """Prompt for a choice from a list."""
     opts_str = '/'.join(options)
@@ -1260,8 +1338,10 @@ def reconfigure_forwarding():
                 current_key        = get_val(config, 'forwarding', 'siem_tls_key', '')
                 current_servername = get_val(config, 'forwarding', 'siem_tls_servername', '')
 
-                ca_path = prompt('CA cert path (PEM, blank = system trust store)',
-                                 current_ca, required=False)
+                ca_path = prompt_pem('CA certificate (verifies the SIEM)',
+                                     current_path=current_ca,
+                                     save_to='/etc/codered/siem-ca.crt',
+                                     is_key=False)
                 config.set('forwarding', 'siem_tls_ca', ca_path)
 
                 verify = prompt_choice('Verify SIEM certificate',
@@ -1286,10 +1366,14 @@ def reconfigure_forwarding():
                                      ['yes', 'no'],
                                      'yes' if current_cert else 'no')
                 if mtls == 'yes':
-                    cert_path = prompt('Client certificate (PEM)',
-                                       current_cert, required=True)
-                    key_path  = prompt('Client private key (PEM)',
-                                       current_key, required=True)
+                    cert_path = prompt_pem('Client certificate (PEM, presented to SIEM)',
+                                           current_path=current_cert,
+                                           save_to='/etc/codered/siem-client.crt',
+                                           is_key=False)
+                    key_path  = prompt_pem('Client private key (PEM, kept on this sensor)',
+                                           current_path=current_key,
+                                           save_to='/etc/codered/siem-client.key',
+                                           is_key=True)
                     config.set('forwarding', 'siem_tls_cert', cert_path)
                     config.set('forwarding', 'siem_tls_key', key_path)
                 else:
