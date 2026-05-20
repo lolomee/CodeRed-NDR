@@ -24,7 +24,24 @@ vxlan_port = 4789
 siem_output = elasticsearch
 siem_host =
 siem_port = 9200
+# TLS transport. Enabled here applies to Filebeat HTTPS (elasticsearch/logstash
+# outputs) and to RFC5425 syslog-over-TLS (syslog-tcp output). UDP cannot be
+# encrypted — DTLS is not implemented.
 siem_tls = false
+# Verify the SIEM's certificate (chain + hostname). Disabling makes the
+# connection encrypted but not authenticated — vulnerable to MITM. Use only
+# for testing or when you fully control the network path.
+siem_tls_verify = true
+# Optional CA bundle (PEM) used to verify the SIEM certificate. Empty = use
+# the system trust store. Set this when the SIEM is signed by an internal CA.
+siem_tls_ca =
+# Optional SNI / hostname-verification override. Use when siem_host is an IP
+# but the SIEM cert SAN holds a DNS name. Blank = use siem_host.
+siem_tls_servername =
+# Mutual TLS — paths to client certificate and private key (PEM). Both must
+# be set together, or both blank. Used when the SIEM requires client-cert auth.
+siem_tls_cert =
+siem_tls_key =
 
 [zeek]
 workers = auto

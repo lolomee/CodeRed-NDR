@@ -23,4 +23,12 @@ vxlan_port = 4789
 siem_output = elasticsearch
 siem_host = siem.company.com
 siem_port = 9200
+# Transport security. Configure via CLI option 8 — see codered.defaults for
+# the full list of TLS keys (siem_tls_verify, siem_tls_ca, siem_tls_servername,
+# siem_tls_cert, siem_tls_key).
 siem_tls = false
+siem_tls_verify = true
+siem_tls_ca =
+siem_tls_servername =
+siem_tls_cert =
+siem_tls_key =

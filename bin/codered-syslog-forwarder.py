@@ -7,6 +7,7 @@ Newline-delimited, compatible with Pre Security, QRadar, ArcSight, Graylog etc.
 
 import os
 import sys
+import ssl
 import time
 import socket
 import signal
@@ -71,27 +72,117 @@ def make_syslog(hostname, app, msg, raw=False):
     return (line + '\n').encode('utf-8', errors='replace')
 
 # ─── Connection ──────────────────────────────────────────────────────────
+def _tls_error_hint(exc):
+    """Map common TLS handshake failures to actionable operator hints."""
+    msg = str(exc)
+    if 'Hostname mismatch' in msg or 'doesn\'t match' in msg:
+        return ('SIEM cert SAN does not match siem_host. '
+                'Set siem_tls_servername to a name/IP listed in the cert SAN, '
+                'or re-issue the cert with the connect address in its SAN, '
+                'or set siem_tls_verify=false (encrypt-only, not recommended).')
+    if 'CERTIFICATE_VERIFY_FAILED' in msg:
+        return ('SIEM server certificate not trusted. Point siem_tls_ca at the '
+                'PEM CA that signed the SIEM cert, or set siem_tls_verify=false.')
+    if 'UNKNOWN_CA' in msg or 'unknown ca' in msg.lower():
+        return ('SIEM rejected our client certificate. The siem_tls_cert must be '
+                'signed by a CA the SIEM trusts (mutual TLS).')
+    if 'BAD_CERTIFICATE' in msg or 'bad certificate' in msg.lower():
+        return ('SIEM rejected our client certificate as malformed or expired. '
+                'Check siem_tls_cert / siem_tls_key files.')
+    if 'HANDSHAKE_FAILURE' in msg or 'handshake failure' in msg.lower():
+        return ('TLS handshake failed. Common causes: mTLS required but no '
+                'siem_tls_cert/siem_tls_key configured; or no shared cipher.')
+    if 'WRONG_VERSION_NUMBER' in msg:
+        return ('Endpoint does not speak TLS on this port — check siem_port and '
+                'whether the SIEM listener is plain TCP vs TLS.')
+    if 'NO_CERTIFICATE_OR_CRL_FOUND' in msg or 'PEM lib' in msg:
+        return ('siem_tls_ca, siem_tls_cert, or siem_tls_key does not contain '
+                'a valid PEM-formatted certificate. Verify the file with '
+                '"openssl x509 -in <file> -noout -subject".')
+    return ''
+
+
 class SyslogSender:
-    def __init__(self, host, port, proto='tcp'):
-        self.host   = host
-        self.port   = int(port)
-        self.proto  = proto.lower()
-        self.sock   = None
+    def __init__(self, host, port, proto='tcp',
+                 tls=False, tls_ca='', tls_verify=True,
+                 tls_cert='', tls_key='', tls_servername=''):
+        self.host           = host
+        self.port           = int(port)
+        self.proto          = proto.lower()
+        self.tls            = bool(tls) and self.proto == 'tcp'
+        self.tls_ca         = tls_ca or ''
+        self.tls_verify     = bool(tls_verify)
+        self.tls_cert       = tls_cert or ''
+        self.tls_key        = tls_key or ''
+        self.tls_servername = tls_servername or ''
+        self.sock           = None
+        self._ssl_ctx       = None
+        if self.tls:
+            try:
+                self._ssl_ctx = self._build_ssl_context()
+            except (ssl.SSLError, FileNotFoundError, ValueError) as e:
+                hint = _tls_error_hint(e)
+                log.error(f'TLS context build failed: {e}'
+                          + (f' | HINT: {hint}' if hint else ''))
+                return
         self.connect()
+
+    def _build_ssl_context(self):
+        ctx = ssl.create_default_context(purpose=ssl.Purpose.SERVER_AUTH)
+        if self.tls_ca:
+            if not os.path.isfile(self.tls_ca):
+                raise FileNotFoundError(f'TLS CA file not found: {self.tls_ca}')
+            ctx.load_verify_locations(cafile=self.tls_ca)
+        if self.tls_cert or self.tls_key:
+            if not self.tls_cert or not self.tls_key:
+                raise ValueError('mTLS requires BOTH siem_tls_cert and siem_tls_key')
+            if not os.path.isfile(self.tls_cert):
+                raise FileNotFoundError(f'TLS client cert not found: {self.tls_cert}')
+            if not os.path.isfile(self.tls_key):
+                raise FileNotFoundError(f'TLS client key not found: {self.tls_key}')
+            ctx.load_cert_chain(certfile=self.tls_cert, keyfile=self.tls_key)
+            log.info(f'mTLS enabled — client cert: {self.tls_cert}')
+        if not self.tls_verify:
+            ctx.check_hostname = False
+            ctx.verify_mode = ssl.CERT_NONE
+            log.warning('TLS certificate verification DISABLED (siem_tls_verify=false)')
+        return ctx
 
     def connect(self):
         try:
             if self.proto == 'udp':
                 self.sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
                 log.info(f'UDP ready -> {self.host}:{self.port}')
-            else:
-                self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-                self.sock.settimeout(10)
+                return
+            raw = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            raw.settimeout(10)
+            if self.tls:
+                sni = self.tls_servername or self.host
+                self.sock = self._ssl_ctx.wrap_socket(raw, server_hostname=sni)
                 self.sock.connect((self.host, self.port))
-                self.sock.settimeout(None)
+                peer = self.sock.getpeercert() if self.tls_verify else None
+                cn = ''
+                if peer:
+                    for tup in peer.get('subject', ()):
+                        for k, v in tup:
+                            if k == 'commonName':
+                                cn = v
+                log.info(f'TLS connected -> {self.host}:{self.port} (SNI={sni})'
+                         + (f' peer CN={cn}' if cn else ''))
+            else:
+                self.sock = raw
+                self.sock.connect((self.host, self.port))
                 log.info(f'TCP connected -> {self.host}:{self.port}')
+            self.sock.settimeout(None)
+        except ssl.SSLError as e:
+            hint = _tls_error_hint(e)
+            log.error(f'TLS handshake failed: {e}'
+                      + (f' | HINT: {hint}' if hint else ''))
+            self.sock = None
         except Exception as e:
-            log.error(f'Connect failed: {e}')
+            hint = _tls_error_hint(e) if self.tls else ''
+            log.error(f'Connect failed: {e}'
+                      + (f' | HINT: {hint}' if hint else ''))
             self.sock = None
 
     def send(self, data):
@@ -156,24 +247,53 @@ def main():
     parser.add_argument('--proto', default='tcp', choices=['tcp','udp'])
     parser.add_argument('--raw',   action='store_true',
                         help='Send raw log lines without RFC5424 syslog header')
+    parser.add_argument('--tls',   action='store_true',
+                        help='Wrap TCP connection in TLS (RFC5425). TCP only.')
+    parser.add_argument('--tls-ca', default='',
+                        help='Path to CA cert (PEM) used to verify the SIEM. '
+                             'If empty, the system trust store is used.')
+    parser.add_argument('--tls-no-verify', action='store_true',
+                        help='Skip TLS certificate verification (insecure).')
+    parser.add_argument('--tls-cert', default='',
+                        help='Client certificate (PEM) for mutual TLS.')
+    parser.add_argument('--tls-key', default='',
+                        help='Client private key (PEM) for mutual TLS.')
+    parser.add_argument('--tls-servername', default='',
+                        help='SNI / hostname verification override. Use when '
+                             'connecting by IP but cert SAN holds a DNS name.')
+    parser.add_argument('--test-connect', action='store_true',
+                        help='Dry-run: connect, send one probe event, exit. '
+                             '0 = OK, 1 = failure. Does not tail logs.')
     args = parser.parse_args()
 
     # Read from sensor.conf if not provided
-    host = args.host
-    port = args.port
-    proto = args.proto
+    cfg = configparser.ConfigParser()
+    cfg.read(CONF_FILE)
 
-    if not host:
-        cfg = configparser.ConfigParser()
-        cfg.read(CONF_FILE)
-        host  = cfg.get('forwarding', 'siem_host', fallback='')
-        port  = cfg.get('forwarding', 'siem_port', fallback='514')
-        proto = cfg.get('forwarding', 'siem_proto', fallback='tcp')
-        raw_mode = cfg.get('forwarding', 'siem_raw', fallback='false') == 'true' or args.raw
+    host  = args.host  or cfg.get('forwarding', 'siem_host',  fallback='')
+    port  = args.port  if args.host else cfg.get('forwarding', 'siem_port',  fallback='514')
+    proto = args.proto if args.host else cfg.get('forwarding', 'siem_proto', fallback='tcp')
+    raw_mode = (cfg.get('forwarding', 'siem_raw', fallback='false') == 'true'
+                or args.raw)
+    tls = (args.tls
+           or cfg.get('forwarding', 'siem_tls', fallback='false') == 'true')
+    tls_ca         = args.tls_ca         or cfg.get('forwarding', 'siem_tls_ca', fallback='')
+    tls_verify     = not args.tls_no_verify and (
+        cfg.get('forwarding', 'siem_tls_verify', fallback='true') == 'true')
+    tls_cert       = args.tls_cert       or cfg.get('forwarding', 'siem_tls_cert', fallback='')
+    tls_key        = args.tls_key        or cfg.get('forwarding', 'siem_tls_key', fallback='')
+    tls_servername = args.tls_servername or cfg.get('forwarding', 'siem_tls_servername', fallback='')
 
     if not host:
         print('ERROR: No SIEM host configured. Set via menu option 8 or --host')
         sys.exit(1)
+
+    if tls and proto == 'udp':
+        print('ERROR: TLS is only supported on TCP (DTLS not implemented).')
+        sys.exit(1)
+    if tls and tls_verify and not tls_ca:
+        log.warning('TLS verify=on with no siem_tls_ca — using system trust store. '
+                    'Self-signed certs will fail; set siem_tls_ca or siem_tls_verify=false.')
 
     # Get sensor hostname
     try:
@@ -181,8 +301,41 @@ def main():
     except Exception:
         hostname = 'codered-sensor'
 
-    log.info(f'Starting syslog forwarder -> {proto}://{host}:{port}')
-    sender = SyslogSender(host, port, proto)
+    scheme = 'syslog-tls' if tls else proto
+    log.info(f'Starting syslog forwarder -> {scheme}://{host}:{port}')
+
+    # ── Dry-run mode ──────────────────────────────────────────────────────
+    if args.test_connect:
+        try:
+            sender = SyslogSender(host, port, proto,
+                                  tls=tls, tls_ca=tls_ca, tls_verify=tls_verify,
+                                  tls_cert=tls_cert, tls_key=tls_key,
+                                  tls_servername=tls_servername)
+        except (FileNotFoundError, ValueError) as e:
+            print(f'CONFIG ERROR: {e}', file=sys.stderr)
+            sys.exit(1)
+        if sender.sock is None:
+            print(f'CONNECT FAILED to {scheme}://{host}:{port} — see {LOG_FILE}',
+                  file=sys.stderr)
+            sys.exit(1)
+        try:
+            probe = make_syslog('codered-test', 'codered-test',
+                                'codered-test-connect probe', raw=raw_mode)
+            ok = sender.send(probe)
+        finally:
+            try: sender.sock.close()
+            except Exception: pass
+        if ok:
+            print(f'OK: {scheme}://{host}:{port} accepted a probe event')
+            sys.exit(0)
+        print(f'FAIL: connected to {scheme}://{host}:{port} but send failed',
+              file=sys.stderr)
+        sys.exit(1)
+
+    sender = SyslogSender(host, port, proto,
+                          tls=tls, tls_ca=tls_ca, tls_verify=tls_verify,
+                          tls_cert=tls_cert, tls_key=tls_key,
+                          tls_servername=tls_servername)
     state  = load_state()
 
     # Handle graceful shutdown

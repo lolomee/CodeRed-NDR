@@ -19,7 +19,7 @@ import signal
 import subprocess
 import sys
 import tempfile
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 
 # ─── Constants ─────────────────────────────────────────
@@ -58,7 +58,7 @@ def audit(action: str):
     try:
         os.makedirs(os.path.dirname(AUDIT_LOG), exist_ok=True)
         with open(AUDIT_LOG, 'a') as f:
-            ts = datetime.utcnow().strftime('%Y-%m-%dT%H:%M:%SZ')
+            ts = datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ')
             user = os.environ.get('USER', 'unknown')
             src = os.environ.get('SSH_CLIENT', 'console').split()[0] if 'SSH_CLIENT' in os.environ else 'console'
             f.write(f'{ts} user={user} src={src} action={action}\n')
@@ -178,7 +178,7 @@ def save_config(config: configparser.ConfigParser):
     run_cmd(['mkdir', '-p', CONF_DIR], sudo=True)
     with tempfile.NamedTemporaryFile(mode='w', suffix='.conf', delete=False) as f:
         f.write('# CodeRed NDR Configuration\n')
-        f.write(f'# Last modified: {datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ")}\n\n')
+        f.write(f'# Last modified: {datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")}\n\n')
         config.write(f)
         tmp_path = f.name
     run_cmd(['cp', tmp_path, CONF_FILE], sudo=True)
@@ -1003,6 +1003,11 @@ def show_status():
     if endpoint:
         print_line('SIEM Destination:', f'{endpoint}:{port}')
         print_line('Output Type:', siem_out)
+        if get_val(config, 'forwarding', 'siem_tls', 'false') == 'true':
+            verify = get_val(config, 'forwarding', 'siem_tls_verify', 'true')
+            mtls   = 'mTLS' if get_val(config, 'forwarding', 'siem_tls_cert', '') else 'TLS'
+            tls_state = f'{mtls} (verify={verify})'
+            print_line('Encryption:', tls_state)
         if get_val(config, 'forwarding', 'netflow_enabled', 'false') == 'true':
             _nf_h = get_val(config, 'forwarding', 'netflow_host', '')
             _nf_p = get_val(config, 'forwarding', 'netflow_port', '2055')
@@ -1208,7 +1213,7 @@ def reconfigure_forwarding():
     print('  Output types:')
     print('    1. Elasticsearch  (HTTP/HTTPS JSON — Elastic, OpenSearch, Splunk HEC)')
     print('    2. Logstash       (Beats protocol TCP — Logstash, most SIEMs)')
-    print('    3. Syslog TCP     (raw TCP syslog — QRadar, ArcSight, Graylog)')
+    print('    3. Syslog TCP     (TCP syslog, optional TLS/6514 — QRadar, ArcSight, Graylog, Wazuh+rsyslog)')
     print('    4. Syslog UDP     (raw UDP syslog — legacy SIEM / network gear)')
     print()
 
@@ -1241,11 +1246,55 @@ def reconfigure_forwarding():
         port = prompt('SIEM port', current_port or default_port, is_valid_port)
         config.set('forwarding', 'siem_port', port)
 
-        # TLS option for elasticsearch and logstash
-        if siem_output in ('elasticsearch', 'logstash'):
-            tls = prompt_choice('TLS/HTTPS', ['yes', 'no'],
+        # TLS option for elasticsearch, logstash, and syslog-tcp
+        if siem_output in ('elasticsearch', 'logstash', 'syslog-tcp'):
+            label = 'TLS/HTTPS' if siem_output != 'syslog-tcp' else 'TLS (RFC5425)'
+            tls = prompt_choice(label, ['yes', 'no'],
                                 'yes' if current_tls == 'true' else 'no')
             config.set('forwarding', 'siem_tls', 'true' if tls == 'yes' else 'false')
+
+            if siem_output == 'syslog-tcp' and tls == 'yes':
+                current_ca         = get_val(config, 'forwarding', 'siem_tls_ca', '')
+                current_verify     = get_val(config, 'forwarding', 'siem_tls_verify', 'true')
+                current_cert       = get_val(config, 'forwarding', 'siem_tls_cert', '')
+                current_key        = get_val(config, 'forwarding', 'siem_tls_key', '')
+                current_servername = get_val(config, 'forwarding', 'siem_tls_servername', '')
+
+                ca_path = prompt('CA cert path (PEM, blank = system trust store)',
+                                 current_ca, required=False)
+                config.set('forwarding', 'siem_tls_ca', ca_path)
+
+                verify = prompt_choice('Verify SIEM certificate',
+                                       ['yes', 'no'],
+                                       'yes' if current_verify == 'true' else 'no')
+                config.set('forwarding', 'siem_tls_verify',
+                           'true' if verify == 'yes' else 'false')
+                if verify == 'no':
+                    print('  WARNING: certificate verification disabled — '
+                          'connection is encrypted but not authenticated.')
+
+                # SNI / hostname verification override — for when siem_host is
+                # an IP but the cert SAN holds a different DNS name.
+                if verify == 'yes':
+                    servername = prompt(
+                        'TLS SNI / hostname override (blank = use siem_host)',
+                        current_servername, required=False)
+                    config.set('forwarding', 'siem_tls_servername', servername)
+
+                # Mutual TLS — client certificate
+                mtls = prompt_choice('Mutual TLS (present a client certificate)',
+                                     ['yes', 'no'],
+                                     'yes' if current_cert else 'no')
+                if mtls == 'yes':
+                    cert_path = prompt('Client certificate (PEM)',
+                                       current_cert, required=True)
+                    key_path  = prompt('Client private key (PEM)',
+                                       current_key, required=True)
+                    config.set('forwarding', 'siem_tls_cert', cert_path)
+                    config.set('forwarding', 'siem_tls_key', key_path)
+                else:
+                    config.set('forwarding', 'siem_tls_cert', '')
+                    config.set('forwarding', 'siem_tls_key', '')
 
         if siem_output in ('syslog-tcp', 'syslog-udp'):
             current_raw = get_val(config, 'forwarding', 'siem_raw', 'false')
@@ -1263,7 +1312,28 @@ def reconfigure_forwarding():
         if siem_output in ('syslog-tcp', 'syslog-udp'):
             # Rewrite service with correct flags
             siem_raw = get_val(config, 'forwarding', 'siem_raw', 'false')
-            raw_flag = '--raw' if siem_raw == 'true' else ''
+            siem_tls_now = get_val(config, 'forwarding', 'siem_tls', 'false')
+            siem_tls_ca_now = get_val(config, 'forwarding', 'siem_tls_ca', '')
+            siem_tls_verify_now = get_val(config, 'forwarding', 'siem_tls_verify', 'true')
+            siem_tls_cert_now       = get_val(config, 'forwarding', 'siem_tls_cert', '')
+            siem_tls_key_now        = get_val(config, 'forwarding', 'siem_tls_key', '')
+            siem_tls_servername_now = get_val(config, 'forwarding', 'siem_tls_servername', '')
+            flags = []
+            if siem_raw == 'true':
+                flags.append('--raw')
+            if siem_output == 'syslog-tcp' and siem_tls_now == 'true':
+                flags.append('--tls')
+                if siem_tls_ca_now:
+                    flags.append(f'--tls-ca {siem_tls_ca_now}')
+                if siem_tls_verify_now == 'false':
+                    flags.append('--tls-no-verify')
+                if siem_tls_cert_now:
+                    flags.append(f'--tls-cert {siem_tls_cert_now}')
+                if siem_tls_key_now:
+                    flags.append(f'--tls-key {siem_tls_key_now}')
+                if siem_tls_servername_now:
+                    flags.append(f'--tls-servername {siem_tls_servername_now}')
+            exec_flags = (' ' + ' '.join(flags)) if flags else ''
             svc_txt = f"""[Unit]
 Description=CodeRed NDR — Syslog Forwarder
 After=network-online.target codered-zeek.service
@@ -1272,7 +1342,7 @@ Wants=network-online.target
 [Service]
 Type=simple
 User=root
-ExecStart=/usr/bin/python3 /opt/codered/bin/codered-syslog-forwarder.py {raw_flag}
+ExecStart=/usr/bin/python3 /opt/codered/bin/codered-syslog-forwarder.py{exec_flags}
 Restart=on-failure
 RestartSec=10
 StandardOutput=journal
@@ -1294,6 +1364,25 @@ WantedBy=multi-user.target
             run_cmd(['systemctl', 'stop', 'filebeat'], sudo=True)
             run_cmd(['systemctl', 'disable', 'filebeat'], sudo=True)
             run_cmd(['systemctl', 'enable', 'codered-syslog'], sudo=True)
+
+            # Pre-flight: dry-run a handshake before starting the service.
+            # Gives the operator immediate feedback if certs/host/port are
+            # wrong instead of waiting for the service to crash-loop.
+            print('\n  Probing SIEM destination ...')
+            rc, probe_out = run_cmd(
+                ['python3', '/opt/codered/bin/codered-syslog-forwarder.py',
+                 '--test-connect'] + (['--raw'] if siem_raw == 'true' else []),
+                sudo=True)
+            if probe_out:
+                for line in probe_out.strip().splitlines():
+                    print(f'    {line}')
+            if rc != 0:
+                print('  Probe failed — service NOT started. Fix the error above '
+                      'and re-run option 8. Run "journalctl -u codered-syslog" '
+                      'for full TLS hints.')
+                pause()
+                return
+
             run_cmd(['systemctl', 'restart', 'codered-syslog'], sudo=True)
             import time; time.sleep(2)
             rc, out = run_cmd(['journalctl', '-u', 'codered-syslog',
@@ -1589,7 +1678,7 @@ def generate_support_bundle():
     audit('support-bundle')
     header('GENERATE SUPPORT BUNDLE')
 
-    bundle_path = f'/tmp/codered-diag-{datetime.utcnow().strftime("%Y%m%d-%H%M%S")}.tar.gz'
+    bundle_path = f'/tmp/codered-diag-{datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%S")}.tar.gz'
     print(f'  Collecting diagnostics...\n')
 
     script = f"""
