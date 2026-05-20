@@ -1341,9 +1341,11 @@ sudo tcpdump -i &lt;interface&gt; -c 10</code></pre>
     <p><strong>Causes and fixes:</strong></p>
     <ul>
       <li><strong>Wrong SIEM address:</strong> Reconfigure via CLI menu option 8.</li>
-      <li><strong>TLS issues:</strong> If SIEM requires TLS, ensure <code>siem_tls = true</code> in config. Check <code>/var/log/filebeat/filebeat</code> for TLS errors.</li>
-      <li><strong>Firewall blocking:</strong> Ensure sensor can reach SIEM on configured port (default 9200).</li>
+      <li><strong>TLS issues (Filebeat / Elasticsearch / Logstash):</strong> ensure <code>siem_tls = true</code> in config; check <code>/var/log/filebeat/filebeat</code> for TLS errors.</li>
+      <li><strong>TLS issues (Syslog TCP):</strong> the syslog forwarder writes actionable hints to its own log on every handshake failure. Run <code>sudo /usr/bin/python3 /opt/codered/bin/codered-syslog-forwarder.py --test-connect</code> for a one-shot probe, then <code>sudo tail -20 /var/log/codered/syslog-forwarder.log</code> &mdash; look for the <code>HINT:</code> line (covers untrusted CA, hostname mismatch, wrong port, malformed PEM, mTLS rejection).</li>
+      <li><strong>Firewall blocking:</strong> Ensure sensor can reach SIEM on configured port (default 9200 for ES, 5044 for Logstash, 514 for plaintext syslog, 6514 for TLS syslog).</li>
       <li><strong>Filebeat errors:</strong> <code>sudo tail -50 /var/log/filebeat/filebeat</code></li>
+      <li><strong>Syslog forwarder errors:</strong> <code>sudo tail -50 /var/log/codered/syslog-forwarder.log</code></li>
     </ul>
   </div>
 </details>
@@ -1473,9 +1475,15 @@ mgmt_dns = 8.8.8.8,8.8.4.4       # DNS servers (comma-separated)
 monitor_interface = ens34          # Primary monitor NIC (SPAN port)
 
 [forwarding]
-backend = elastic-agent            # Forwarding backend type
-siem_endpoint =                    # SIEM address (IP or FQDN)
+siem_output = elasticsearch        # elasticsearch | logstash | syslog-tcp | syslog-udp
+siem_host =                        # SIEM address (IP or FQDN)
 siem_port = 9200                   # SIEM port
+siem_tls = false                   # Wrap TCP in TLS (RFC5425 for syslog-tcp)
+siem_tls_verify = true             # Verify SIEM cert + hostname (recommended)
+siem_tls_ca =                      # Optional CA bundle (PEM); blank = system trust
+siem_tls_servername =              # Optional SNI/hostname override (IP-based connects)
+siem_tls_cert =                    # Optional client cert (PEM) for mutual TLS
+siem_tls_key =                     # Optional client private key (mode 0600 or 0640)
 
 [zeek]
 workers = auto                     # Number of CodeRed-UEBA workers (auto = CPU count)
@@ -1516,10 +1524,16 @@ interval = 6h                      # Update check interval</code></pre>
   <tr><td><code>mgmt_dns</code></td><td>DNS servers (comma-separated)</td></tr>
   <tr><td><code>monitor_interface</code></td><td>Primary monitor interface</td></tr>
   <tr><td><code>monitor_interfaces</code></td><td>All monitor interfaces (comma-separated)</td></tr>
-  <tr><td rowspan="4"><code>[forwarding]</code></td><td><code>siem_output</code></td><td><code>elasticsearch</code> or <code>logstash</code></td></tr>
+  <tr><td rowspan="10"><code>[forwarding]</code></td><td><code>siem_output</code></td><td><code>elasticsearch</code>, <code>logstash</code>, <code>syslog-tcp</code>, or <code>syslog-udp</code></td></tr>
   <tr><td><code>siem_host</code></td><td>SIEM address (IP or FQDN)</td></tr>
   <tr><td><code>siem_port</code></td><td>SIEM port</td></tr>
-  <tr><td><code>siem_tls</code></td><td><code>true</code> or <code>false</code></td></tr>
+  <tr><td><code>siem_proto</code></td><td><code>tcp</code> or <code>udp</code> (for syslog outputs)</td></tr>
+  <tr><td><code>siem_tls</code></td><td><code>true</code> / <code>false</code> &mdash; encrypt transport (RFC5425 for syslog-tcp; HTTPS for elasticsearch; TLS for logstash)</td></tr>
+  <tr><td><code>siem_tls_verify</code></td><td><code>true</code> / <code>false</code> &mdash; verify SIEM cert chain and hostname. Default <code>true</code>. <code>false</code> = encrypted-but-unauthenticated (MITM-able), warned loudly in daemon log.</td></tr>
+  <tr><td><code>siem_tls_ca</code></td><td>Path to CA bundle (PEM) used to verify the SIEM cert. Blank = system trust store.</td></tr>
+  <tr><td><code>siem_tls_servername</code></td><td>SNI / hostname-verification override. Use when connecting by IP to a cert whose SAN holds a DNS name.</td></tr>
+  <tr><td><code>siem_tls_cert</code></td><td>Optional client certificate (PEM) for mutual TLS. Must be set together with <code>siem_tls_key</code>.</td></tr>
+  <tr><td><code>siem_tls_key</code></td><td>Optional client private key (PEM). The forwarder refuses to load keys with any &ldquo;other&rdquo; permission bits &mdash; use 0600 or 0640 with appropriate group ownership.</td></tr>
 </table>
 
 <h3>CodeRed-UEBA node.cfg</h3>

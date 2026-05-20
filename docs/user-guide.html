@@ -124,7 +124,7 @@ details .details-body { padding: 1rem 1.25rem; }
   <main class="content">
 
     <h2 id="overview">1. Overview</h2>
-    <p>CodeRed NDR is a <strong>passive network detection and response sensor</strong>. It receives a copy of your network traffic via a SPAN or TAP port, analyses it in real time using CodeRed-UEBA and CodeRed-IDS, and forwards alerts to your SIEM via Filebeat (Elasticsearch/Logstash) or the built-in Syslog Forwarder (raw TCP/UDP syslog for Pre Security, QRadar, ArcSight, Graylog). A machine learning engine builds per-host behavioral baselines and alerts on deviation.</p>
+    <p>CodeRed NDR is a <strong>passive network detection and response sensor</strong>. It receives a copy of your network traffic via a SPAN or TAP port, analyses it in real time using CodeRed-UEBA and CodeRed-IDS, and forwards alerts to your SIEM via Filebeat (Elasticsearch/Logstash) or the built-in Syslog Forwarder (TCP, UDP, or <strong>TLS-over-TCP with optional mutual TLS</strong> for Wazuh, Pre Security, QRadar, ArcSight, Graylog, Splunk). A machine learning engine builds per-host behavioral baselines and alerts on deviation.</p>
     <table>
       <thead><tr><th>Component</th><th>Role</th></tr></thead>
       <tbody>
@@ -468,12 +468,12 @@ redef CodeRed::it_subnets += { 10.0.0.0/8 };</pre>
     <p>CodeRed NDR supports two forwarding methods, selected via <strong>Menu &rarr; 8 (SIEM destination)</strong>:</p>
 
     <table>
-      <thead><tr><th>Output Type</th><th>Protocol</th><th>Use for</th><th>Default Port</th></tr></thead>
+      <thead><tr><th>Output Type</th><th>Protocol</th><th>Encryption</th><th>Use for</th><th>Default Port</th></tr></thead>
       <tbody>
-        <tr><td><strong>Elasticsearch</strong></td><td>HTTP/HTTPS JSON</td><td>Elastic Stack, OpenSearch, Splunk HEC</td><td>9200</td></tr>
-        <tr><td><strong>Logstash</strong></td><td>Beats protocol TCP</td><td>Logstash, Wazuh</td><td>5044</td></tr>
-        <tr><td><strong>Syslog TCP</strong></td><td>RFC5424 syslog over TCP</td><td>Pre Security, QRadar, ArcSight, Graylog</td><td>514</td></tr>
-        <tr><td><strong>Syslog UDP</strong></td><td>RFC5424 syslog over UDP</td><td>Legacy SIEM, network appliances</td><td>514</td></tr>
+        <tr><td><strong>Elasticsearch</strong></td><td>HTTP/HTTPS JSON</td><td>HTTPS optional</td><td>Elastic Stack, OpenSearch, Splunk HEC</td><td>9200 / 9243</td></tr>
+        <tr><td><strong>Logstash</strong></td><td>Beats protocol TCP</td><td>TLS optional</td><td>Logstash, Wazuh (Beats input)</td><td>5044</td></tr>
+        <tr><td><strong>Syslog TCP</strong></td><td>RFC5424 syslog over TCP, optional TLS (RFC5425)</td><td>TLS optional + mTLS</td><td>Wazuh, Pre Security, QRadar, ArcSight, Graylog, Splunk, rsyslog/syslog-ng</td><td>514 plaintext / 6514 TLS</td></tr>
+        <tr><td><strong>Syslog UDP</strong></td><td>RFC5424 syslog over UDP</td><td>None (DTLS not supported)</td><td>Legacy SIEM, network appliances</td><td>514</td></tr>
       </tbody>
     </table>
 
@@ -490,8 +490,8 @@ redef CodeRed::it_subnets += { 10.0.0.0/8 };</pre>
 
     <h3>Syslog Forwarder (TCP/UDP)</h3>
     <p>When output type is set to <strong>Syslog TCP</strong> or <strong>Syslog UDP</strong>, CodeRed NDR uses its built-in <strong>codered-syslog-forwarder</strong> instead of Filebeat.
-    This is a lightweight Python service that tails all CodeRed-UEBA logs and Suricata EVE, wraps each line as an RFC5424 syslog message (newline-delimited), and sends over TCP or UDP.
-    This is the correct method for SIEMs such as <strong>Pre Security</strong>, QRadar, ArcSight, and Graylog.</p>
+    This is a lightweight Python service that tails all CodeRed-UEBA logs and Suricata EVE, wraps each line as an RFC5424 syslog message (newline-delimited), and sends over TCP, UDP, or TLS-over-TCP.
+    This is the correct method for SIEMs such as <strong>Wazuh</strong> (TLS syslog listener), <strong>Pre Security</strong>, QRadar, ArcSight, Graylog, Splunk Connect-for-Syslog, and any rsyslog/syslog-ng front end.</p>
     <ul>
       <li>Service: <code>codered-syslog</code></li>
       <li>Log: <code>/var/log/codered/syslog-forwarder.log</code></li>
@@ -499,17 +499,74 @@ redef CodeRed::it_subnets += { 10.0.0.0/8 };</pre>
     </ul>
     <p>Check the syslog forwarder is sending:</p>
     <pre>sudo tail -20 /var/log/codered/syslog-forwarder.log</pre>
-    <p>Expected output:</p>
-    <pre>INFO TCP connected -&gt; 103.13.123.82:30082
+    <p>Expected output (TLS, verify=true):</p>
+    <pre>INFO Starting syslog forwarder -&gt; syslog-tls://siem.example.com:6514
+INFO TLS connected -&gt; siem.example.com:6514 (SNI=siem.example.com, proto=TLSv1.2, cipher=ECDHE-RSA-AES256-GCM-SHA384) peer CN=siem.example.com issuer=Internal-CA serial=... expires=Aug 21 ... 2028 GMT
 INFO Sent 133 events (total: 14919)</pre>
 
-    <h3>Testing connectivity</h3>
-    <p>Send a single test syslog message to verify the SIEM port is reachable:</p>
+    <h3 id="tls">Encrypted transport (TLS) &mdash; recommended for production</h3>
+    <p>The syslog forwarder can wrap its TCP connection in TLS so that all CodeRed-UEBA and Suricata metadata
+       (DNS queries, HTTP URIs, TLS SNI, file hashes, IDS alerts) is encrypted in transit to the SIEM. TLS is
+       <strong>off by default</strong> to preserve plaintext-only customer deployments on upgrade; turn it on
+       via <strong>Menu &rarr; 8</strong>.</p>
+
+    <table>
+      <thead><tr><th>Verify mode</th><th>Encrypts traffic?</th><th>Authenticates SIEM?</th><th>When to use</th></tr></thead>
+      <tbody>
+        <tr><td><strong>System CA</strong></td><td>Yes</td><td>Yes (against OS trust store)</td><td>SIEM uses a publicly-trusted cert (Lets Encrypt, internal CA already in trust store)</td></tr>
+        <tr><td><strong>Custom CA</strong></td><td>Yes</td><td>Yes (against pinned PEM)</td><td>Self-signed / private CA (Wazuh AIO, internal PKI). <strong>Recommended for most deployments.</strong></td></tr>
+        <tr><td><strong>Skip verify</strong></td><td>Yes</td><td><span style="color:#b00">No &mdash; MITM-able</span></td><td>Bring-up / debugging only. Daemon logs a loud warning on every connect.</td></tr>
+        <tr><td><strong>mTLS</strong></td><td>Yes</td><td>Yes (mutual)</td><td>SIEMs that require client-cert auth. Layered on top of any verify mode above.</td></tr>
+      </tbody>
+    </table>
+
+    <p>The CLI prompts in Menu &rarr; 8 accept TLS PEM material three ways for convenience:</p>
+    <ul>
+      <li><strong><code>paste</code></strong> &mdash; paste the PEM lines inline; the CLI validates BEGIN/END markers, saves to <code>/etc/codered/siem-ca.crt</code> (cert) or <code>/etc/codered/siem-client.key</code> (key, mode 0600), and uses that path automatically.</li>
+      <li><strong><code>file:/path/to/cert.pem</code></strong> &mdash; use an existing file on disk as-is.</li>
+      <li><strong><code>clear</code></strong> &mdash; remove the current value.</li>
+      <li>Pressing Enter on the prompt keeps the current value.</li>
+    </ul>
+
+    <p>Test the configured TLS connection without touching live log shipping:</p>
+    <pre>sudo /usr/bin/python3 /opt/codered/bin/codered-syslog-forwarder.py --test-connect</pre>
+    <p>Successful output (<code>verify=true</code> with a pinned CA):</p>
+    <pre>OK: syslog-tls://siem.example.com:6514 accepted a probe event</pre>
+    <p>On failure, the daemon log includes an actionable <code>HINT:</code> line covering common cases &mdash;
+       untrusted cert (point <code>siem_tls_ca</code> at the right PEM), hostname mismatch (set
+       <code>siem_tls_servername</code>), wrong port (endpoint not speaking TLS), mTLS rejected, or malformed PEM.</p>
+
+    <div class="callout callout-tip">
+      <div class="callout-title">Tip &mdash; Wazuh AIO</div>
+      <p>The Wazuh AIO syslog listener typically uses a self-signed internal CA (subject <code>CN=Wazuh-Syslog-CA</code> or similar) that is <em>not</em> shipped in any system trust store. Copy that CA's PEM off the Wazuh server (e.g. <code>/etc/wazuh-syslog/ca.crt</code> or wherever your team configured the listener), then in Menu &rarr; 8 choose "Custom CA" and either paste the PEM directly or point <code>file:</code> at the file you copied. The forwarder log will then show <code>peer CN=provintell-Wazuh-AIO issuer=Wazuh-Syslog-CA</code>, confirming the chain validated.</p>
+    </div>
+
+    <div class="callout callout-warning">
+      <div class="callout-title">Security &mdash; <code>verify=false</code> is encrypted but unauthenticated</div>
+      <p>Setting <code>siem_tls_verify=false</code> makes the connection encrypted-but-unauthenticated &mdash; an attacker on the network path can present any cert and intercept the data. Use it only for short-term bring-up; the daemon log will print a loud <code>ENCRYPTED-BUT-UNAUTHENTICATED, vulnerable to MITM</code> warning every connect to make sure it doesn't accidentally end up in production.</p>
+    </div>
+
+    <h4>TLS configuration keys (sensor.conf, <code>[forwarding]</code> section)</h4>
+    <table>
+      <thead><tr><th>Key</th><th>Purpose</th></tr></thead>
+      <tbody>
+        <tr><td><code>siem_tls</code></td><td><code>true</code> / <code>false</code> &mdash; enable TLS transport.</td></tr>
+        <tr><td><code>siem_tls_verify</code></td><td><code>true</code> / <code>false</code> &mdash; verify SIEM cert + hostname. Default <code>true</code>.</td></tr>
+        <tr><td><code>siem_tls_ca</code></td><td>Path to a CA bundle (PEM) used to verify the SIEM. Blank = system trust store.</td></tr>
+        <tr><td><code>siem_tls_servername</code></td><td>SNI / hostname-verification override. Set this when connecting by IP to a cert whose SAN is a DNS name.</td></tr>
+        <tr><td><code>siem_tls_cert</code></td><td>Client certificate (PEM) for mutual TLS. Empty disables mTLS.</td></tr>
+        <tr><td><code>siem_tls_key</code></td><td>Client private key (PEM). Must be mode 0600 or 0640 &mdash; the forwarder refuses to load world-readable keys.</td></tr>
+      </tbody>
+    </table>
+
+    <h3>Testing connectivity (plaintext quick check)</h3>
+    <p>Send a single test syslog message to verify the SIEM port is reachable (plaintext, no TLS):</p>
     <pre>echo "CodeRed NDR test" | nc -w3 &lt;siem-ip&gt; &lt;port&gt; &amp;&amp; echo "OK" || echo "FAILED"</pre>
+    <p>For TLS endpoints, use <code>--test-connect</code> (above) which exercises the actual forwarder code path.</p>
 
     <h3>Changing SIEM destination</h3>
-    <p>Use <strong>Menu &rarr; 8</strong> to change the SIEM address, port, output type, or TLS setting at any time.
-    The sensor automatically stops the old forwarder and starts the correct one based on the selected output type.</p>
+    <p>Use <strong>Menu &rarr; 8</strong> to change the SIEM address, port, output type, TLS setting, or mTLS configuration at any time.
+    The sensor automatically stops the old forwarder and starts the correct one based on the selected output type, regenerating the systemd unit's <code>ExecStart</code> with the right <code>--tls*</code> flags.</p>
 
     <h3>Netflow Export (Menu &rarr; 19)</h3>
     <p>CodeRed NDR includes a built-in <strong>Netflow exporter</strong> (softflowd) that runs alongside the syslog forwarder.
@@ -520,9 +577,9 @@ INFO Sent 133 events (total: 14919)</pre>
       <thead><tr><th></th><th>Syslog Forwarder</th><th>Netflow Export</th></tr></thead>
       <tbody>
         <tr><td><strong>What it sends</strong></td><td>Full log detail — DNS, HTTP, TLS, IDS alerts, ML anomalies</td><td>Flow metadata — src/dst IP, port, bytes, protocol, duration</td></tr>
-        <tr><td><strong>Protocol</strong></td><td>TCP syslog (RFC5424)</td><td>UDP Netflow v5 or v9</td></tr>
+        <tr><td><strong>Protocol</strong></td><td>TCP syslog (RFC5424), optional TLS (RFC5425) and mTLS</td><td>UDP Netflow v5 or v9 (no encryption)</td></tr>
         <tr><td><strong>SIEM module</strong></td><td>Log search, SIEM alerts, SOCGPT</td><td>NDR module, traffic baseline, network map</td></tr>
-        <tr><td><strong>Default port</strong></td><td>514 / custom</td><td>2055 / custom</td></tr>
+        <tr><td><strong>Default port</strong></td><td>514 plaintext / 6514 TLS</td><td>2055 / custom</td></tr>
         <tr><td><strong>Service</strong></td><td>codered-syslog</td><td>codered-netflow (softflowd)</td></tr>
         <tr><td><strong>Run together?</strong></td><td colspan="2" style="text-align:center">✅ Yes — completely independent, no conflict</td></tr>
       </tbody>
@@ -561,7 +618,7 @@ Flows exported: 6126 (12068 records) in 389 packets (0 failures)</pre>
         <tr><td>5</td><td>Network settings</td><td>Change management IP, gateway, DNS</td></tr>
         <tr><td>6</td><td>Hostname</td><td>Rename the sensor (updates hostname and sensor.conf)</td></tr>
         <tr><td>7</td><td>Monitor interfaces</td><td>Add, replace, or remove SPAN/TAP interfaces. Supports multiple interfaces for multi-zone monitoring.</td></tr>
-        <tr><td>8</td><td>SIEM destination</td><td>Change SIEM address, port, TLS, and output type (Elasticsearch / Logstash / Syslog TCP / Syslog UDP). Automatically switches between Filebeat and the Syslog Forwarder.</td></tr>
+        <tr><td>8</td><td>SIEM destination</td><td>Change SIEM address, port, output type (Elasticsearch / Logstash / Syslog TCP / Syslog UDP), and TLS settings (verify mode, CA pinning, SNI override, mutual TLS). PEM material can be pasted directly into the prompt. Automatically switches between Filebeat and the Syslog Forwarder and regenerates the systemd unit.</td></tr>
         <tr><td>9</td><td>Deployment mode</td><td>Switch between <strong>on-prem</strong> (raw SPAN/TAP) and <strong>cloud</strong> (VXLAN decapsulation for AWS, Alibaba Cloud, Azure). Applies config and restarts CodeRed-UEBA and CodeRed-IDS automatically.</td></tr>
         <tr><td>10</td><td>Restart services</td><td>Restart CodeRed-UEBA, CodeRed-IDS, Filebeat, codered-ml, or all at once</td></tr>
         <tr><td>11</td><td>Support bundle</td><td>Generates <code>/tmp/codered-diag-&lt;timestamp&gt;.tar.gz</code> with logs and config (tokens redacted)</td></tr>
@@ -607,10 +664,11 @@ Flows exported: 6126 (12068 records) in 389 packets (0 failures)</pre>
     <table>
       <thead><tr><th>Port</th><th>Protocol</th><th>Purpose</th></tr></thead>
       <tbody>
-        <tr><td>9200</td><td>TCP</td><td>SIEM &mdash; Elasticsearch (default)</td></tr>
+        <tr><td>9200 / 9243</td><td>TCP</td><td>SIEM &mdash; Elasticsearch (HTTP / HTTPS)</td></tr>
         <tr><td>2055</td><td>UDP</td><td>SIEM NDR module &mdash; Netflow export (softflowd, default)</td></tr>
-        <tr><td>5044</td><td>TCP</td><td>SIEM &mdash; Logstash</td></tr>
-        <tr><td>514</td><td>TCP/UDP</td><td>SIEM &mdash; Syslog / CEF</td></tr>
+        <tr><td>5044</td><td>TCP</td><td>SIEM &mdash; Logstash (Beats protocol, optional TLS)</td></tr>
+        <tr><td>514</td><td>TCP/UDP</td><td>SIEM &mdash; plaintext Syslog / CEF</td></tr>
+        <tr><td>6514</td><td>TCP</td><td>SIEM &mdash; TLS syslog (RFC5425, IANA default; Wazuh, QRadar, Splunk, Graylog, ArcSight)</td></tr>
         <tr><td>53</td><td>UDP</td><td>DNS resolution</td></tr>
         <tr><td>123</td><td>UDP</td><td>NTP time sync (alert timestamps depend on this)</td></tr>
         <tr><td>443</td><td>TCP</td><td>CodeRed-IDS rule updates &amp; threat intel feed downloads</td></tr>
