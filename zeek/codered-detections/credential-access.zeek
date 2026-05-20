@@ -13,6 +13,10 @@
 ##!   T1110.003 — Brute Force: Password Spraying (LDAP)
 ##!   T1003.002 — OS Credential Dumping: Security Account Manager
 
+# Zeek's LDAP analyzer module is not pulled in by default in 8.x; the
+# ldap_bind_request / ldap_search_request events below require it.
+@load base/protocols/ldap
+
 module CodeRed;
 
 export {

@@ -154,11 +154,15 @@ event connection_established(c: connection)
 #   - SMB named pipe detection (smb_files event)
 
 # ─── PsExec-style detection via SMB named pipe ───────────────────────────
-# smb_pipe_connect_heuristic removed in Zeek 5.x — use smb_files instead
+# smb_pipe_connect_heuristic removed in Zeek 5.x; smb_files removed in 6.x.
+# Use file_state_remove (file framework, version-stable) and gate on a UNC
+# source path so we only inspect SMB-tracked files.
 
-event smb_files(f: fa_file)
+event file_state_remove(f: fa_file)
     {
     if ( ! f?$source )
+        return;
+    if ( /\\/ !in f$source )
         return;
 
     local pipe_lower = to_lower(f$source);

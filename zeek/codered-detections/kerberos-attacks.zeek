@@ -153,20 +153,9 @@ event connection_established(c: connection)
     }
 
 # ─── Kerberos log correlation via Zeek krb.log ────────────────────────────
-# Use krb_tgt_request event — basic connection + msg, stable in Zeek 4.x+5.x
-
-event krb_tgt_request(c: connection, msg: KRB::KDC_Request)
-    {
-    local src = c$id$orig_h;
-
-    if ( ! Site::is_local_addr(src) )
-        return;
-
-    # Track for enumeration
-    SumStats::observe("codered.kerb.targets",
-                      SumStats::Key($host=src),
-                      SumStats::Observation($str=cat(c$id$resp_h)));
-    }
+# Note: krb_tgt_request was removed in Zeek 6.x. Enumeration tracking is now
+# done via krb_tgs_request (TGS = Ticket Granting Service) below, which covers
+# the same lateral-recon signal and additionally drives kerberoasting detection.
 
 event krb_tgs_request(c: connection, msg: KRB::KDC_Request)
     {

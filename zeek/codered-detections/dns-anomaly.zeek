@@ -89,15 +89,6 @@ function get_base_domain(domain: string): string
     return domain;
     }
 
-# ─── Extract TLD ───
-function get_tld(domain: string): string
-    {
-    local labels = get_labels(domain);
-    if ( |labels| > 0 )
-        return labels[|labels| - 1];
-    return domain;
-    }
-
 # ─── SumStats for DNS query rate per base domain ───
 event zeek_init()
     {

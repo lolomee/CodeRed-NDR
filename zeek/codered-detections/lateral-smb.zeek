@@ -88,11 +88,16 @@ event smb2_tree_connect_request(c: connection, hdr: SMB2::Header, path: string)
 
 # ─── Remote service / lateral pipe access ─────────────────────────────────
 # smb_pipe_connect_heuristic was removed in Zeek 5.x.
-# Use smb_files event which is stable and captures named pipe access.
+# smb_files was removed in Zeek 6.x. file_state_remove fires when Zeek has
+# finished tracking a file (analyzer chain done) — f$source then carries the
+# SMB UNC path for files transferred over SMB, including named pipe targets.
 
-event smb_files(f: fa_file)
+event file_state_remove(f: fa_file)
     {
     if ( ! f?$source )
+        return;
+    # Only SMB-tracked files have UNC source paths; skip everything else early.
+    if ( /\\/ !in f$source )
         return;
 
     local src_str = to_lower(f$source);

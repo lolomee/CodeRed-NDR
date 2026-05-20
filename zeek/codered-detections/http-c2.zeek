@@ -220,8 +220,11 @@ event http_request(c: connection, method: string, original_URI: string,
              ( |ua_pat| > 0 && ua_pat in ua ) )
             {
             local tool = lolbin_user_agents[ua_pat];
+            # ua is already safely assigned above ("" if user_agent absent).
+            # Reading c$http$user_agent directly when absent throws "field
+            # value missing" at runtime; use the local ua instead.
             local ua_msg = fmt("Suspicious HTTP user-agent (%s): %s -> %s (ua=%s) [MITRE ATT&CK: T1218, T1071.001]",
-                               tool, src, dst, c$http$user_agent);
+                               tool, src, dst, |ua| > 0 ? ua : "<empty>");
             NOTICE([$note=HTTP_C2_UserAgent,
                     $conn=c,
                     $src=src,
