@@ -129,6 +129,9 @@ class SyslogSender:
 
     def _build_ssl_context(self):
         ctx = ssl.create_default_context(purpose=ssl.Purpose.SERVER_AUTH)
+        # Pin minimum TLS version (defense in depth against system OpenSSL
+        # configs that still permit TLS 1.0/1.1).
+        ctx.minimum_version = ssl.TLSVersion.TLSv1_2
         if self.tls_ca:
             if not os.path.isfile(self.tls_ca):
                 raise FileNotFoundError(f'TLS CA file not found: {self.tls_ca}')
@@ -140,12 +143,25 @@ class SyslogSender:
                 raise FileNotFoundError(f'TLS client cert not found: {self.tls_cert}')
             if not os.path.isfile(self.tls_key):
                 raise FileNotFoundError(f'TLS client key not found: {self.tls_key}')
+            # Reject mTLS key files readable by 'other'; warn on group bits.
+            # Private keys leaving root:root mode 0600/0640 is a common misconfig
+            # the OS will not catch.
+            st = os.stat(self.tls_key)
+            if st.st_mode & 0o007:
+                raise ValueError(
+                    f'TLS client key {self.tls_key} is world-accessible '
+                    f'(mode={oct(st.st_mode & 0o777)}); chmod 0640 or 0600.')
+            if st.st_mode & 0o077:
+                log.warning(
+                    f'TLS client key {self.tls_key} has group bits set '
+                    f'(mode={oct(st.st_mode & 0o777)}); 0600 is preferred.')
             ctx.load_cert_chain(certfile=self.tls_cert, keyfile=self.tls_key)
             log.info(f'mTLS enabled — client cert: {self.tls_cert}')
         if not self.tls_verify:
             ctx.check_hostname = False
             ctx.verify_mode = ssl.CERT_NONE
-            log.warning('TLS certificate verification DISABLED (siem_tls_verify=false)')
+            log.warning('TLS certificate verification DISABLED (siem_tls_verify=false) '
+                        '— connection is ENCRYPTED-BUT-UNAUTHENTICATED, vulnerable to MITM.')
         return ctx
 
     def connect(self):
@@ -160,15 +176,28 @@ class SyslogSender:
                 sni = self.tls_servername or self.host
                 self.sock = self._ssl_ctx.wrap_socket(raw, server_hostname=sni)
                 self.sock.connect((self.host, self.port))
+                # Log full peer identity on successful verify so audit logs
+                # show which CA/cert chain was actually trusted.
                 peer = self.sock.getpeercert() if self.tls_verify else None
-                cn = ''
+                cn = issuer_cn = not_after = serial = ''
                 if peer:
                     for tup in peer.get('subject', ()):
                         for k, v in tup:
                             if k == 'commonName':
                                 cn = v
-                log.info(f'TLS connected -> {self.host}:{self.port} (SNI={sni})'
-                         + (f' peer CN={cn}' if cn else ''))
+                    for tup in peer.get('issuer', ()):
+                        for k, v in tup:
+                            if k == 'commonName':
+                                issuer_cn = v
+                    not_after = peer.get('notAfter', '')
+                    serial = peer.get('serialNumber', '')
+                tls_ver = self.sock.version() or '?'
+                cipher = self.sock.cipher()
+                cipher_name = cipher[0] if cipher else '?'
+                log.info(f'TLS connected -> {self.host}:{self.port} '
+                         f'(SNI={sni}, proto={tls_ver}, cipher={cipher_name})'
+                         + (f' peer CN={cn} issuer={issuer_cn} '
+                            f'serial={serial} expires={not_after}' if cn else ''))
             else:
                 self.sock = raw
                 self.sock.connect((self.host, self.port))
@@ -294,6 +323,23 @@ def main():
     if tls and tls_verify and not tls_ca:
         log.warning('TLS verify=on with no siem_tls_ca — using system trust store. '
                     'Self-signed certs will fail; set siem_tls_ca or siem_tls_verify=false.')
+
+    # TLS-strip alarm. SIEM ingestion of NDR data crosses the wire in plaintext
+    # when siem_tls=false. Log loudly at startup so a misconfig (or sensor.conf
+    # tamper) is visible in the audit trail.
+    if not tls:
+        log.warning(f'PLAINTEXT TRANSPORT: shipping sensor data to '
+                    f'{proto}://{host}:{port} without TLS. '
+                    f'All Zeek + Suricata metadata (DNS, HTTP URIs, TLS SNI, '
+                    f'file hashes, alerts) crosses the network UNENCRYPTED. '
+                    f'Set siem_tls=true in /etc/codered/sensor.conf for production.')
+
+    # When --tls-no-verify is on the CLI, the daemon-log warning isn't seen by
+    # the operator running --test-connect. Echo it to stderr.
+    if args.tls_no_verify:
+        print('WARNING: --tls-no-verify is set. The TLS connection will be '
+              'encrypted but the SIEM identity is NOT authenticated — '
+              'vulnerable to MITM. Use only for testing.', file=sys.stderr)
 
     # Get sensor hostname
     try:

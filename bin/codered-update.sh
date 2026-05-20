@@ -27,7 +27,25 @@ log "Updates: ${BEFORE:0:8} -> ${AFTER:0:8}"
 }
 [ -f "$REPO_DIR/VERSION" ] && cp "$REPO_DIR/VERSION" /opt/codered/VERSION
 [ -f "$REPO_DIR/conf/codered.defaults" ] && cp "$REPO_DIR/conf/codered.defaults" /etc/codered/codered.defaults
-[ -d "$REPO_DIR/bin" ] && { chmod 750 "$REPO_DIR"/bin/*.sh 2>/dev/null; cp "$REPO_DIR"/bin/*.sh /opt/codered/bin/ 2>/dev/null || true; }
+if [ -d "$REPO_DIR/bin" ]; then
+    # Sync shell helpers
+    chmod 750 "$REPO_DIR"/bin/*.sh 2>/dev/null || true
+    cp "$REPO_DIR"/bin/*.sh /opt/codered/bin/ 2>/dev/null || true
+    # Sync Python helpers (e.g. codered-syslog-forwarder.py). Previously skipped,
+    # which meant new daemon code never reached customers via auto-update.
+    if compgen -G "$REPO_DIR/bin/*.py" > /dev/null; then
+        FWD_BEFORE=$(sha256sum /opt/codered/bin/codered-syslog-forwarder.py 2>/dev/null | awk '{print $1}')
+        chmod 750 "$REPO_DIR"/bin/*.py 2>/dev/null || true
+        cp "$REPO_DIR"/bin/*.py /opt/codered/bin/ 2>/dev/null || true
+        FWD_AFTER=$(sha256sum /opt/codered/bin/codered-syslog-forwarder.py 2>/dev/null | awk '{print $1}')
+        if [ -n "$FWD_AFTER" ] && [ "$FWD_BEFORE" != "$FWD_AFTER" ]; then
+            systemctl is-active codered-syslog &>/dev/null \
+                && systemctl restart codered-syslog 2>/dev/null \
+                && log "Syslog forwarder restarted after update" \
+                || true
+        fi
+    fi
+fi
 [ -f "$REPO_DIR/firstboot/firstboot.sh" ] && cp "$REPO_DIR/firstboot/firstboot.sh" /opt/codered/firstboot/firstboot.sh
 
 # Sync Zeek detection scripts — new detections deployed to existing sensors
