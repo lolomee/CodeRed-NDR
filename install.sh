@@ -881,6 +881,30 @@ EOF
 
 systemctl daemon-reload
 
+# --- Universal systemd hardening drop-in for every codered-* service ---
+# Defense in depth: NoNewPrivileges, PrivateTmp, ProtectHome. Drop-ins
+# survive unit-file replacement so operator overrides persist across
+# auto-update unit syncs.
+if [ -f "${CODERED_SRC}/conf/codered-hardening.conf" ]; then
+    for svc in codered-zeek codered-suricata codered-syslog codered-ml codered-update; do
+        UNIT="/etc/systemd/system/${svc}.service"
+        [ -f "$UNIT" ] || continue
+        mkdir -p "/etc/systemd/system/${svc}.service.d"
+        install -m 0644 -o root -g root \
+            "${CODERED_SRC}/conf/codered-hardening.conf" \
+            "/etc/systemd/system/${svc}.service.d/hardening.conf"
+    done
+    systemctl daemon-reload
+    log "Systemd hardening drop-ins installed."
+fi
+
+# --- Logrotate config for /var/log/codered/*.log ---
+if [ -f "${CODERED_SRC}/conf/codered.logrotate" ]; then
+    install -m 0644 -o root -g root \
+        "${CODERED_SRC}/conf/codered.logrotate" /etc/logrotate.d/codered
+    log "Logrotate config installed at /etc/logrotate.d/codered."
+fi
+
 # Enable timers (but not the main services — those are started via coderedndr menu)
 systemctl enable codered-rule-update.timer 2>/dev/null || true
 systemctl enable codered-update.timer 2>/dev/null || true

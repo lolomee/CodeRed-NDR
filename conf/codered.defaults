@@ -55,11 +55,18 @@ rule_sources = et/open
 community_id = yes
 eve_types = alert,anomaly,dns,http,tls,files,smtp,ssh,flow,netflow
 
-[hardening]
-apparmor = yes
-readonly_usr = yes
-fail2ban = yes
-firewall = yes
+# [hardening] section removed — keys here had no implementation and were
+# misleading. The actual sensor hardening applied by install.sh is:
+#   * AppArmor profiles for /opt/zeek and /usr/sbin/suricata (verify with
+#     `aa-status`).
+#   * fail2ban installed and watching sshd (verify with `systemctl is-active
+#     fail2ban` and `fail2ban-client status sshd`).
+#   * Universal systemd drop-in for every codered-* service: NoNewPrivileges,
+#     PrivateTmp, ProtectHome (see conf/codered-hardening.conf).
+#   * Logrotate for /var/log/codered/*.log (see conf/codered.logrotate).
+# No firewall (iptables/nftables) rules are installed by default — apply
+# your own ingress restrictions to the management NIC, or extend install.sh
+# to write firewall rules under [hardening] if you want sensor-side enforcement.
 
 [autoupdate]
 enabled = yes

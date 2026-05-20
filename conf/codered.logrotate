@@ -1,0 +1,23 @@
+# CodeRed NDR — logrotate config for sensor-side daemon logs.
+# Installed to /etc/logrotate.d/codered by install.sh and synced by
+# codered-update.sh on every auto-update run.
+#
+# /nsm/zeek and /nsm/suricata are NOT rotated here — Zeek's logger and
+# Suricata's own log rotation handle those (hourly directories under /nsm).
+
+/var/log/codered/*.log {
+    daily
+    rotate 14
+    compress
+    delaycompress
+    missingok
+    notifempty
+    create 0640 root adm
+    sharedscripts
+    postrotate
+        # The syslog forwarder tails its own log; restarting is the cleanest way
+        # to have it pick up the new file descriptor. Cheap (~1 second).
+        systemctl is-active --quiet codered-syslog 2>/dev/null \
+            && systemctl restart codered-syslog 2>/dev/null || true
+    endscript
+}
