@@ -17,16 +17,33 @@ log() {
 }
 
 reload_suricata() {
-    if pgrep -x suricata &>/dev/null; then
-        if suricatasc -c reload-rules 2>/dev/null; then
-            log "Rules reloaded (live)"
-        elif systemctl restart codered-suricata.service 2>/dev/null; then
-            log "Suricata restarted"
-        else
-            log "WARNING: Could not reload rules -- restart Suricata manually"
-        fi
-    else
+    # Find the running Suricata. Its process comm is "Suricata-Main", so
+    # `pgrep -x suricata` NEVER matches — use the pidfile, with a full
+    # command-line pgrep as fallback.
+    local pid=""
+    if [ -f /var/run/suricata.pid ]; then
+        pid=$(cat /var/run/suricata.pid 2>/dev/null || true)
+        kill -0 "$pid" 2>/dev/null || pid=""
+    fi
+    [ -z "$pid" ] && pid=$(pgrep -f '[s]uricata .*-c ' | head -1 || true)
+
+    if [ -z "$pid" ]; then
         log "Suricata not running -- rules will load on next start"
+        return
+    fi
+
+    # SIGUSR2 triggers an in-place rule reload with no packet loss and no
+    # dependency on the unix-command socket (the daemonized engine frequently
+    # has no live socket). Fall back to suricatasc, then a full restart of the
+    # correct unit (codered-suricata, NOT "suricata").
+    if kill -USR2 "$pid" 2>/dev/null; then
+        log "Rules reloaded live (SIGUSR2 -> pid ${pid})"
+    elif suricatasc -c reload-rules 2>/dev/null; then
+        log "Rules reloaded live (suricatasc)"
+    elif systemctl restart codered-suricata.service 2>/dev/null; then
+        log "Suricata restarted to load rules"
+    else
+        log "WARNING: Could not reload rules -- restart codered-suricata manually"
     fi
 }
 
