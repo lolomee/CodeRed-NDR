@@ -685,6 +685,11 @@ rule-files:
 classification-file: /etc/suricata/classification.config
 reference-config-file: /etc/suricata/reference.config
 
+# Operator-tunable alert thresholds / suppressions (rate-limit noisy sigs,
+# suppress zero-value decoder events). Seeded once by the CLI; edit the file
+# directly and reload with update-rules.sh or `kill -USR2 $(cat /var/run/suricata.pid)`.
+threshold-file: /etc/suricata/threshold.config
+
 af-packet:
   - interface: {iface}
     cluster-id: 99
@@ -732,6 +737,46 @@ outputs:
     run_cmd(['cp', tmp, override], sudo=True)
     run_cmd(['chmod', '640', override], sudo=True)
     run_cmd(['chown', 'root:suricata', override], sudo=True)
+    os.unlink(tmp)
+
+    seed_threshold_config()
+
+
+# Default alert tuning. Seeded only if the operator has no threshold.config yet,
+# so hand-tuned suppressions are never clobbered on reconfigure.
+THRESHOLD_DEFAULT = """# CodeRed NDR — Suricata threshold / suppression tuning
+# Loaded via `threshold-file` in codered-override.yaml.
+# Docs: https://docs.suricata.io/en/latest/configuration/global-thresholds.html
+#   threshold ... type limit  -> rate-limit (keep N per window); retains visibility
+#   suppress ...              -> drop entirely; use only for zero-value noise
+# Edit freely, then reload: sudo /opt/codered/bin/update-rules.sh
+
+# Decoder noise: non-IP L2 frames on the SPAN. No security value -> suppress.
+suppress gen_id 1, sig_id 2200121
+
+# STUN binding requests (WebRTC / VPN / P2P). High volume, low value ->
+# keep 1 alert per source per 10 min.
+threshold gen_id 1, sig_id 2033078, type limit, track by_src, count 1, seconds 600
+threshold gen_id 1, sig_id 2016149, type limit, track by_src, count 1, seconds 600
+threshold gen_id 1, sig_id 2016150, type limit, track by_src, count 1, seconds 600
+"""
+
+
+def seed_threshold_config():
+    """Write a default threshold.config only if one isn't already present."""
+    path = '/etc/suricata/threshold.config'
+    # Treat a stock/example file (only comments) as absent so the first real
+    # config replaces it; never overwrite a file that has active rules.
+    rc, out = run_cmd(['grep', '-qE', r'^\s*(suppress|threshold|rate_filter|event_filter)\s',
+                       path], sudo=True)
+    if rc == 0:
+        return  # operator already has active tuning — leave it alone
+    with tempfile.NamedTemporaryFile(mode='w', suffix='.config', delete=False) as tf:
+        tf.write(THRESHOLD_DEFAULT)
+        tmp = tf.name
+    run_cmd(['cp', tmp, path], sudo=True)
+    run_cmd(['chmod', '644', path], sudo=True)
+    run_cmd(['chown', 'root:suricata', path], sudo=True)
     os.unlink(tmp)
 
 
