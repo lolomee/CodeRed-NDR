@@ -3105,6 +3105,33 @@ def packet_capture_monitor():
     pause()
 
 
+def update_rules_now():
+    """Download and live-reload the latest Suricata detection rules."""
+    header('UPDATE DETECTION RULES')
+    rule_log = '/var/log/codered/last-rule-update.log'
+    try:
+        with open(rule_log) as f:
+            print_line('Last update:', f.read().strip() or 'unknown')
+    except OSError:
+        print_line('Last update:', 'not yet run')
+
+    print('\n  Downloads the latest Suricata rules (ET Open + OISF TrafficID)')
+    print('  via suricata-update and live-reloads the running engine.')
+    if not confirm('\n  Update detection rules now?'):
+        return
+    audit('update-rules')
+    print('\n  Updating rules - this can take up to a couple of minutes...\n')
+    rc, out = run_cmd(['/opt/codered/bin/update-rules.sh'], timeout=300, sudo=True)
+    if out.strip():
+        print(out.strip())
+    if rc == 0:
+        print('\n  Rule update complete.')
+    else:
+        print(f'\n  Rule update FAILED (exit {rc}). '
+              'See /var/log/codered/rule-update.log')
+    pause()
+
+
 def main_menu():
     """Main management menu loop."""
     while True:
@@ -3153,6 +3180,7 @@ def main_menu():
 
         print('\n  -- System ---------------------------------------')
         print('  20. Auto-update management')
+        print('  21. Update detection rules now  (Suricata)')
 
         print('\n   0. Logout')
         print()
@@ -3184,6 +3212,7 @@ def main_menu():
             '18': packet_capture_monitor,
             '19': netflow_export,
             '20': auto_update_management,
+            '21': update_rules_now,
         }
 
         if choice == '0':
