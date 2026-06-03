@@ -250,18 +250,32 @@ def tail_file(path, state, sender, hostname, app, raw=False):
 
     sent = 0
     try:
-        with open(path, 'r', errors='replace') as f:
+        # Binary mode + manual byte counting. Do NOT use text-mode line
+        # iteration with f.tell(): CPython disables tell() once the read-ahead
+        # line iterator has run and you break out of it mid-batch (which happens
+        # on a SIEM send failure), raising "telling position disabled by next()
+        # call". Counting bytes ourselves also lets us advance the saved
+        # position only for lines we actually shipped — a failed line stays
+        # unconsumed and is retried next cycle (no loss, no duplicates).
+        with open(path, 'rb') as f:
             f.seek(pos)
-            for line in f:
-                line = line.rstrip('\n\r')
+            for raw_line in f:
+                # Incomplete trailing line (writer mid-append) — leave it for
+                # next cycle so we never ship a truncated/split event. Critical
+                # for Suricata eve.json where a split line is invalid JSON.
+                if not raw_line.endswith(b'\n'):
+                    break
+                line = raw_line.decode('utf-8', errors='replace').rstrip('\n\r')
                 if not line or line.startswith('#'):
+                    pos += len(raw_line)
                     continue
                 msg = make_syslog(hostname, app, line, raw=raw)
                 if sender.send(msg):
+                    pos += len(raw_line)
                     sent += 1
                 else:
+                    # Send failed — do not advance past this line; retry it.
                     break
-            pos = f.tell()
     except Exception as e:
         log.error(f'Read error {path}: {e}')
 
