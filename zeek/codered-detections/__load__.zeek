@@ -33,3 +33,9 @@
 
 # Insider threat & data staging
 @load ./insider-threat
+
+# Layer-2 / MITM (ARP spoofing, rogue DHCP)
+@load ./arp-spoof
+
+# GeoIP destination anomaly (inert until high_risk_countries set)
+@load ./geoip-anomaly
