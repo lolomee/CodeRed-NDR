@@ -30,6 +30,14 @@ trap cleanup EXIT
 
 mkdir -p "$INTEL_DIR"
 
+# Crash-safety: every file listed in Zeek's Intel::read_files MUST exist at Zeek
+# startup or Zeek aborts. Seed a header-only stub for any feed file that does not
+# exist yet, so a failed download (or first run) can never take Zeek down. Real
+# feed data overwrites these stubs below.
+for _f in urlhaus feodo sslbl malwarebazaar; do
+    [ -f "$INTEL_DIR/abuse-ch-$_f.intel" ] || printf '%b\n' "$HEADER" > "$INTEL_DIR/abuse-ch-$_f.intel"
+done
+
 # ─── URLhaus (recent URLs) ───
 log "Downloading URLhaus feed..."
 if secure_curl -o "$TMP_DIR/urlhaus.csv" \
@@ -93,6 +101,34 @@ if secure_curl -o "$TMP_DIR/sslbl.csv" \
     log "SSL Blacklist feed updated: $(wc -l < "$INTEL_DIR/abuse-ch-sslbl.intel") entries"
 else
     warn "SSL Blacklist download failed"
+fi
+
+# ─── MalwareBazaar (recent malware file hashes) ───
+# Bounded "recent additions" feed (~few hundred samples) → Intel::FILE_HASH.
+# This is what lets Zeek match files seen on the wire (files.log md5/sha256)
+# against known malware — the file-reputation layer Suricata signatures miss.
+log "Downloading MalwareBazaar feed..."
+if secure_curl -o "$TMP_DIR/malwarebazaar.csv" \
+    "https://bazaar.abuse.ch/export/csv/recent/" 2>/dev/null; then
+    {
+        printf '%b\n' "$HEADER"
+        # Quoted, ", "-separated CSV: col2=sha256, col3=md5, col9=signature(family).
+        # Emit both sha256 and md5; validate each is proper hex before writing.
+        grep -vE '^#|^$|^"first_seen' "$TMP_DIR/malwarebazaar.csv" | \
+        awk -F'", "' '{
+            s=$2; m=$3; fam=$9;
+            gsub(/"/,"",s); gsub(/"/,"",m); gsub(/"/,"",fam);
+            gsub(/[ \t]/,"",s); gsub(/[ \t]/,"",m);
+            if (fam==""||fam=="n/a") fam="malware sample";
+            if (s ~ /^[0-9a-fA-F]{64}$/)
+                printf "%s\tIntel::FILE_HASH\tabuse.ch MalwareBazaar\tMalware (%s)\thttps://bazaar.abuse.ch\n", s, fam;
+            if (m ~ /^[0-9a-fA-F]{32}$/)
+                printf "%s\tIntel::FILE_HASH\tabuse.ch MalwareBazaar\tMalware (%s)\thttps://bazaar.abuse.ch\n", m, fam;
+        }'
+    } > "$INTEL_DIR/abuse-ch-malwarebazaar.intel"
+    log "MalwareBazaar feed updated: $(wc -l < "$INTEL_DIR/abuse-ch-malwarebazaar.intel") entries"
+else
+    warn "MalwareBazaar download failed"
 fi
 
 log "Threat intel update complete."

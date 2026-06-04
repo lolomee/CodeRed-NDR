@@ -47,6 +47,7 @@ redef Intel::read_files += {
     "/opt/zeek/share/zeek/site/intel/abuse-ch-urlhaus.intel",
     "/opt/zeek/share/zeek/site/intel/abuse-ch-feodo.intel",
     "/opt/zeek/share/zeek/site/intel/abuse-ch-sslbl.intel",
+    "/opt/zeek/share/zeek/site/intel/abuse-ch-malwarebazaar.intel",
 };
 
 # JA3/HASSH fingerprinting — not available in standard Zeek APT package
@@ -64,6 +65,14 @@ redef Intel::read_files += {
 
 # Community ID (for cross-tool correlation with Suricata and Filebeat)
 @load policy/protocols/conn/community-id-logging
+
+# CodeRed NDR — asset/baseline visibility. known_hosts.log records each internal
+# host the first time it is seen; known_services.log records each (host, port,
+# service) the first time it appears. These give the SIEM new-device and
+# new-listening-service detection (a workstation suddenly serving SMB/RDP or a
+# backdoor port). Log-only, low overhead — no per-packet work.
+@load policy/protocols/conn/known-hosts
+@load policy/protocols/conn/known-services
 
 # Log compression and rotation
 @load policy/misc/loaded-scripts
