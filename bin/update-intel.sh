@@ -97,8 +97,14 @@ fi
 
 log "Threat intel update complete."
 
-# Reload Zeek if running to pick up new intel
-if command -v zeekctl &>/dev/null && zeekctl status 2>/dev/null | grep -q "running"; then
-    log "Signaling Zeek to reload intel files..."
+# Reload Zeek to pick up new intel. Prefer systemd (the canonical lifecycle
+# manager on this sensor) — a bare `zeekctl deploy` starts a node systemd no
+# longer tracks, leaving the service desynced. Fall back to zeekctl only when the
+# service unit is absent (e.g. manual/dev installs).
+if systemctl is-active --quiet codered-zeek 2>/dev/null; then
+    log "Restarting Zeek via systemd to load new intel..."
+    systemctl restart codered-zeek || warn "Zeek restart failed — intel will load on next restart"
+elif command -v zeekctl &>/dev/null && zeekctl status 2>/dev/null | grep -q "running"; then
+    log "Reloading Zeek via zeekctl to load new intel..."
     zeekctl deploy 2>/dev/null || warn "Zeek reload failed — intel will load on next restart"
 fi

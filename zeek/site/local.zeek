@@ -38,11 +38,29 @@
 @load policy/frameworks/intel/seen
 @load policy/frameworks/intel/do_notice
 
+# CodeRed NDR — consume the downloaded threat-intel feeds (abuse.ch URLhaus URLs,
+# Feodo botnet C2 IPs, SSLBL malicious-SSL IPs). Without this redef the Intel
+# framework loads but reads nothing. Feeds are refreshed by
+# /opt/codered/bin/update-intel.sh (codered-intel-update.timer). These paths must
+# exist at startup or Zeek aborts — the updater always seeds header-only stubs.
+redef Intel::read_files += {
+    "/opt/zeek/share/zeek/site/intel/abuse-ch-urlhaus.intel",
+    "/opt/zeek/share/zeek/site/intel/abuse-ch-feodo.intel",
+    "/opt/zeek/share/zeek/site/intel/abuse-ch-sslbl.intel",
+};
+
 # JA3/HASSH fingerprinting — not available in standard Zeek APT package
 # JA3 fingerprinting: available via Suricata EVE JSON (tls.ja3 / tls.ja4 fields)
 # HASSH fingerprinting: available via Suricata EVE JSON (ssh fields)
 # @load policy/protocols/ssl/ja3
 # @load policy/protocols/ssh/hassh
+
+# CodeRed NDR — TLS certificate inspection. Adds a validation_status to ssl.log
+# (validates the cert chain against the bundled Mozilla root CAs) and raises
+# notices for self-signed / expired / untrusted certs and weak crypto (small RSA
+# keys, SHA-1 signatures). High-signal for C2 over self-signed TLS and MITM.
+@load policy/protocols/ssl/validate-certs
+@load policy/protocols/ssl/weak-keys
 
 # Community ID (for cross-tool correlation with Suricata and Filebeat)
 @load policy/protocols/conn/community-id-logging

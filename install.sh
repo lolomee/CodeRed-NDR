@@ -855,6 +855,32 @@ Persistent=true
 WantedBy=timers.target
 EOF
 
+# --- codered-intel-update.service + timer (threat-intel feeds) ---
+cat > /etc/systemd/system/codered-intel-update.service << 'EOF'
+[Unit]
+Description=CodeRed NDR - Threat Intel Feed Update
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/opt/codered/bin/update-intel.sh
+TimeoutStartSec=600
+EOF
+
+cat > /etc/systemd/system/codered-intel-update.timer << 'EOF'
+[Unit]
+Description=CodeRed NDR - Daily Threat Intel Feed Update
+
+[Timer]
+OnCalendar=*-*-* 03:30:00
+RandomizedDelaySec=1800
+Persistent=true
+
+[Install]
+WantedBy=timers.target
+EOF
+
 # --- codered-ml.service (ML behavioral engine) ---
 cp "${CODERED_SRC}/ml/codered-ml.service" /etc/systemd/system/codered-ml.service \
     2>/dev/null || \
@@ -908,6 +934,7 @@ fi
 # Enable timers (but not the main services — those are started via coderedndr menu)
 systemctl enable codered-rule-update.timer 2>/dev/null || true
 systemctl enable codered-update.timer 2>/dev/null || true
+systemctl enable codered-intel-update.timer 2>/dev/null || true
 systemctl enable codered-firstboot.service 2>/dev/null || true
 # Enable ML engine — it starts automatically with Zeek (Wants=codered-zeek.service)
 systemctl enable codered-ml 2>/dev/null || true
