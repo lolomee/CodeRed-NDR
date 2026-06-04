@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CodeRed NDR Sensor v2.0.0 &mdash; Datasheet</title>
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+:root {
+  --red: #DC2626; --red-dark: #991B1B; --red-light: #FEE2E2;
+  --gray-50: #F9FAFB; --gray-100: #F3F4F6; --gray-200: #E5E7EB;
+  --gray-300: #D1D5DB; --gray-500: #6B7280; --gray-600: #4B5563;
+  --gray-700: #374151; --gray-800: #1F2937; --gray-900: #111827;
+  --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  --font-mono: "SF Mono", "Fira Code", Menlo, Consolas, monospace;
+}
+html { font-size: 16px; }
+body { font-family: var(--font-sans); color: var(--gray-800); background: var(--gray-100); line-height: 1.6; }
+.sheet { max-width: 1000px; margin: 0 auto; background: #fff; }
+.page-header { background: var(--gray-900); color: #fff; padding: 2rem 2.5rem; border-bottom: 4px solid var(--red); }
+.page-header h1 { font-size: 1.9rem; font-weight: 700; letter-spacing: -0.02em; }
+.page-header h1 span { color: var(--red); }
+.page-header .subtitle { color: var(--gray-300); margin-top: 0.35rem; font-size: 1rem; }
+.page-header .brand { font-size: 0.8rem; color: var(--gray-500); text-transform: uppercase; letter-spacing: 0.12em; margin-bottom: 0.5rem; }
+.version-badge { display: inline-block; background: var(--red); color: #fff; font-size: 0.75rem; font-weight: 600; padding: 0.15em 0.6em; border-radius: 3px; vertical-align: middle; margin-left: 0.5rem; }
+.content { padding: 2rem 2.5rem 2.5rem; }
+.lead { font-size: 1.05rem; color: var(--gray-700); margin-bottom: 1.5rem; }
+.stat-band { display: grid; grid-template-columns: repeat(4, 1fr); gap: 1rem; margin: 1.5rem 0 2rem; }
+.stat { background: var(--gray-900); color: #fff; border-radius: 8px; padding: 1.1rem 1rem; text-align: center; border-bottom: 3px solid var(--red); }
+.stat .num { font-size: 1.7rem; font-weight: 700; color: #fff; line-height: 1.1; }
+.stat .lbl { font-size: 0.72rem; color: var(--gray-300); text-transform: uppercase; letter-spacing: 0.05em; margin-top: 0.35rem; }
+h2 { font-size: 1.2rem; font-weight: 700; color: var(--gray-900); margin: 2rem 0 0.9rem; padding-bottom: 0.4rem; border-bottom: 2px solid var(--red); }
+h2:first-of-type { margin-top: 0; }
+p { margin-bottom: 0.9rem; }
+table { width: 100%; border-collapse: collapse; margin: 0.5rem 0 1rem; font-size: 0.88rem; }
+th, td { text-align: left; padding: 0.55rem 0.7rem; border: 1px solid var(--gray-200); vertical-align: top; }
+th { background: var(--gray-900); color: #fff; font-weight: 600; font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.03em; }
+tr:nth-child(even) td { background: var(--gray-50); }
+code { font-family: var(--font-mono); font-size: 0.85em; background: var(--gray-100); padding: 0.1em 0.35em; border-radius: 3px; color: var(--red-dark); }
+.grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0.9rem; margin: 0.5rem 0 1rem; }
+.card { border: 1px solid var(--gray-200); border-left: 3px solid var(--red); border-radius: 6px; padding: 0.85rem 1rem; background: var(--gray-50); }
+.card h4 { margin: 0 0 0.3rem; font-size: 0.9rem; color: var(--red-dark); }
+.card p { margin: 0; font-size: 0.82rem; color: var(--gray-600); line-height: 1.5; }
+.two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; }
+ul { margin: 0 0 1rem 1.2rem; } li { margin-bottom: 0.3rem; font-size: 0.9rem; }
+.page-footer { background: var(--gray-900); color: var(--gray-500); padding: 1.25rem 2.5rem; font-size: 0.78rem; border-top: 4px solid var(--red); display: flex; justify-content: space-between; flex-wrap: wrap; gap: 0.5rem; }
+.page-footer strong { color: var(--gray-300); }
+@media print {
+  body { background: #fff; } .sheet { max-width: 100%; }
+  .stat { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  th { background: #333 !important; color: #fff !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  h2 { page-break-after: avoid; } .grid, table { page-break-inside: avoid; }
+}
+@media (max-width: 768px) {
+  .stat-band { grid-template-columns: repeat(2, 1fr); }
+  .grid, .two-col { grid-template-columns: 1fr; }
+  .content, .page-header, .page-footer { padding-left: 1.25rem; padding-right: 1.25rem; }
+}
+</style>
+</head>
+<body>
+<div class="sheet">
+
+<header class="page-header">
+  <div class="brand">PROVINTELL Technologies</div>
+  <h1>CodeRed <span>NDR</span> Sensor<span class="version-badge">v2.0.0</span></h1>
+  <div class="subtitle">Passive Network Detection &amp; Response &mdash; product datasheet</div>
+</header>
+
+<div class="content">
+
+  <p class="lead">CodeRed NDR is a passive network detection and response sensor. It receives a copy
+  of network traffic via a SPAN or TAP port, analyses it in real time across three complementary
+  detection engines, and forwards enriched alerts to your SIEM &mdash; no inline deployment, no agents,
+  no impact on production traffic.</p>
+
+  <div class="stat-band">
+    <div class="stat"><div class="num">50,163</div><div class="lbl">IDS rules active</div></div>
+    <div class="stat"><div class="num">~75</div><div class="lbl">MITRE ATT&amp;CK techniques</div></div>
+    <div class="stat"><div class="num">20</div><div class="lbl">Behavioral detections</div></div>
+    <div class="stat"><div class="num">3</div><div class="lbl">Detection engines</div></div>
+  </div>
+
+  <h2>Detection engines</h2>
+  <table>
+    <thead><tr><th>Engine</th><th>Technology</th><th>What it does</th></tr></thead>
+    <tbody>
+      <tr><td><strong>CodeRed-IDS</strong></td><td>Suricata 8 &middot; 50,163 signatures (ET Open + OISF TrafficID)</td><td>Signature detection of known malware, exploits, C2 and policy violations; EVE JSON output</td></tr>
+      <tr><td><strong>CodeRed-UEBA</strong></td><td>Zeek 6 &middot; 20 behavioral scripts</td><td>Protocol-aware behavioral analytics across ~75 ATT&amp;CK techniques; immediate, no warm-up</td></tr>
+      <tr><td><strong>CodeRed-ML</strong></td><td>Isolation Forest (scikit-learn)</td><td>Per-host behavioral baselines; flags deviation from each host&rsquo;s own history. No GPU, no labeled data</td></tr>
+      <tr><td>Netflow export</td><td>softflowd</td><td>Flow metadata (src/dst, port, bytes, duration) for traffic baseline and network map</td></tr>
+      <tr><td>Log forwarder</td><td>Filebeat &amp; RFC5424 Syslog</td><td>Ships all alerts and logs to the SIEM over TCP, UDP, or TLS-over-TCP (optional mTLS)</td></tr>
+    </tbody>
+  </table>
+
+  <h2>Threat coverage</h2>
+  <div class="grid">
+    <div class="card"><h4>C2 &amp; covert channels</h4><p>JA3/JA3S TLS fingerprinting (Cobalt Strike, Sliver, Brute Ratel, Havoc, AsyncRAT), beaconing, domain fronting, DGA &amp; DNS tunneling, ICMP tunneling, Tor.</p></div>
+    <div class="card"><h4>Lateral movement</h4><p>SMB admin-share &amp; Pass-the-Hash, RDP brute force/spray, WMI &amp; WinRM/PsExec, SSH HASSH fingerprinting (Impacket, Paramiko).</p></div>
+    <div class="card"><h4>Credential attacks</h4><p>Kerberoasting, AS-REP roasting, Golden/Silver ticket, LLMNR/NBT-NS poisoning (Responder), NTLM relay, LDAP AD recon.</p></div>
+    <div class="card"><h4>Exfiltration &amp; impact</h4><p>Ransomware mass-write &amp; shadow-copy deletion, double-extortion exfil, insider data staging, FTP/email bulk exfil, long &amp; asymmetric connections.</p></div>
+    <div class="card"><h4>Commodity threats</h4><p>Cryptomining (Stratum, pool domains, XMRig), port scans &amp; sweeps, certificate anomalies (self-signed, short-validity, IP-as-CN).</p></div>
+    <div class="card"><h4>OT/ICS &amp; cloud</h4><p>Industrial protocol attacks (Modbus, DNP3) and cloud-specific threats &mdash; IMDS abuse, AWS key exposure, cloud-storage C2.</p></div>
+  </div>
+
+  <div class="two-col">
+    <div>
+      <h2>Deployment</h2>
+      <ul>
+        <li><strong>On-prem:</strong> VMware ESXi / vSphere via SPAN or hardware TAP</li>
+        <li><strong>Cloud:</strong> AWS, Azure, GCP, Alibaba Cloud (traffic-mirroring mode)</li>
+        <li>Single- or multi-NIC; toggle cloud mode post-deploy</li>
+        <li>Guided setup wizard &mdash; first alert in the SIEM within minutes</li>
+      </ul>
+      <h2>SIEM integration</h2>
+      <p>Validated with Wazuh, Pre Security, QRadar, ArcSight, Graylog, and Splunk. Full log detail
+      (DNS, HTTP, TLS, IDS alerts, ML anomalies) plus Netflow metadata, encrypted in transit.</p>
+    </div>
+    <div>
+      <h2>Sensor requirements</h2>
+      <table>
+        <thead><tr><th></th><th>Min</th><th>Recommended</th></tr></thead>
+        <tbody>
+          <tr><td>CPU</td><td>4 vCPU</td><td>8 vCPU</td></tr>
+          <tr><td>RAM</td><td>8 GB</td><td>16 GB</td></tr>
+          <tr><td>Disk</td><td>100 GB</td><td>500 GB</td></tr>
+          <tr><td>NICs</td><td>2</td><td>3+</td></tr>
+        </tbody>
+      </table>
+      <h2>Security &amp; ops</h2>
+      <ul>
+        <li>Auto-hardened: SSH (root disabled, modern ciphers), fail2ban, least-privilege file modes</li>
+        <li>Operator-tunable alert thresholds &mdash; rate-limit/suppress noise without disabling rules</li>
+        <li>One-command rule &amp; threat-intel updates with live reload (no capture gap)</li>
+      </ul>
+    </div>
+  </div>
+
+</div>
+
+<footer class="page-footer">
+  <div><strong>CodeRed NDR v2.0.0</strong> &mdash; PROVINTELL Technologies</div>
+  <div>Passive &middot; Agentless &middot; SIEM-ready</div>
+</footer>
+
+</div>
+</body>
+</html>
