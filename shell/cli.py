@@ -617,6 +617,12 @@ def apply_suricata_config(config: configparser.ConfigParser):
     community_id = get_val(config, 'suricata', 'community_id', 'yes')
     cloud_mode = get_val(config, 'network', 'cloud_mode', 'no').strip().lower() == 'yes'
     vxlan_port = get_val(config, 'network', 'vxlan_port', '4789').strip()
+    # HOME_NET = the internal network(s) this sensor monitors. Operator-tunable via
+    # sensor.conf [network] home_net. Tightening it to the actual monitored subnet
+    # (instead of all RFC1918) makes direction-aware rules accurate (inbound vs
+    # outbound, lateral movement). Falls back to all RFC1918 if unset.
+    home_net = get_val(config, 'network', 'home_net',
+                       '[192.168.0.0/16,10.0.0.0/8,172.16.0.0/12]').strip()
 
     comm = 'true' if community_id == 'yes' else 'false'
 
@@ -649,7 +655,7 @@ decoder:
 # deterministic: rules load (HOME_NET defined) and eve writes to /nsm.
 vars:
   address-groups:
-    HOME_NET: "[192.168.0.0/16,10.0.0.0/8,172.16.0.0/12]"
+    HOME_NET: "{home_net}"
     EXTERNAL_NET: "!$HOME_NET"
     HTTP_SERVERS: "$HOME_NET"
     SMTP_SERVERS: "$HOME_NET"
@@ -701,6 +707,13 @@ af-packet:
 community-id:
   enabled: {comm}
 
+# Engine stats: required so capture health (kernel packets/drops, flow memuse,
+# reassembly) is observable over time. Without this there is NO visibility into
+# packet loss. Emitted into eve.json as event_type:stats every 30s.
+stats:
+  enabled: yes
+  interval: 30
+
 outputs:
   - eve-log:
       enabled: yes
@@ -728,6 +741,9 @@ outputs:
         - ssh
         - flow
         - netflow
+        - stats:
+            totals: yes
+            threads: no
 """
 
     with tempfile.NamedTemporaryFile(mode='w', suffix='.yaml', delete=False) as tf:
