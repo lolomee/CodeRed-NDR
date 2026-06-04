@@ -2,8 +2,26 @@
 # Installed to /etc/logrotate.d/codered by install.sh and synced by
 # codered-update.sh on every auto-update run.
 #
-# /nsm/zeek and /nsm/suricata are NOT rotated here — Zeek's logger and
-# Suricata's own log rotation handle those (hourly directories under /nsm).
+# Zeek logs are NOT rotated here — Zeek's logger archives them into hourly
+# dated directories under /nsm/zeek/logs/ on its own.
+#
+# Suricata's eve.json IS rotated here: filetype:regular does not self-rotate,
+# so without this it grows unbounded (~0.9 GB/day). We rename+create and SIGHUP
+# Suricata to reopen the new file. The syslog forwarder tracks rotation safely
+# (it detects size<saved-offset and resets), so no special handling is needed.
+
+/nsm/suricata/log/eve.json {
+    daily
+    rotate 7
+    compress
+    delaycompress
+    missingok
+    notifempty
+    create 0644 root root
+    postrotate
+        /bin/kill -HUP "$(cat /var/run/suricata.pid 2>/dev/null)" 2>/dev/null || true
+    endscript
+}
 
 /var/log/codered/*.log {
     daily
@@ -12,6 +30,10 @@
     delaycompress
     missingok
     notifempty
+    # /var/log/codered is root:adm group-writable, so logrotate refuses to rotate
+    # without being told which user/group to operate as. Without this su directive
+    # rotation silently fails and these logs grow unbounded.
+    su root adm
     create 0640 root adm
     sharedscripts
     postrotate

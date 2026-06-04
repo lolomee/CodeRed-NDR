@@ -702,7 +702,13 @@ af-packet:
     cluster-type: cluster_flow
     defrag: yes
     use-mmap: yes
+    # Larger mmap ring + locked pages absorb capture bursts (e.g. Suricata's
+    # ~45s rule-load window and traffic spikes) that otherwise show up as
+    # kernel_drops. Tunable if a higher-throughput link needs more headroom.
+    mmap-locked: yes
     tpacket-v3: yes
+    ring-size: 200000
+    block-size: 1048576
 {vxlan_block}
 community-id:
   enabled: {comm}
