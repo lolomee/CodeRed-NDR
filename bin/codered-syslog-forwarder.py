@@ -24,6 +24,7 @@ STATE_FILE  = '/var/lib/codered/syslog-forwarder.state'
 LOG_FILE    = '/var/log/codered/syslog-forwarder.log'
 ZEEK_PATH   = '/nsm/zeek/logs/current'
 SURICATA_PATH = '/nsm/suricata/log/eve.json'
+ML_ALERTS_PATH = '/nsm/codered/ml-alerts.json'
 
 # Syslog facility/severity (local0.info)
 FACILITY    = 16   # local0
@@ -420,6 +421,11 @@ def main():
         # Tail Suricata EVE
         if os.path.exists(SURICATA_PATH):
             n = tail_file(SURICATA_PATH, state, sender, hostname, 'suricata', raw=raw_mode)
+            batch_sent += n
+
+        # Tail CodeRed behavioral-ML anomaly alerts (JSON, one object per line)
+        if os.path.exists(ML_ALERTS_PATH):
+            n = tail_file(ML_ALERTS_PATH, state, sender, hostname, 'codered-ml', raw=raw_mode)
             batch_sent += n
 
         if batch_sent > 0:
