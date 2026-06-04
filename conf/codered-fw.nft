@@ -1,0 +1,16 @@
+#!/usr/sbin/nft -f
+# CodeRed NDR — minimal host firewall.
+# Default-ACCEPT: this does NOT filter SSH or any service (no lockout risk).
+# It ONLY drops inbound access from the network to Zeek's cluster-bus / control
+# ports (27759-27762), which are localhost-only IPC and must never be reachable
+# off-box. Loopback (Zeek's own internal comms) is always accepted.
+# Idempotent: recreate the table cleanly on every apply.
+table inet codered_fw {}
+delete table inet codered_fw
+table inet codered_fw {
+    chain input {
+        type filter hook input priority filter; policy accept;
+        iif "lo" accept
+        tcp dport 27759-27762 drop
+    }
+}

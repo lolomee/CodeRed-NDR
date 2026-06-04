@@ -931,10 +931,21 @@ if [ -f "${CODERED_SRC}/conf/codered.logrotate" ]; then
     log "Logrotate config installed at /etc/logrotate.d/codered."
 fi
 
+# --- Minimal host firewall: block Zeek's localhost-only cluster bus from the
+#     network (default-ACCEPT table; does not filter SSH or any service). ---
+if [ -f "${CODERED_SRC}/conf/codered-fw.nft" ]; then
+    install -m 0644 -o root -g root \
+        "${CODERED_SRC}/conf/codered-fw.nft" /etc/codered/codered-fw.nft
+    install -m 0644 -o root -g root \
+        "${CODERED_SRC}/conf/codered-fw.service" /etc/systemd/system/codered-fw.service
+    log "Host firewall (Zeek bus) config installed."
+fi
+
 # Enable timers (but not the main services — those are started via coderedndr menu)
 systemctl enable codered-rule-update.timer 2>/dev/null || true
 systemctl enable codered-update.timer 2>/dev/null || true
 systemctl enable codered-intel-update.timer 2>/dev/null || true
+systemctl enable codered-fw.service 2>/dev/null || true
 systemctl enable codered-firstboot.service 2>/dev/null || true
 # Enable ML engine — it starts automatically with Zeek (Wants=codered-zeek.service)
 systemctl enable codered-ml 2>/dev/null || true
