@@ -60,6 +60,6 @@ exec /usr/bin/suricata \
     --af-packet="$MONITOR_IF" \
     --pidfile "$PID_FILE" \
     -D \
-    --set "outputs.0.eve-log.filename=$EVE_DIR/eve.json" \
+    --set "outputs.1.eve-log.filename=$EVE_DIR/eve.json" \
     --set "community-id=true" \
     --set "app-layer.protocols.tls.ja3-fingerprints=yes"
