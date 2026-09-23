@@ -1,0 +1,20 @@
+[Unit]
+Description=CodeRed NDR Inline IPS Bridge
+Documentation=https://coderedcyber.ai
+# Must start before Suricata so the bridge and nfqueue rules are
+# in place when Suricata opens the queue.
+Before=suricata.service
+After=network.target
+ConditionPathExists=/etc/codered/sensor.conf
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/opt/codered/bin/codered-inline-ips.sh start
+ExecStop=/opt/codered/bin/codered-inline-ips.sh stop
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=codered-ips
+
+[Install]
+WantedBy=multi-user.target

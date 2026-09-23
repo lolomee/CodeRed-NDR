@@ -20,6 +20,14 @@ if [ -z "$MONITOR_IF" ]; then
     exit 1
 fi
 
+# ── Check inline IPS mode ──────────────────────────────────────
+read_conf_val() {
+    local key="$1" default="${2:-}"
+    awk -F'=' "/^${key}[[:space:]]*=/{gsub(/^[[:space:]]+|[[:space:]]+$/, \"\", \$2); print \$2; exit}" "$CONF" 2>/dev/null || echo "$default"
+}
+IPS_ENABLED=$(read_conf_val enabled no)
+IPS_QUEUE=$(read_conf_val queue_num 0)
+
 # Verify interface exists
 if ! ip link show "$MONITOR_IF" &>/dev/null; then
     echo "[x] Interface $MONITOR_IF does not exist."
@@ -53,13 +61,30 @@ if [ "${1:-}" = "--test" ]; then
     exec /usr/bin/suricata -T -c "$SURICATA_YAML" $EXTRA_ARGS
 fi
 
-echo "[+] Starting Suricata on interface: $MONITOR_IF"
-exec /usr/bin/suricata \
-    -c "$SURICATA_YAML" \
-    $EXTRA_ARGS \
-    --af-packet="$MONITOR_IF" \
-    --pidfile "$PID_FILE" \
-    -D \
-    --set "outputs.0.eve-log.filename=$EVE_DIR/eve.json" \
-    --set "community-id=true" \
-    --set "app-layer.protocols.tls.ja3-fingerprints=yes"
+# ── Launch: inline IPS (nfqueue) or passive (af-packet) ────────
+if [ "$IPS_ENABLED" = "yes" ]; then
+    echo "[+] Starting Suricata in INLINE IPS mode (nfqueue:$IPS_QUEUE)"
+    # nfqueue mode: Suricata reads from kernel queue, drops/rejects/passes each packet.
+    # The bridge + nfqueue rules must be up (codered-inline-ips.service) before this runs.
+    exec /usr/bin/suricata \
+        -c "$SURICATA_YAML" \
+        $EXTRA_ARGS \
+        -q "$IPS_QUEUE" \
+        --pidfile "$PID_FILE" \
+        -D \
+        --set "outputs.0.eve-log.filename=$EVE_DIR/eve.json" \
+        --set "community-id=true" \
+        --set "app-layer.protocols.tls.ja3-fingerprints=yes" \
+        --set "runmode=workers"
+else
+    echo "[+] Starting Suricata in passive mode (af-packet) on: $MONITOR_IF"
+    exec /usr/bin/suricata \
+        -c "$SURICATA_YAML" \
+        $EXTRA_ARGS \
+        --af-packet="$MONITOR_IF" \
+        --pidfile "$PID_FILE" \
+        -D \
+        --set "outputs.0.eve-log.filename=$EVE_DIR/eve.json" \
+        --set "community-id=true" \
+        --set "app-layer.protocols.tls.ja3-fingerprints=yes"
+fi
